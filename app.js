@@ -41,12 +41,14 @@ async function doLogout() {
 // ---- GUARDS ----
 async function requireMember() {
   await loadSession();
-  if (!isMember()) { toast('Members only.', 'error'); setTimeout(() => window.location.href = 'login.html', 1000); return false; }
+  if (!isLoggedIn()) { toast('Please log in first.', 'error'); setTimeout(() => window.location.href = 'login.html', 800); return false; }
+  if (!isMember()) { toast("Members only — you'll get access once an officer accepts your application.", 'error'); setTimeout(() => window.location.href = 'dashboard.html', 1200); return false; }
   return true;
 }
 async function requireOfficer() {
   await loadSession();
-  if (!isOfficer()) { toast('Officers only.', 'error'); setTimeout(() => window.location.href = 'index.html', 1000); return false; }
+  if (!isLoggedIn()) { toast('Please log in first.', 'error'); setTimeout(() => window.location.href = 'login.html', 800); return false; }
+  if (!isOfficer()) { toast('Officers only.', 'error'); setTimeout(() => window.location.href = 'dashboard.html', 1000); return false; }
   return true;
 }
 

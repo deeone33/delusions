@@ -43,12 +43,16 @@ function render() {
         </div>
         <span class="pill ${a.status}">${esc(a.status)}</span>
       </div>
-      <p style="margin-bottom:1rem;">${esc(a.experience) || '<span style="color:var(--dim)">No experience notes provided.</span>'}</p>
-      ${a.status==='pending' ? `
-      <div style="display:flex;gap:0.6rem;">
-        <button class="btn primary" onclick="decide('${a.id}','accepted')">Accept</button>
-        <button class="btn danger" onclick="decide('${a.id}','rejected')">Reject</button>
-      </div>` : ''}
+      ${a.warcraftlogs_url ? `<div style="margin-bottom:0.6rem;"><a href="${esc(a.warcraftlogs_url)}" target="_blank" rel="noopener" class="label" style="color:var(--red-bright);">Warcraft Logs →</a></div>` : ''}
+      <p style="margin-bottom:0.6rem;"><span class="label" style="display:block;margin-bottom:0.2rem;">Experience</span>${esc(a.experience) || '<span style="color:var(--dim)">Nothing provided.</span>'}</p>
+      ${a.why_join ? `<p style="margin-bottom:1rem;"><span class="label" style="display:block;margin-bottom:0.2rem;">Why Delusions</span>${esc(a.why_join)}</p>` : ''}
+      <div style="display:flex;gap:0.6rem;flex-wrap:wrap;">
+        ${a.status==='pending' ? `
+          <button class="btn primary" onclick="decide('${a.id}','accepted')">Accept</button>
+          <button class="btn danger" onclick="decide('${a.id}','rejected')">Reject</button>
+        ` : ''}
+        <button class="btn" onclick="removeApp('${a.id}')" title="Deletes this application — the applicant can then apply again">Remove</button>
+      </div>
     </div>
   `).join('');
 }
@@ -61,6 +65,14 @@ async function decide(id, status) {
     await sb.from('profiles').update({ role: 'member' }).eq('id', app.user_id);
   }
   toast(`Application ${status}.`, 'success');
+  await load();
+}
+
+async function removeApp(id) {
+  if (!confirm('Remove this application? The applicant will be able to submit a new one.')) return;
+  const { error } = await sb.from('applications').delete().eq('id', id);
+  if (error) { toast(error.message, 'error'); return; }
+  toast('Application removed.', 'success');
   await load();
 }
 

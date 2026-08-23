@@ -28,18 +28,28 @@
       <div class="card" id="status-card"></div>
     </div>
   </div>
+
+  <div id="officer-settings" style="display:none;margin-top:2.5rem;">
+    <h2 style="margin-bottom:1rem;">Officer Settings</h2>
+    <div class="card">
+      <label class="form-label">Discord webhook URL (pings when someone applies)</label>
+      <input type="text" id="webhook-input" placeholder="https://discord.com/api/webhooks/..." style="margin-bottom:0.8rem;">
+      <div style="font-size:0.8rem;color:var(--dim);margin-bottom:0.8rem;">Create one in Discord: Server Settings → Integrations → Webhooks → New Webhook, pick your officer channel, copy the URL. Note: this URL is visible to anyone who views the page source, so anyone could technically post to that channel — use a low-stakes officer-only channel.</div>
+      <button class="btn primary" id="webhook-save" type="button">Save Webhook</button>
+    </div>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="app.js"></script>
 <script>
 (async () => {
-  const ok = await requireMember().catch(()=>false);
   await loadSession();
   if (!isLoggedIn()) { window.location.href = 'login.html'; return; }
   renderNav('dashboard');
 
-  document.getElementById('hall-label').textContent = isOfficer() ? 'Officer Hall' : 'Member Hall';
+  const role = currentProfile?.role || 'outsider';
+  document.getElementById('hall-label').textContent = isOfficer() ? 'Officer Hall' : (role === 'member' ? 'Member Hall' : 'Recruit Hall');
   document.getElementById('welcome').textContent = `Welcome, ${currentProfile?.username || 'Adventurer'}`;
 
   document.getElementById('status-card').innerHTML = `
@@ -47,10 +57,9 @@
     <div style="display:flex;justify-content:space-between;padding:0.4rem 0;"><span>Rank</span><span style="color:var(--white)">${esc(currentProfile.rank || '—')}</span></div>
   `;
 
-  const links = [
-    { href: 'index.html', label: 'Home' },
-    { href: 'roster.html', label: 'Roster' },
-  ];
+  const links = [{ href: 'index.html', label: 'Home' }];
+  if (role === 'member' || isOfficer()) links.push({ href: 'roster.html', label: 'Roster' });
+  if (!isMember() && !isOfficer()) links.push({ href: 'apply.html', label: 'Apply to Trial' });
   if (isOfficer()) {
     links.push({ href: 'applications.html', label: 'Review Applications' });
     links.push({ href: 'officers.html', label: 'Manage Officers' });
@@ -58,15 +67,42 @@
   }
   document.getElementById('quick-links').innerHTML = links.map(l => `<a href="${l.href}" class="btn" style="justify-content:flex-start;">${l.label} →</a>`).join('');
 
+  // Outsiders: show their application status right up top (or a nudge to apply)
+  if (!isMember() && !isOfficer()) {
+    const { data: mine } = await sb.from('applications').select('*').eq('user_id', currentUser.id).order('submitted_at',{ascending:false}).limit(1).single().catch(()=>({data:null}));
+    if (mine) {
+      document.getElementById('app-status').innerHTML = `
+        <div class="card ${mine.status==='pending'?'card-warn':''}" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;">
+          <div><div class="label">Your Application</div><div style="color:var(--white)">${esc(mine.applicant_name)} — <span class="pill ${mine.status}">${esc(mine.status)}</span></div></div>
+        </div>`;
+    } else {
+      document.getElementById('app-status').innerHTML = `
+        <div class="card card-accent" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;">
+          <div>You haven't applied yet — an officer needs to accept a trial application before you get full member access.</div>
+          <a href="apply.html" class="btn primary">Apply →</a>
+        </div>`;
+    }
+  }
+
   if (isOfficer()) {
     const { count } = await sb.from('applications').select('*', {count:'exact',head:true}).eq('status','pending');
     if (count > 0) {
-      document.getElementById('app-status').innerHTML = `
-        <div class="card card-warn" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;">
+      document.getElementById('app-status').innerHTML += `
+        <div class="card card-warn" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;margin-top:1rem;">
           <div><div class="label" style="color:var(--warn);">Pending Review</div><div style="color:var(--white)">${count} application${count!==1?'s':''} awaiting decision</div></div>
           <a href="applications.html" class="btn">Review →</a>
         </div>`;
     }
+
+    // Officer settings: Discord webhook for new-application pings
+    const { data: cfg } = await sb.from('site_content').select('*').eq('key','config.discord_webhook_url').single().catch(()=>({data:null}));
+    document.getElementById('officer-settings').style.display = 'block';
+    document.getElementById('webhook-input').value = cfg?.text || '';
+    document.getElementById('webhook-save').onclick = async () => {
+      const url = document.getElementById('webhook-input').value.trim();
+      const { error } = await sb.from('site_content').upsert({ key: 'config.discord_webhook_url', text: url, updated_at: new Date().toISOString() });
+      if (error) toast('Save failed: ' + error.message, 'error'); else toast('Saved.', 'success');
+    };
   }
 })();
 </script>

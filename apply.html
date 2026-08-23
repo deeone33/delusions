@@ -10,44 +10,60 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="topbar" id="topnav-top"><span>Spineshatter EU · Horde</span><span></span></div>
+<div class="topbar" id="topnav-top">
+  <span>Spineshatter EU · Horde</span>
+  <div style="display:flex;align-items:center;gap:1rem;">
+    <span id="edit-toggle-wrap"></span>
+    <span></span>
+  </div>
+</div>
 <div class="nav" id="topnav"></div>
 
 <div class="page-narrow" style="padding-top:4rem;">
   <a href="index.html" class="back">← Home</a>
-  <div class="label" style="margin-bottom:0.5rem;">Recruitment</div>
-  <h1>Apply to Trial</h1>
-  <p style="margin-bottom:2.5rem;">Tell us about your character. An officer will follow up on Discord.</p>
+  <div class="label" style="margin-bottom:0.5rem;" data-edit="apply.eyebrow">Recruitment</div>
+  <h1 data-edit="apply.title">Apply to Trial</h1>
+  <p style="margin-bottom:2.5rem;" data-edit="apply.intro">Tell us about your character. An officer will follow up on Discord.</p>
 
   <div id="already-applied" style="display:none;"></div>
 
   <form id="apply-form" class="card" style="padding:1.8rem;">
     <div class="form-group">
-      <label class="form-label">Character Name</label>
+      <label class="form-label" data-edit="apply.field.name">Character Name</label>
       <input type="text" id="f-name" required placeholder="e.g. Deetarded">
     </div>
     <div class="form-group">
-      <label class="form-label">Class / Spec</label>
+      <label class="form-label" data-edit="apply.field.class">Class / Spec</label>
       <input type="text" id="f-class" required placeholder="e.g. Resto Shaman">
     </div>
     <div class="form-group">
-      <label class="form-label">Experience</label>
+      <label class="form-label" data-edit="apply.field.logs">Warcraft Logs</label>
+      <input type="text" id="f-logs" placeholder="Link to your logs (Warcraft Logs profile or a recent parse)">
+    </div>
+    <div class="form-group">
+      <label class="form-label" data-edit="apply.field.exp">Experience</label>
       <textarea id="f-exp" rows="5" placeholder="Raiding history, availability, anything we should know."></textarea>
     </div>
-    <button type="submit" class="btn primary" style="width:100%;justify-content:center;padding:0.85rem;">Submit Application</button>
+    <div class="form-group">
+      <label class="form-label" data-edit="apply.field.why">Why Delusions?</label>
+      <textarea id="f-why" rows="4" placeholder="What are you looking for in a guild?"></textarea>
+    </div>
+    <button type="submit" class="btn primary" style="width:100%;justify-content:center;padding:0.85rem;"><span data-edit="apply.submit.label">Submit Application</span></button>
   </form>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="app.js"></script>
+<script src="editor.js"></script>
 <script>
 (async () => {
   await loadSession();
   renderNav('apply');
+  await initEditableHome(); // safe no-op for the sections this page doesn't have; wires up label editing + Edit Mode toggle for officers
 
   if (isLoggedIn()) {
-    const { data: mine } = await sb.from('applications').select('*').eq('user_id', currentUser.id).order('submitted_at',{ascending:false}).limit(1).single();
-    if (mine) {
+    const { data: mine } = await sb.from('applications').select('*').eq('user_id', currentUser.id).order('submitted_at',{ascending:false}).limit(1).single().catch(()=>({data:null}));
+    if (mine && mine.status !== 'rejected') {
       document.getElementById('already-applied').style.display='block';
       document.getElementById('already-applied').innerHTML = `
         <div class="card card-accent" style="margin-bottom:1.5rem;">
@@ -55,6 +71,12 @@
           status: <span class="pill ${mine.status}">${esc(mine.status)}</span>
         </div>`;
       document.getElementById('apply-form').style.display='none';
+    } else if (mine && mine.status === 'rejected') {
+      document.getElementById('already-applied').style.display='block';
+      document.getElementById('already-applied').innerHTML = `
+        <div class="card" style="margin-bottom:1.5rem;">
+          Your previous application wasn't accepted, but you're welcome to apply again below.
+        </div>`;
     }
   }
 
@@ -65,11 +87,24 @@
       user_id: currentUser.id,
       applicant_name: document.getElementById('f-name').value,
       class_spec: document.getElementById('f-class').value,
+      warcraftlogs_url: document.getElementById('f-logs').value,
       experience: document.getElementById('f-exp').value,
+      why_join: document.getElementById('f-why').value,
       status: 'pending'
     };
     const { error } = await sb.from('applications').insert(payload);
     if (error) { toast(error.message, 'error'); return; }
+
+    // Ping Discord if an officer has set a webhook URL
+    const { data: cfg } = await sb.from('site_content').select('*').eq('key','config.discord_webhook_url').single().catch(()=>({data:null}));
+    if (cfg?.text) {
+      fetch(cfg.text, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: `📜 New trial application: **${payload.applicant_name}** (${payload.class_spec}) — review it in the dashboard.` })
+      }).catch(() => {}); // best-effort, don't block submission on this
+    }
+
     toast('Application submitted!', 'success');
     setTimeout(() => window.location.href = 'dashboard.html', 1200);
   });

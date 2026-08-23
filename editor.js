@@ -32,7 +32,7 @@ function applyContentOverrides() {
     const key = el.getAttribute('data-edit');
     const row = contentCache[key];
     if (!row) return;
-    if (row.text != null && row.text !== '' && !el.hasAttribute('data-no-text')) el.textContent = row.text;
+    if (row.text != null && !el.hasAttribute('data-no-text')) el.textContent = row.text;
     if (row.font_size) el.style.fontSize = row.font_size;
     if (row.font_family) el.style.fontFamily = row.font_family;
     if (row.color) el.style.color = row.color;
@@ -273,7 +273,7 @@ function renderStats() {
     const btn = document.createElement('button');
     btn.id = 'stats-add'; btn.className='btn edit-add-btn'; btn.type='button'; btn.textContent='+ Add stat';
     btn.onclick = () => { items.push({label:'New Stat',value:'—'}); saveSection('stats',{data:items}); renderStats(); };
-    wrap.parentElement.appendChild(btn);
+    wrap.insertAdjacentElement('afterend', btn);
   } else if (!editMode) {
     const b = document.getElementById('stats-add'); if (b) b.remove();
   }
@@ -349,7 +349,7 @@ function toggleAddBtn(id, wrap, on, handler, label) {
   if (on && !btn) {
     btn = document.createElement('button');
     btn.id = id; btn.className = 'btn edit-add-btn'; btn.type = 'button'; btn.textContent = label;
-    wrap.parentElement.appendChild(btn);
+    wrap.insertAdjacentElement('afterend', btn);
   }
   if (btn) { btn.style.display = on ? '' : 'none'; btn.onclick = handler; }
 }

@@ -43,6 +43,9 @@ create table if not exists applications (
   status text not null default 'pending',   -- pending | accepted | rejected
   submitted_at timestamptz default now()
 );
+-- Added later — safe to re-run even if you already ran this file once before
+alter table applications add column if not exists warcraftlogs_url text;
+alter table applications add column if not exists why_join text;
 
 -- ---------- SITE CONTENT (single editable text/style fields) ----------
 create table if not exists site_content (
@@ -107,6 +110,11 @@ create policy "officers select all applications" on applications for select usin
 
 drop policy if exists "officers update applications" on applications;
 create policy "officers update applications" on applications for update using (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+);
+
+drop policy if exists "officers delete applications" on applications;
+create policy "officers delete applications" on applications for delete using (
   exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
 );
 
