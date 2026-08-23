@@ -62,6 +62,7 @@ create table if not exists site_content (
 alter table site_content add column if not exists box_height text;
 alter table site_content add column if not exists crest_offset_x text;
 alter table site_content add column if not exists crest_offset_y text;
+alter table site_content add column if not exists hidden boolean default false;
 
 -- ---------- SITE SECTIONS (editable repeating lists: news, recruitment, officers, stats) ----------
 create table if not exists site_sections (

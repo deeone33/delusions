@@ -52,6 +52,7 @@ function applyContentOverrides() {
     if (row.box_height && el.hasAttribute('data-resize-h')) el.style.minHeight = row.box_height;
     if (row.crest_offset_x) el.style.setProperty('--cx', row.crest_offset_x);
     if (row.crest_offset_y) el.style.setProperty('--cy', row.crest_offset_y);
+    if (row.hidden) el.style.display = 'none';
   });
 
   // Editable placeholder/example text on form fields (apply.html)
@@ -102,6 +103,14 @@ function setEditMode(on) {
     if (existingHandle) existingHandle.remove();
     // stop links from navigating away while editing (still lets contenteditable children work)
     el.onclick = on ? (e) => { if (!e.target.hasAttribute('contenteditable')) e.preventDefault(); } : null;
+
+    const key = el.getAttribute('data-box');
+    const isHidden = !!contentCache[key]?.hidden;
+    if (isHidden) {
+      el.classList.toggle('box-hidden-preview', on);
+      el.style.display = on ? '' : 'none';
+    }
+
     if (on) {
       if (el.tagName !== 'IMG') {
         const btn = document.createElement('button');
@@ -298,6 +307,7 @@ function openStylePanel(key, anchorEl, opts = {}) {
     </div>` : ''}
     <div class="edit-panel-row ep-actions">
       <button class="ep-reset" type="button">Reset</button>
+      ${opts.box ? `<button class="ep-hide" type="button">${contentCache[key]?.hidden ? 'Show box' : 'Hide box'}</button>` : ''}
       <button class="ep-close" type="button">Done</button>
     </div>
   `;
@@ -328,6 +338,16 @@ function openStylePanel(key, anchorEl, opts = {}) {
     saveContent(key, { font_size: null, font_family: null, color: null, bg_color: null, box_height: resizable ? null : undefined });
     removeStylePanel();
   };
+  const hideBtn = panel.querySelector('.ep-hide');
+  if (hideBtn) {
+    hideBtn.onclick = () => {
+      const nowHidden = !contentCache[key]?.hidden;
+      saveContent(key, { hidden: nowHidden });
+      targetEl.classList.toggle('box-hidden-preview', nowHidden);
+      targetEl.style.display = ''; // stay visible (faded) while in edit mode
+      hideBtn.textContent = nowHidden ? 'Show box' : 'Hide box';
+    };
+  }
   panel.querySelector('.ep-close').onclick = () => removeStylePanel();
 
   setTimeout(() => document.addEventListener('mousedown', outsideClose), 0);
