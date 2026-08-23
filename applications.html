@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Applications — Delusions</title>
+<link rel="icon" href="logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="topbar" id="topnav-top"><span>Spineshatter EU · Horde</span><span></span></div>
+<div class="nav" id="topnav"></div>
+
+<div class="page">
+  <div class="label" style="margin-bottom:0.4rem;">Officer Tools</div>
+  <h1 style="margin-bottom:2rem;">Applications</h1>
+  <div id="app-list" style="display:flex;flex-direction:column;gap:1rem;"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js"></script>
+<script>
+let apps = [];
+
+async function load() {
+  const { data, error } = await sb.from('applications').select('*').order('submitted_at', {ascending:false});
+  if (error) { toast(error.message, 'error'); return; }
+  apps = data || [];
+  render();
+}
+
+function render() {
+  const el = document.getElementById('app-list');
+  if (!apps.length) { el.innerHTML = `<div class="card" style="text-align:center;color:var(--dim);">No applications yet.</div>`; return; }
+  el.innerHTML = apps.map(a => `
+    <div class="card ${a.status==='pending'?'card-warn':''}">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:0.6rem;">
+        <div>
+          <div style="color:var(--white);font-weight:600;font-size:1.1rem;">${esc(a.applicant_name)}</div>
+          <div class="label">${esc(a.class_spec)} · ${fmtDate(a.submitted_at)}</div>
+        </div>
+        <span class="pill ${a.status}">${esc(a.status)}</span>
+      </div>
+      <p style="margin-bottom:1rem;">${esc(a.experience) || '<span style="color:var(--dim)">No experience notes provided.</span>'}</p>
+      ${a.status==='pending' ? `
+      <div style="display:flex;gap:0.6rem;">
+        <button class="btn primary" onclick="decide('${a.id}','accepted')">Accept</button>
+        <button class="btn danger" onclick="decide('${a.id}','rejected')">Reject</button>
+      </div>` : ''}
+    </div>
+  `).join('');
+}
+
+async function decide(id, status) {
+  const app = apps.find(a => a.id === id);
+  const { error } = await sb.from('applications').update({ status }).eq('id', id);
+  if (error) { toast(error.message, 'error'); return; }
+  if (status === 'accepted' && app?.user_id) {
+    await sb.from('profiles').update({ role: 'member' }).eq('id', app.user_id);
+  }
+  toast(`Application ${status}.`, 'success');
+  await load();
+}
+
+(async () => {
+  const ok = await requireOfficer();
+  if (!ok) return;
+  renderNav('applications');
+  await load();
+})();
+</script>
+</body>
+</html>

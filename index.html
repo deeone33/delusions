@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Delusions — Spineshatter EU</title>
+<link rel="icon" href="logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="topbar" id="topnav-top">
+  <span>Spineshatter EU · Horde</span>
+  <div style="display:flex;align-items:center;gap:1rem;">
+    <span id="edit-toggle-wrap"></span>
+    <span>Est. Aug 2026</span>
+  </div>
+</div>
+
+<div class="masthead" data-box="masthead.box" data-resize-h="true">
+  <img src="logo.png" alt="Delusions" class="crest-bg">
+  <div class="masthead-inner">
+    <div class="dateline" data-edit="masthead.dateline">Vol. I · Guild Register · Spineshatter EU</div>
+  </div>
+</div>
+
+<div class="nav" id="topnav"></div>
+
+<div class="lede">
+  <div class="folio" data-edit="lede.folio">Folio I</div>
+  <p class="lede-text" data-edit="lede.text">Delusions is what remains when illusion fails. We are a newly founded raiding guild — built by people who've led before and grown tired of pretending otherwise. Honest raids, real progression, no theatre.</p>
+  <div class="lede-ctas">
+    <a href="apply.html" class="btn primary" data-box="btn.apply"><span data-edit="btn.apply.label">Apply to Trial</span></a>
+    <a href="login.html" class="btn" data-box="btn.login"><span data-edit="btn.login.label">Member Login</span></a>
+  </div>
+</div>
+
+<div class="colophon">
+  <div class="colophon-box" data-box="colophon.box">
+    <div class="colophon-title" data-edit="colophon.title">Colophon</div>
+    <div class="colophon-grid" id="stats-wrap"></div>
+    <div class="colophon-note" data-edit="colophon.note">All fields editable by officers</div>
+  </div>
+</div>
+
+<div class="section-title"><h2 data-edit="section.chronicle.title">The Chronicle</h2><div class="rule"></div></div>
+<div class="chronicle" id="chronicle-wrap"></div>
+
+<div class="section-title"><h2 data-edit="section.recruitment.title">Wanted</h2><div class="rule"></div><a href="apply.html" class="btn" data-box="btn.applylink"><span data-edit="btn.applylink.label">Apply →</span></a></div>
+<div class="classifieds" id="recruitment-wrap"></div>
+
+<div class="staffbox" data-box="staffbox.box">
+  <div class="staffbox-title" data-edit="staffbox.title">The Circle</div>
+  <div class="staffbox-row" id="officers-wrap"></div>
+</div>
+
+<div class="foot">
+  <div class="word" data-edit="foot.word">Delusions</div>
+  <div class="sub" data-edit="foot.sub">Spineshatter EU · Horde · Est. 2026</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js"></script>
+<script src="editor.js"></script>
+<script>
+(async () => {
+  await loadSession();
+  renderNav('home');
+  await initEditableHome();
+})();
+</script>
+</body>
+</html>

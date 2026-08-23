@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Roster — Delusions</title>
+<link rel="icon" href="logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="topbar" id="topnav-top"><span>Spineshatter EU · Horde</span><span></span></div>
+<div class="nav" id="topnav"></div>
+
+<div class="page">
+  <div class="label" style="margin-bottom:0.4rem;">Membership</div>
+  <h1 style="margin-bottom:2rem;">Roster</h1>
+  <div class="card" style="padding:0;overflow:hidden;">
+    <table>
+      <thead><tr><th>Name</th><th>Role</th><th>Rank</th><th>Joined</th></tr></thead>
+      <tbody id="roster-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js"></script>
+<script>
+(async () => {
+  const ok = await requireMember();
+  if (!ok) return;
+  renderNav('roster');
+
+  const { data, error } = await sb.from('profiles').select('*').in('role', ['member','officer']).order('role', {ascending:false});
+  if (error) { toast(error.message, 'error'); return; }
+
+  document.getElementById('roster-body').innerHTML = (data || []).map(p => `
+    <tr>
+      <td style="color:var(--white)">${esc(p.username)}</td>
+      <td><span class="pill ${p.role}">${esc(p.role)}</span></td>
+      <td>${esc(p.rank || '—')}</td>
+      <td>${fmtDate(p.created_at)}</td>
+    </tr>
+  `).join('') || `<tr><td colspan="4" style="text-align:center;color:var(--dim);">No members yet.</td></tr>`;
+})();
+</script>
+</body>
+</html>

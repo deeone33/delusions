@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — Delusions</title>
+<link rel="icon" href="logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="topbar" id="topnav-top"><span>Spineshatter EU · Horde</span><span></span></div>
+<div class="nav" id="topnav"></div>
+
+<div class="page">
+  <div class="label" style="margin-bottom:0.4rem;" id="hall-label">Member Hall</div>
+  <h1 id="welcome">Welcome</h1>
+  <div id="app-status" style="margin-bottom:2rem;"></div>
+
+  <div class="grid-2">
+    <div>
+      <h2 style="margin-bottom:1rem;">Quick Access</h2>
+      <div id="quick-links" style="display:flex;flex-direction:column;gap:0.7rem;"></div>
+    </div>
+    <div>
+      <h2 style="margin-bottom:1rem;">Your Status</h2>
+      <div class="card" id="status-card"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js"></script>
+<script>
+(async () => {
+  const ok = await requireMember().catch(()=>false);
+  await loadSession();
+  if (!isLoggedIn()) { window.location.href = 'login.html'; return; }
+  renderNav('dashboard');
+
+  document.getElementById('hall-label').textContent = isOfficer() ? 'Officer Hall' : 'Member Hall';
+  document.getElementById('welcome').textContent = `Welcome, ${currentProfile?.username || 'Adventurer'}`;
+
+  document.getElementById('status-card').innerHTML = `
+    <div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid var(--hair);"><span>Role</span><span class="pill ${currentProfile.role}">${esc(currentProfile.role)}</span></div>
+    <div style="display:flex;justify-content:space-between;padding:0.4rem 0;"><span>Rank</span><span style="color:var(--white)">${esc(currentProfile.rank || '—')}</span></div>
+  `;
+
+  const links = [
+    { href: 'index.html', label: 'Home' },
+    { href: 'roster.html', label: 'Roster' },
+  ];
+  if (isOfficer()) {
+    links.push({ href: 'applications.html', label: 'Review Applications' });
+    links.push({ href: 'officers.html', label: 'Manage Officers' });
+    links.push({ href: 'index.html', label: 'Edit Homepage (toggle Edit Mode on Home)' });
+  }
+  document.getElementById('quick-links').innerHTML = links.map(l => `<a href="${l.href}" class="btn" style="justify-content:flex-start;">${l.label} →</a>`).join('');
+
+  if (isOfficer()) {
+    const { count } = await sb.from('applications').select('*', {count:'exact',head:true}).eq('status','pending');
+    if (count > 0) {
+      document.getElementById('app-status').innerHTML = `
+        <div class="card card-warn" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;">
+          <div><div class="label" style="color:var(--warn);">Pending Review</div><div style="color:var(--white)">${count} application${count!==1?'s':''} awaiting decision</div></div>
+          <a href="applications.html" class="btn">Review →</a>
+        </div>`;
+    }
+  }
+})();
+</script>
+</body>
+</html>
