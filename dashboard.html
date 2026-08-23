@@ -69,7 +69,11 @@
 
   // Outsiders: show their application status right up top (or a nudge to apply)
   if (!isMember() && !isOfficer()) {
-    const { data: mine } = await sb.from('applications').select('*').eq('user_id', currentUser.id).order('submitted_at',{ascending:false}).limit(1).single().catch(()=>({data:null}));
+    let mine = null;
+    try {
+      const res = await sb.from('applications').select('*').eq('user_id', currentUser.id).order('submitted_at',{ascending:false}).limit(1).single();
+      mine = res.data;
+    } catch (e) { mine = null; }
     if (mine) {
       document.getElementById('app-status').innerHTML = `
         <div class="card ${mine.status==='pending'?'card-warn':''}" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;">
@@ -95,7 +99,11 @@
     }
 
     // Officer settings: Discord webhook for new-application pings
-    const { data: cfg } = await sb.from('site_content').select('*').eq('key','config.discord_webhook_url').single().catch(()=>({data:null}));
+    let cfg = null;
+    try {
+      const res = await sb.from('site_content').select('*').eq('key','config.discord_webhook_url').single();
+      cfg = res.data;
+    } catch (e) { cfg = null; }
     document.getElementById('officer-settings').style.display = 'block';
     document.getElementById('webhook-input').value = cfg?.text || '';
     document.getElementById('webhook-save').onclick = async () => {
