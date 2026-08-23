@@ -55,9 +55,13 @@ create table if not exists site_content (
   font_family text,
   color text,
   bg_color text,
-  box_height text,
   updated_at timestamptz default now()
 );
+-- Added later — explicit ALTERs so re-running this file also updates a
+-- database that was already set up before these columns existed.
+alter table site_content add column if not exists box_height text;
+alter table site_content add column if not exists crest_offset_x text;
+alter table site_content add column if not exists crest_offset_y text;
 
 -- ---------- SITE SECTIONS (editable repeating lists: news, recruitment, officers, stats) ----------
 create table if not exists site_sections (

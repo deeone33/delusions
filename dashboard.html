@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
 <div class="topbar" id="topnav-top"><span>Spineshatter EU · Horde</span><span></span></div>
@@ -34,14 +34,16 @@
     <div class="card">
       <label class="form-label">Discord webhook URL (pings when someone applies)</label>
       <input type="text" id="webhook-input" placeholder="https://discord.com/api/webhooks/..." style="margin-bottom:0.8rem;">
-      <div style="font-size:0.8rem;color:var(--dim);margin-bottom:0.8rem;">Create one in Discord: Server Settings → Integrations → Webhooks → New Webhook, pick your officer channel, copy the URL. Note: this URL is visible to anyone who views the page source, so anyone could technically post to that channel — use a low-stakes officer-only channel.</div>
-      <button class="btn primary" id="webhook-save" type="button">Save Webhook</button>
+      <label class="form-label">Discord role to @ping (optional)</label>
+      <input type="text" id="role-input" placeholder="e.g. 123456789012345678" style="margin-bottom:0.8rem;">
+      <div style="font-size:0.8rem;color:var(--dim);margin-bottom:0.8rem;">Create a webhook in Discord: Server Settings → Integrations → Webhooks → New Webhook, pick your officer channel, copy the URL. For the role ping: enable Developer Mode (User Settings → Advanced), then right-click your Officer role in Server Settings → Roles → Copy Role ID. Leave the role field blank for no ping. Note: the webhook URL is visible to anyone who views the page source, so use a low-stakes officer-only channel.</div>
+      <button class="btn primary" id="webhook-save" type="button">Save Settings</button>
     </div>
   </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js"></script>
+<script src="app.js?v=5"></script>
 <script>
 (async () => {
   await loadSession();
@@ -98,18 +100,25 @@
         </div>`;
     }
 
-    // Officer settings: Discord webhook for new-application pings
-    let cfg = null;
+    // Officer settings: Discord webhook + role ping for new-application notifications
+    let cfg = null, cfgRole = null;
     try {
       const res = await sb.from('site_content').select('*').eq('key','config.discord_webhook_url').single();
       cfg = res.data;
     } catch (e) { cfg = null; }
+    try {
+      const res2 = await sb.from('site_content').select('*').eq('key','config.discord_role_id').single();
+      cfgRole = res2.data;
+    } catch (e) { cfgRole = null; }
     document.getElementById('officer-settings').style.display = 'block';
     document.getElementById('webhook-input').value = cfg?.text || '';
+    document.getElementById('role-input').value = cfgRole?.text || '';
     document.getElementById('webhook-save').onclick = async () => {
       const url = document.getElementById('webhook-input').value.trim();
-      const { error } = await sb.from('site_content').upsert({ key: 'config.discord_webhook_url', text: url, updated_at: new Date().toISOString() });
-      if (error) toast('Save failed: ' + error.message, 'error'); else toast('Saved.', 'success');
+      const roleId = document.getElementById('role-input').value.trim();
+      const r1 = await sb.from('site_content').upsert({ key: 'config.discord_webhook_url', text: url, updated_at: new Date().toISOString() });
+      const r2 = await sb.from('site_content').upsert({ key: 'config.discord_role_id', text: roleId, updated_at: new Date().toISOString() });
+      if (r1.error || r2.error) toast('Save failed: ' + (r1.error?.message || r2.error?.message), 'error'); else toast('Saved.', 'success');
     };
   }
 })();

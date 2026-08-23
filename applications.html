@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
 <div class="topbar" id="topnav-top"><span>Spineshatter EU · Horde</span><span></span></div>
@@ -20,9 +20,35 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js"></script>
+<script src="app.js?v=5"></script>
 <script>
 let apps = [];
+let webhookUrl = null;
+let pingRoleId = null;
+
+async function loadWebhook() {
+  try {
+    const res = await sb.from('site_content').select('*').eq('key','config.discord_webhook_url').single();
+    webhookUrl = res.data?.text || null;
+  } catch (e) { webhookUrl = null; }
+  try {
+    const res2 = await sb.from('site_content').select('*').eq('key','config.discord_role_id').single();
+    pingRoleId = res2.data?.text || null;
+  } catch (e) { pingRoleId = null; }
+}
+
+function pingDiscord(text, mentionRole) {
+  if (!webhookUrl) return;
+  const mention = (mentionRole && pingRoleId) ? `<@&${pingRoleId}> ` : '';
+  fetch(webhookUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      content: mention + text,
+      allowed_mentions: (mentionRole && pingRoleId) ? { roles: [pingRoleId] } : { parse: [] }
+    })
+  }).catch(() => {}); // best-effort, never block the actual action on this
+}
 
 async function load() {
   const { data, error } = await sb.from('applications').select('*').order('submitted_at', {ascending:false});
@@ -64,14 +90,20 @@ async function decide(id, status) {
   if (status === 'accepted' && app?.user_id) {
     await sb.from('profiles').update({ role: 'member' }).eq('id', app.user_id);
   }
+  const officer = currentProfile?.username || 'An officer';
+  const verb = status === 'accepted' ? 'approved' : 'declined';
+  if (app) pingDiscord(`${officer} ${verb} application of **${app.applicant_name}** - ${app.class_spec}`, true);
   toast(`Application ${status}.`, 'success');
   await load();
 }
 
 async function removeApp(id) {
+  const app = apps.find(a => a.id === id);
   if (!confirm('Remove this application? The applicant will be able to submit a new one.')) return;
   const { error } = await sb.from('applications').delete().eq('id', id);
   if (error) { toast(error.message, 'error'); return; }
+  const officer = currentProfile?.username || 'An officer';
+  if (app) pingDiscord(`${officer} removed application of **${app.applicant_name}** - ${app.class_spec}`, true);
   toast('Application removed.', 'success');
   await load();
 }
@@ -80,6 +112,7 @@ async function removeApp(id) {
   const ok = await requireOfficer();
   if (!ok) return;
   renderNav('applications');
+  await loadWebhook();
   await load();
 })();
 </script>

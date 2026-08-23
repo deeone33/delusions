@@ -50,6 +50,8 @@ function applyContentOverrides() {
     if (row.color) el.style.color = row.color;
     if (row.bg_color) el.style.backgroundColor = row.bg_color;
     if (row.box_height && el.hasAttribute('data-resize-h')) el.style.minHeight = row.box_height;
+    if (row.crest_offset_x) el.style.setProperty('--cx', row.crest_offset_x);
+    if (row.crest_offset_y) el.style.setProperty('--cy', row.crest_offset_y);
   });
 
   // Editable placeholder/example text on form fields (apply.html)
@@ -101,13 +103,15 @@ function setEditMode(on) {
     // stop links from navigating away while editing (still lets contenteditable children work)
     el.onclick = on ? (e) => { if (!e.target.hasAttribute('contenteditable')) e.preventDefault(); } : null;
     if (on) {
-      const btn = document.createElement('button');
-      btn.className = 'edit-box-btn';
-      btn.type = 'button';
-      btn.textContent = '\u270E';
-      btn.title = 'Style this box';
-      btn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); openStylePanel(el.getAttribute('data-box'), btn, { box: true }); };
-      el.appendChild(btn);
+      if (el.tagName !== 'IMG') {
+        const btn = document.createElement('button');
+        btn.className = 'edit-box-btn';
+        btn.type = 'button';
+        btn.textContent = '\u270E';
+        btn.title = 'Style this box';
+        btn.onclick = (e) => { e.preventDefault(); e.stopPropagation(); openStylePanel(el.getAttribute('data-box'), btn, { box: true }); };
+        el.appendChild(btn);
+      }
 
       if (el.hasAttribute('data-resize-h')) {
         const handle = document.createElement('div');
@@ -117,6 +121,14 @@ function setEditMode(on) {
         el.appendChild(handle);
         wireResizeHandle(handle, el);
       }
+      if (el.hasAttribute('data-draggable')) {
+        el.style.pointerEvents = 'auto';
+        el.style.cursor = 'move';
+        wireDraggableImage(el);
+      }
+    } else if (el.hasAttribute('data-draggable')) {
+      el.style.pointerEvents = 'none';
+      el.style.cursor = '';
     }
   });
 
@@ -142,6 +154,52 @@ function wirePlaceholderEditables(on) {
       };
       el.insertAdjacentElement('afterend', btn);
     }
+  });
+}
+
+// ---------- DRAG-TO-REPOSITION (currently used by the header crest image) ----------
+function wireDraggableImage(el) {
+  if (el._dragWired) return;
+  el._dragWired = true;
+  const key = el.getAttribute('data-box');
+  let startX = 0, startY = 0, baseX = 0, baseY = 0;
+
+  function readVar(name) {
+    const v = el.style.getPropertyValue(name);
+    return v ? parseFloat(v) : 0;
+  }
+  function start(x, y) { startX = x; startY = y; baseX = readVar('--cx'); baseY = readVar('--cy'); }
+  function move(x, y) {
+    el.style.setProperty('--cx', (baseX + (x - startX)) + 'px');
+    el.style.setProperty('--cy', (baseY + (y - startY)) + 'px');
+  }
+  function end() {
+    saveContent(key, { crest_offset_x: readVar('--cx') + 'px', crest_offset_y: readVar('--cy') + 'px' });
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup', onMouseUp);
+    document.removeEventListener('touchmove', onTouchMove);
+    document.removeEventListener('touchend', onMouseUp);
+  }
+  function onMouseMove(e) { move(e.clientX, e.clientY); }
+  function onMouseUp() { end(); }
+  function onTouchMove(e) { if (e.touches[0]) move(e.touches[0].clientX, e.touches[0].clientY); }
+
+  el.addEventListener('mousedown', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    start(e.clientX, e.clientY);
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  });
+  el.addEventListener('touchstart', (e) => {
+    e.stopPropagation();
+    if (e.touches[0]) start(e.touches[0].clientX, e.touches[0].clientY);
+    document.addEventListener('touchmove', onTouchMove, { passive: true });
+    document.addEventListener('touchend', onMouseUp);
+  }, { passive: true });
+  el.addEventListener('dblclick', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    el.style.setProperty('--cx', '0px'); el.style.setProperty('--cy', '0px');
+    saveContent(key, { crest_offset_x: '0px', crest_offset_y: '0px' });
   });
 }
 

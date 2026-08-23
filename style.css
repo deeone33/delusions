@@ -22,7 +22,8 @@ button{font:inherit;}
 
 .masthead{position:relative;text-align:center;padding:2rem 2rem 1.4rem;border-bottom:1px solid var(--hair);overflow:hidden;min-height:280px;display:flex;flex-direction:column;justify-content:flex-end;}
 .masthead .crest-bg{
-  position:absolute;left:50%;top:36%;transform:translate(-50%,-50%);
+  position:absolute;left:50%;top:36%;
+  transform:translate(calc(-50% + var(--cx, 0px)), calc(-50% + var(--cy, 0px)));
   width:min(58vw,380px);height:min(58vw,380px);object-fit:contain;
   mix-blend-mode:screen;opacity:0.95;pointer-events:none;z-index:0;
   -webkit-mask-image:radial-gradient(circle at center, black 52%, transparent 76%);

@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
 <div class="topbar" id="topnav-top">
@@ -53,8 +53,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js"></script>
-<script src="editor.js"></script>
+<script src="app.js?v=5"></script>
+<script src="editor.js?v=5"></script>
 <script>
 (async () => {
   await loadSession();
@@ -99,17 +99,25 @@
     const { error } = await sb.from('applications').insert(payload);
     if (error) { toast(error.message, 'error'); return; }
 
-    // Ping Discord if an officer has set a webhook URL
-    let cfg = null;
+    // Ping Discord if an officer has set a webhook URL (and optionally an @role to mention)
+    let cfg = null, cfgRole = null;
     try {
       const res = await sb.from('site_content').select('*').eq('key','config.discord_webhook_url').single();
       cfg = res.data;
     } catch (e) { cfg = null; }
+    try {
+      const res2 = await sb.from('site_content').select('*').eq('key','config.discord_role_id').single();
+      cfgRole = res2.data;
+    } catch (e) { cfgRole = null; }
     if (cfg?.text) {
+      const mention = cfgRole?.text ? `<@&${cfgRole.text}> ` : '';
       fetch(cfg.text, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: `📜 New trial application: **${payload.applicant_name}** (${payload.class_spec}) — review it in the dashboard.` })
+        body: JSON.stringify({
+          content: `${mention}📜 New trial application: **${payload.applicant_name}** - ${payload.class_spec}`,
+          allowed_mentions: cfgRole?.text ? { roles: [cfgRole.text] } : { parse: [] }
+        })
       }).catch(() => {}); // best-effort, don't block submission on this
     }
 
