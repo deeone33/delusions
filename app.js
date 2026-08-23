@@ -71,8 +71,10 @@ function renderNav(active) {
 
   let user = '';
   if (currentProfile) {
-    user = `<span class="pill ${isOfficer() ? 'officer' : isMember() ? 'member' : 'outsider'}">${esc(currentProfile.rank || currentProfile.role)}</span>
-            <span style="color:var(--bone);font-family:'IBM Plex Mono',monospace;font-size:0.62rem;">${esc(currentProfile.username)}</span>
+    user = `<a href="dashboard.html" class="nav-user-link">
+              <span class="pill ${isOfficer() ? 'officer' : isMember() ? 'member' : 'outsider'}">${esc(currentProfile.rank || currentProfile.role)}</span>
+              <span style="color:var(--bone);font-family:'IBM Plex Mono',monospace;font-size:0.62rem;">${esc(currentProfile.username)}</span>
+            </a>
             <button class="btn" onclick="doLogout()">Logout</button>`;
   } else {
     user = `<a href="login.html" class="btn">Login</a>`;

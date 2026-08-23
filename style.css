@@ -52,6 +52,8 @@ button{font:inherit;}
 .nav a:hover,.nav a.active{color:var(--white);}
 .nav .divider{width:1px;height:12px;background:var(--hair);}
 .nav-ctas{display:flex;gap:0.7rem;align-items:center;}
+.nav-user-link{display:flex;align-items:center;gap:0.6rem;padding:0.3rem 0.5rem;border-radius:4px;transition:background .15s;}
+.nav-user-link:hover{background:var(--hair2);}
 
 .btn{display:inline-flex;align-items:center;gap:0.5rem;font-family:'IBM Plex Mono',monospace;font-size:0.6rem;letter-spacing:0.14em;text-transform:uppercase;padding:0.5rem 1.1rem;border:1px solid var(--hair);color:var(--bone);background:transparent;cursor:pointer;}
 .btn.primary{background:var(--red-bright);border-color:var(--red-bright);color:var(--void);}
@@ -179,6 +181,11 @@ body.edit-mode [data-box]{outline:1px dashed rgba(197,55,55,0.25);outline-offset
   background:var(--danger);color:var(--white);border:none;font-size:11px;line-height:1;cursor:pointer;z-index:41;
 }
 .edit-add-btn{display:block;margin:1rem auto 0;}
+.edit-ph-btn{
+  font-family:'IBM Plex Mono',monospace;font-size:0.6rem;letter-spacing:0.06em;
+  color:var(--red-bright);background:none;border:none;cursor:pointer;
+  padding:0.2rem 0;margin-top:0.2rem;text-decoration:underline;
+}
 
 .edit-panel{
   position:fixed;z-index:300;background:var(--lift);border:1px solid var(--border);padding:0.9rem;

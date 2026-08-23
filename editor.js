@@ -51,6 +51,13 @@ function applyContentOverrides() {
     if (row.bg_color) el.style.backgroundColor = row.bg_color;
     if (row.box_height && el.hasAttribute('data-resize-h')) el.style.minHeight = row.box_height;
   });
+
+  // Editable placeholder/example text on form fields (apply.html)
+  document.querySelectorAll('[data-edit-placeholder]').forEach(el => {
+    const key = el.getAttribute('data-edit-placeholder');
+    const row = contentCache[key];
+    if (row && row.text != null) el.placeholder = row.text;
+  });
 }
 
 // ---------- SAVE ----------
@@ -117,6 +124,25 @@ function setEditMode(on) {
   renderChronicle();
   renderRecruitment();
   renderOfficersDisplay();
+  wirePlaceholderEditables(on);
+}
+
+// ---------- EDITABLE PLACEHOLDER TEXT (input/textarea hint text) ----------
+function wirePlaceholderEditables(on) {
+  document.querySelectorAll('[data-edit-placeholder]').forEach(el => {
+    const key = el.getAttribute('data-edit-placeholder');
+    const existing = el.parentElement.querySelector(':scope > .edit-ph-btn');
+    if (existing) existing.remove();
+    if (on) {
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'edit-ph-btn'; btn.textContent = '✎ hint text';
+      btn.onclick = () => {
+        const val = window.prompt('Example/placeholder text shown before someone types:', el.placeholder || '');
+        if (val !== null) { el.placeholder = val; saveContent(key, { text: val }); }
+      };
+      el.insertAdjacentElement('afterend', btn);
+    }
+  });
 }
 
 // ---------- DRAG-TO-RESIZE (currently used by the masthead) ----------
