@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=11">
+<link rel="stylesheet" href="style.css?v=12">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
   .page-wide{max-width:920px;margin:0 auto;padding:0 2rem 5rem;}
@@ -39,6 +39,18 @@
   .modal-row{display:flex;justify-content:space-between;font-size:0.85rem;padding:0.35rem 0;border-bottom:1px solid var(--hair2);color:var(--mist);}
   .modal-row:last-child{border-bottom:none;}
   .modal-pct{font-family:'Newsreader',serif;font-size:2.2rem;color:var(--white);}
+
+  .raid-group{border:1px solid var(--hair);margin-bottom:0.7rem;}
+  .raid-group-header{display:flex;align-items:center;gap:0.8rem;padding:0.9rem 1.1rem;cursor:pointer;background:var(--surface);}
+  .raid-group-header:hover{background:var(--deep);}
+  .raid-group-header .label{margin-left:auto;display:flex;align-items:center;gap:0.6rem;}
+  .expand-icon{font-family:'IBM Plex Mono',monospace;color:var(--red-bright);font-size:1rem;width:1rem;text-align:center;flex-shrink:0;}
+  .raid-group-title{color:var(--white);font-weight:500;font-size:0.92rem;}
+  .raid-group table{margin:0;}
+  .raid-group td, .raid-group th{padding:0.55rem 1.1rem;}
+
+  .row-delete{background:none;border:none;cursor:pointer;font-size:0.85rem;opacity:0.5;transition:opacity .15s;padding:0 0.2rem;}
+  .row-delete:hover{opacity:1;}
 </style>
 </head>
 <body>
@@ -62,12 +74,7 @@
       <input type="text" class="ledger-search" id="loot-search" placeholder="Search item or player...">
       <span class="label" id="loot-count"></span>
     </div>
-    <div class="card" style="padding:0;overflow-x:auto;">
-      <table class="ledger-table">
-        <thead><tr><th>Date</th><th>Raid</th><th>Item</th><th>Response</th><th>Winner</th></tr></thead>
-        <tbody id="loot-body"></tbody>
-      </table>
-    </div>
+    <div id="loot-body"></div>
   </div>
 
   <div id="panel-attendance" style="display:none;">
@@ -81,8 +88,7 @@
     </div>
     <h3 style="font-family:'Newsreader',serif;font-style:italic;color:var(--white);margin-bottom:1rem;">All Raid Nights (<span id="nights-count">0</span>)</h3>
     <div id="nights-list"></div>
-  </div>
-</div>
+  </div></div>
 
 <div class="modal-backdrop" id="player-modal" style="display:none;" onclick="if(event.target===this) closePlayerModal()">
   <div class="modal-card">
@@ -92,7 +98,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=11"></script>
+<script src="app.js?v=12"></script>
 <script>
 const CLASS_COLORS = {
   warrior:'#C79C6E', paladin:'#F58CBA', hunter:'#ABD473', rogue:'#FFF569',
@@ -127,21 +133,70 @@ async function loadLoot() {
   renderLoot();
 }
 
+let expandedLootDates = null; // null = not yet initialized; Set once we know the data
+
 function renderLoot() {
   const search = document.getElementById('loot-search').value.trim().toLowerCase();
   let rows = allLoot;
   if (search) rows = rows.filter(r => (r.item_name||'').toLowerCase().includes(search) || (r.winner_name||'').toLowerCase().includes(search));
   document.getElementById('loot-count').textContent = `${rows.length} award${rows.length!==1?'s':''}`;
 
-  document.getElementById('loot-body').innerHTML = rows.map(r => `
-    <tr>
-      <td>${r.awarded_at ? new Date(r.awarded_at).toLocaleDateString() : '—'}</td>
-      <td>${esc(r.raid_title || '—')}</td>
-      <td class="item-name">${r.item_link ? `<a href="${esc(r.item_link)}" target="_blank" rel="noopener" style="color:inherit;">${esc(r.item_name)}</a>` : esc(r.item_name || '—')}</td>
-      <td>${esc(r.response || '—')}</td>
-      <td><span class="player-link" onclick="openPlayerModal('${esc(r.winner_name||'').replace(/'/g,"\\'")}')">${esc(r.winner_name || '—')}</span></td>
-    </tr>
-  `).join('') || `<tr><td colspan="5" style="text-align:center;color:var(--dim);">No loot logged yet.</td></tr>`;
+  const groups = {};
+  const order = [];
+  rows.forEach(r => {
+    const key = r.awarded_at || 'unknown';
+    if (!groups[key]) { groups[key] = []; order.push(key); }
+    groups[key].push(r);
+  });
+
+  if (expandedLootDates === null) {
+    expandedLootDates = new Set(order.slice(0, 1)); // most recent date starts expanded, rest collapsed
+  }
+
+  document.getElementById('loot-body').innerHTML = order.map(dateKey => {
+    const items = groups[dateKey];
+    const expanded = expandedLootDates.has(dateKey);
+    const dateLabel = dateKey === 'unknown' ? 'No date' : new Date(dateKey).toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric', year:'numeric' });
+    const bosses = [...new Set(items.map(i => i.raid_title).filter(Boolean))];
+
+    return `
+      <div class="raid-group">
+        <div class="raid-group-header" onclick="toggleLootGroup('${dateKey}')">
+          <span class="expand-icon">${expanded ? '−' : '+'}</span>
+          <span class="raid-group-title">${esc(dateLabel)}</span>
+          <span class="label">${items.length} item${items.length!==1?'s':''}${bosses.length ? ' · ' + esc(bosses.join(', ')) : ''}</span>
+        </div>
+        ${expanded ? `
+        <table class="ledger-table">
+          <thead><tr><th>Boss</th><th>Item</th><th>Response</th><th>Winner</th>${isOfficer()?'<th></th>':''}</tr></thead>
+          <tbody>
+            ${items.map(r => `
+              <tr>
+                <td>${esc(r.raid_title || '—')}</td>
+                <td class="item-name">${r.item_link ? `<a href="${esc(r.item_link)}" target="_blank" rel="noopener" style="color:inherit;">${esc(r.item_name)}</a>` : esc(r.item_name || '—')}</td>
+                <td>${esc(r.response || '—')}</td>
+                <td><span class="player-link" onclick="openPlayerModal('${esc(r.winner_name||'').replace(/'/g,"\\'")}')">${esc(r.winner_name || '—')}</span></td>
+                ${isOfficer() ? `<td><button class="row-delete" title="Remove this item" onclick="deleteLootItem('${r.id}')">🗑</button></td>` : ''}
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>` : ''}
+      </div>`;
+  }).join('') || `<div class="card" style="text-align:center;color:var(--dim);">No loot logged yet.</div>`;
+}
+
+function toggleLootGroup(dateKey) {
+  if (expandedLootDates.has(dateKey)) expandedLootDates.delete(dateKey); else expandedLootDates.add(dateKey);
+  renderLoot();
+}
+
+async function deleteLootItem(id) {
+  if (!confirm('Remove this item from the loot log?')) return;
+  const { error } = await sb.from('loot_log').delete().eq('id', id);
+  if (error) { toast(error.message, 'error'); return; }
+  toast('Removed.', 'success');
+  await loadLoot();
+  if (document.getElementById('player-modal').style.display === 'flex') refreshOpenModal();
 }
 document.getElementById('loot-search').addEventListener('input', renderLoot);
 
@@ -350,7 +405,10 @@ function renderAttendance() {
         <div class="label" style="margin-bottom:0.5rem;">Last Raid</div>
         <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:0.6rem;margin-bottom:0.8rem;">
           <div style="color:var(--white);font-weight:600;font-size:1.1rem;">${esc(last.title)}</div>
-          <span class="label">${last.raid_date ? new Date(last.raid_date).toLocaleDateString() : ''} · ${roster.length} raiders</span>
+          <div style="display:flex;align-items:center;gap:0.8rem;">
+            <span class="label">${last.raid_date ? new Date(last.raid_date).toLocaleDateString() : ''} · ${roster.length} raiders</span>
+            ${isOfficer() ? `<button class="row-delete" title="Remove this raid" onclick="deleteRaidNight('${last.id}')">🗑</button>` : ''}
+          </div>
         </div>
         <div style="display:flex;flex-wrap:wrap;gap:0.7rem;">
           ${roster.map(a => `<span><span class="player-link" onclick="openPlayerModal('${esc(a.character_name).replace(/'/g,"\\'")}')">${esc(a.character_name)}</span> ${classTag(a.class_name)}</span>`).join('')}
@@ -380,21 +438,48 @@ function renderAttendance() {
     </tr>
   `).join('') || `<tr><td colspan="4" style="text-align:center;color:var(--dim);">No raid nights logged yet.</td></tr>`;
 
+  if (expandedNights === null) expandedNights = new Set(); // all collapsed by default — "Last Raid" card already covers the newest one
+
   document.getElementById('nights-list').innerHTML = allNights.map(n => {
     const roster = allAttendees.filter(a => a.raid_night_id === n.id);
+    const expanded = expandedNights.has(n.id);
     return `
-      <div class="card" style="margin-bottom:0.8rem;">
-        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:0.6rem;margin-bottom:0.6rem;">
-          <div style="color:var(--white);font-weight:600;">${esc(n.title)}</div>
-          <span class="label">${n.raid_date ? new Date(n.raid_date).toLocaleDateString() : ''} · ${roster.length} raiders</span>
+      <div class="raid-group">
+        <div class="raid-group-header" onclick="toggleNight('${n.id}')">
+          <span class="expand-icon">${expanded ? '−' : '+'}</span>
+          <span class="raid-group-title">${esc(n.title)} — ${n.raid_date ? new Date(n.raid_date).toLocaleDateString() : ''}</span>
+          <span class="label" style="display:flex;align-items:center;gap:0.7rem;">
+            ${roster.length} raiders
+            ${isOfficer() ? `<button class="row-delete" title="Remove this raid" onclick="event.stopPropagation(); deleteRaidNight('${n.id}')">🗑</button>` : ''}
+          </span>
         </div>
-        <div style="color:var(--mist);font-size:0.85rem;">${roster.map(a => esc(a.character_name)).join(', ')}</div>
+        ${expanded ? `<div style="padding:1rem 0 0.4rem;color:var(--mist);font-size:0.85rem;display:flex;flex-wrap:wrap;gap:0.6rem;">
+          ${roster.map(a => `<span><span class="player-link" onclick="openPlayerModal('${esc(a.character_name).replace(/'/g,"\\'")}')">${esc(a.character_name)}</span> ${classTag(a.class_name)}</span>`).join('')}
+        </div>` : ''}
       </div>`;
   }).join('') || `<div class="card" style="text-align:center;color:var(--dim);">Nothing here.</div>`;
 }
 
+let expandedNights = null;
+function toggleNight(id) {
+  if (expandedNights.has(id)) expandedNights.delete(id); else expandedNights.add(id);
+  renderAttendance();
+}
+
+async function deleteRaidNight(id) {
+  if (!confirm('Remove this entire raid night? This also removes everyone\'s attendance record for it.')) return;
+  const { error } = await sb.from('raid_nights').delete().eq('id', id);
+  if (error) { toast(error.message, 'error'); return; }
+  toast('Raid night removed.', 'success');
+  await loadAttendance();
+  if (document.getElementById('player-modal').style.display === 'flex') refreshOpenModal();
+}
+
+let openModalPlayer = null;
+
 function openPlayerModal(name) {
   if (!name) return;
+  openModalPlayer = name;
 
   const lootItems = allLoot.filter(r => r.winner_name === name);
   const nightIds = new Set(allAttendees.filter(a => a.character_name === name).map(a => a.raid_night_id));
@@ -406,6 +491,8 @@ function openPlayerModal(name) {
     || (lootItems.find(l => l.class_name)?.class_name)
     || null;
 
+  const officer = isOfficer();
+
   document.getElementById('player-modal-content').innerHTML = `
     <div style="display:flex;align-items:baseline;gap:0.7rem;margin-bottom:0.3rem;">
       <div style="font-family:'Newsreader',serif;font-size:1.5rem;color:var(--white);">${esc(name)}</div>
@@ -416,17 +503,36 @@ function openPlayerModal(name) {
 
     <div class="modal-section">
       <h4>Attendance History (${attendedNights.length})</h4>
-      ${attendedNights.length ? attendedNights.map(n => `<div class="modal-row"><span>${esc(n.title)}</span><span>${n.raid_date ? new Date(n.raid_date).toLocaleDateString() : ''}</span></div>`).join('') : '<div style="color:var(--dim);font-size:0.85rem;">Nothing logged.</div>'}
+      ${attendedNights.length ? attendedNights.map(n => `
+        <div class="modal-row">
+          <span>${esc(n.title)}</span>
+          <span style="display:flex;align-items:center;gap:0.6rem;">
+            ${n.raid_date ? new Date(n.raid_date).toLocaleDateString() : ''}
+            ${officer ? `<button class="row-delete" title="Remove this raid entirely" onclick="deleteRaidNight('${n.id}')">🗑</button>` : ''}
+          </span>
+        </div>`).join('') : '<div style="color:var(--dim);font-size:0.85rem;">Nothing logged.</div>'}
     </div>
 
     <div class="modal-section">
       <h4>Loot History (${lootItems.length})</h4>
-      ${lootItems.length ? lootItems.map(l => `<div class="modal-row"><span class="item-name">${esc(l.item_name)}</span><span>${l.awarded_at ? new Date(l.awarded_at).toLocaleDateString() : ''}</span></div>`).join('') : '<div style="color:var(--dim);font-size:0.85rem;">No loot recorded.</div>'}
+      ${lootItems.length ? lootItems.map(l => `
+        <div class="modal-row">
+          <span class="item-name">${esc(l.item_name)}</span>
+          <span style="display:flex;align-items:center;gap:0.6rem;">
+            ${l.awarded_at ? new Date(l.awarded_at).toLocaleDateString() : ''}
+            ${officer ? `<button class="row-delete" title="Remove this item" onclick="deleteLootItem('${l.id}')">🗑</button>` : ''}
+          </span>
+        </div>`).join('') : '<div style="color:var(--dim);font-size:0.85rem;">No loot recorded.</div>'}
     </div>
   `;
   document.getElementById('player-modal').style.display = 'flex';
 }
-function closePlayerModal() { document.getElementById('player-modal').style.display = 'none'; }
+
+function refreshOpenModal() {
+  if (openModalPlayer) openPlayerModal(openModalPlayer);
+}
+
+function closePlayerModal() { document.getElementById('player-modal').style.display = 'none'; openModalPlayer = null; }
 
 (async () => {
   await loadSession();
