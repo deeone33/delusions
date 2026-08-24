@@ -46,6 +46,48 @@ create table if not exists loot_log (
   uploaded_by uuid references profiles(id),
   created_at timestamptz default now()
 );
+-- Added later — safe to re-run even if loot_log already exists
+alter table loot_log add column if not exists class_name text;
+
+-- ---------- RAID ATTENDANCE ----------
+-- Populated from the DelusionsAttendance in-game addon (/dumpraid), pasted
+-- in by an officer. Deliberately separate from loot_log: loot only tells
+-- you who WON something, not who was actually there.
+create table if not exists raid_nights (
+  id uuid primary key default gen_random_uuid(),
+  title text,
+  raid_date date,
+  created_by uuid references profiles(id),
+  created_at timestamptz default now()
+);
+
+create table if not exists raid_attendees (
+  id uuid primary key default gen_random_uuid(),
+  raid_night_id uuid references raid_nights(id) on delete cascade,
+  character_name text not null,
+  class_name text
+);
+
+alter table raid_nights    enable row level security;
+alter table raid_attendees enable row level security;
+
+drop policy if exists "public read raid_nights" on raid_nights;
+create policy "public read raid_nights" on raid_nights for select using (true);
+drop policy if exists "officers insert raid_nights" on raid_nights;
+create policy "officers insert raid_nights" on raid_nights for insert with check (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+);
+drop policy if exists "officers delete raid_nights" on raid_nights;
+create policy "officers delete raid_nights" on raid_nights for delete using (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+);
+
+drop policy if exists "public read raid_attendees" on raid_attendees;
+create policy "public read raid_attendees" on raid_attendees for select using (true);
+drop policy if exists "officers insert raid_attendees" on raid_attendees;
+create policy "officers insert raid_attendees" on raid_attendees for insert with check (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+);
 
 alter table loot_log enable row level security;
 

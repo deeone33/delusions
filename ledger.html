@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ledger — Delusions</title>
+<link rel="icon" href="logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=11">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  .page-wide{max-width:920px;margin:0 auto;padding:0 2rem 5rem;}
+  .ledger-toolbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.8rem;margin-bottom:1.5rem;}
+  .ledger-search{background:var(--deep);border:1px solid var(--hair);color:var(--bone);padding:0.55rem 0.9rem;font-family:'Manrope',sans-serif;font-size:0.85rem;min-width:220px;}
+
+  table.ledger-table th{text-align:left;font-family:'IBM Plex Mono',monospace;font-size:0.62rem;letter-spacing:0.1em;color:var(--dim);text-transform:uppercase;padding:0.6rem 0.8rem;border-bottom:1px solid var(--hair);}
+  table.ledger-table td{padding:0.6rem 0.8rem;border-bottom:1px solid var(--hair2);font-size:0.88rem;color:var(--mist);}
+  table.ledger-table tr:hover td{background:var(--deep);}
+  .player-link{color:var(--bone);cursor:pointer;font-weight:500;}
+  .player-link:hover{color:var(--red-bright);text-decoration:underline;}
+  .item-name{color:var(--white);}
+  .class-tag{padding:0.1rem 0.5rem;border-radius:3px;font-size:0.78rem;font-weight:600;display:inline-block;white-space:nowrap;}
+
+  .upload-zone{border:1px dashed var(--hair);padding:1.5rem;text-align:center;margin-bottom:1.2rem;}
+  .upload-zone.drag{border-color:var(--red-bright);}
+  .map-table{width:100%;margin-bottom:1.2rem;}
+  .map-table th{text-align:left;font-family:'IBM Plex Mono',monospace;font-size:0.6rem;color:var(--dim);text-transform:uppercase;padding:0.4rem;}
+  .map-table td{padding:0.4rem;font-size:0.82rem;color:var(--mist);}
+  .map-table select{background:var(--deep);border:1px solid var(--hair);color:var(--bone);padding:0.3rem 0.5rem;font-size:0.8rem;}
+  .preview-note{font-size:0.8rem;color:var(--dim);margin-bottom:1rem;}
+
+  .modal-backdrop{position:fixed;inset:0;background:rgba(6,5,5,0.85);z-index:100;display:flex;align-items:center;justify-content:center;padding:1.5rem;}
+  .modal-card{background:var(--deep);border:1px solid var(--hair);max-width:520px;width:100%;max-height:85vh;overflow-y:auto;padding:1.8rem;position:relative;}
+  .modal-close{position:absolute;top:1rem;right:1rem;background:none;border:none;color:var(--dim);font-size:1.4rem;cursor:pointer;line-height:1;}
+  .modal-close:hover{color:var(--white);}
+  .modal-section{margin-top:1.4rem;padding-top:1.2rem;border-top:1px solid var(--hair);}
+  .modal-section h4{font-family:'IBM Plex Mono',monospace;font-size:0.6rem;letter-spacing:0.15em;color:var(--dim);text-transform:uppercase;margin-bottom:0.7rem;}
+  .modal-row{display:flex;justify-content:space-between;font-size:0.85rem;padding:0.35rem 0;border-bottom:1px solid var(--hair2);color:var(--mist);}
+  .modal-row:last-child{border-bottom:none;}
+  .modal-pct{font-family:'Newsreader',serif;font-size:2.2rem;color:var(--white);}
+</style>
+</head>
+<body>
+
+<div class="topbar" id="topnav-top"><span>Spineshatter EU · Horde</span><span></span></div>
+<div class="nav" id="topnav"></div>
+
+<div class="page-wide" style="padding-top:3rem;">
+  <div class="label" style="margin-bottom:0.5rem;">Records</div>
+  <h1 style="font-family:'Newsreader',serif;color:var(--white);font-size:2rem;margin-bottom:0.5rem;" id="page-h1">Loot</h1>
+  <p style="color:var(--mist);margin-bottom:1.5rem;" id="page-sub">Every item awarded, from council to roster — click a name for their full history.</p>
+
+  <div style="display:flex;gap:0.6rem;margin-bottom:2rem;border-bottom:1px solid var(--hair);padding-bottom:1rem;">
+    <button class="btn" id="tab-loot" onclick="showTab('loot')">Loot</button>
+    <button class="btn" id="tab-attendance" onclick="showTab('attendance')">Attendance</button>
+  </div>
+
+  <div id="panel-loot">
+    <div id="officer-upload" style="display:none;"></div>
+    <div class="ledger-toolbar">
+      <input type="text" class="ledger-search" id="loot-search" placeholder="Search item or player...">
+      <span class="label" id="loot-count"></span>
+    </div>
+    <div class="card" style="padding:0;overflow-x:auto;">
+      <table class="ledger-table">
+        <thead><tr><th>Date</th><th>Raid</th><th>Item</th><th>Response</th><th>Winner</th></tr></thead>
+        <tbody id="loot-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="panel-attendance" style="display:none;">
+    <div id="officer-attendance-form" style="display:none;"></div>
+    <div id="last-raid-card"></div>
+    <div class="card" style="padding:0;overflow-x:auto;margin-bottom:2rem;">
+      <table class="ledger-table">
+        <thead><tr><th>Player</th><th>Class</th><th>Nights</th><th>Attendance %</th></tr></thead>
+        <tbody id="attendance-body"></tbody>
+      </table>
+    </div>
+    <h3 style="font-family:'Newsreader',serif;font-style:italic;color:var(--white);margin-bottom:1rem;">All Raid Nights (<span id="nights-count">0</span>)</h3>
+    <div id="nights-list"></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="player-modal" style="display:none;" onclick="if(event.target===this) closePlayerModal()">
+  <div class="modal-card">
+    <button class="modal-close" onclick="closePlayerModal()">×</button>
+    <div id="player-modal-content"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js?v=11"></script>
+<script>
+const CLASS_COLORS = {
+  warrior:'#C79C6E', paladin:'#F58CBA', hunter:'#ABD473', rogue:'#FFF569',
+  priest:'#FFFFFF', shaman:'#0070DE', mage:'#69CCF0', warlock:'#9482C9', druid:'#FF7D0A'
+};
+function classTag(name) {
+  if (!name) return '<span style="color:var(--dim)">—</span>';
+  const color = CLASS_COLORS[name.toLowerCase()] || '#948a8a';
+  const display = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+  return `<span class="class-tag" style="color:${color};background:${color}22;">${esc(display)}</span>`;
+}
+
+let allLoot = [];
+let allNights = [];
+let allAttendees = [];
+
+function showTab(name) {
+  document.getElementById('panel-loot').style.display = name === 'loot' ? '' : 'none';
+  document.getElementById('panel-attendance').style.display = name === 'attendance' ? '' : 'none';
+  document.getElementById('tab-loot').classList.toggle('primary', name === 'loot');
+  document.getElementById('tab-attendance').classList.toggle('primary', name === 'attendance');
+  document.getElementById('page-h1').textContent = name === 'attendance' ? 'Attendance' : 'Loot';
+  document.getElementById('page-sub').textContent = name === 'attendance'
+    ? 'Who showed up, raid by raid — exported from the in-game addon.'
+    : 'Every item awarded, from council to roster — click a name for their full history.';
+}
+
+async function loadLoot() {
+  const { data, error } = await sb.from('loot_log').select('*').order('awarded_at', { ascending: false }).order('created_at', { ascending: false });
+  if (error) { toast(error.message, 'error'); return; }
+  allLoot = data || [];
+  renderLoot();
+}
+
+function renderLoot() {
+  const search = document.getElementById('loot-search').value.trim().toLowerCase();
+  let rows = allLoot;
+  if (search) rows = rows.filter(r => (r.item_name||'').toLowerCase().includes(search) || (r.winner_name||'').toLowerCase().includes(search));
+  document.getElementById('loot-count').textContent = `${rows.length} award${rows.length!==1?'s':''}`;
+
+  document.getElementById('loot-body').innerHTML = rows.map(r => `
+    <tr>
+      <td>${r.awarded_at ? new Date(r.awarded_at).toLocaleDateString() : '—'}</td>
+      <td>${esc(r.raid_title || '—')}</td>
+      <td class="item-name">${r.item_link ? `<a href="${esc(r.item_link)}" target="_blank" rel="noopener" style="color:inherit;">${esc(r.item_name)}</a>` : esc(r.item_name || '—')}</td>
+      <td>${esc(r.response || '—')}</td>
+      <td><span class="player-link" onclick="openPlayerModal('${esc(r.winner_name||'').replace(/'/g,"\\'")}')">${esc(r.winner_name || '—')}</span></td>
+    </tr>
+  `).join('') || `<tr><td colspan="5" style="text-align:center;color:var(--dim);">No loot logged yet.</td></tr>`;
+}
+document.getElementById('loot-search').addEventListener('input', renderLoot);
+
+let parsedCsv = null;
+
+function renderUploadUI() {
+  document.getElementById('officer-upload').style.display = 'block';
+  document.getElementById('officer-upload').innerHTML = `
+    <div class="upload-zone" id="drop-zone">
+      <p style="margin-bottom:0.8rem;color:var(--mist);">Drop your RCLootCouncil CSV export here, or</p>
+      <input type="file" id="csv-input" accept=".csv" style="display:none;">
+      <button class="btn primary" type="button" onclick="document.getElementById('csv-input').click()">Choose CSV File</button>
+    </div>
+    <div class="card" style="margin-bottom:1.2rem;">
+      <div class="label" style="margin-bottom:0.6rem;">Or paste it directly</div>
+      <textarea id="csv-paste" rows="6" placeholder="Paste the raw CSV text here (header row + data rows)" style="width:100%;margin-bottom:0.8rem;font-family:'IBM Plex Mono',monospace;font-size:0.75rem;"></textarea>
+      <button class="btn primary" type="button" onclick="handlePastedCsv()">Parse Pasted CSV</button>
+    </div>
+    <div id="mapping-ui"></div>
+  `;
+  const dropZone = document.getElementById('drop-zone');
+  document.getElementById('csv-input').addEventListener('change', e => e.target.files[0] && handleFile(e.target.files[0]));
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault(); dropZone.classList.remove('drag');
+    if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+  });
+}
+
+function handlePastedCsv() {
+  const text = document.getElementById('csv-paste').value.trim();
+  if (!text) { toast('Paste some CSV text first.', 'error'); return; }
+  const results = Papa.parse(text, { header: true, skipEmptyLines: true });
+  if (!results.data.length) { toast('Could not find any rows in that paste.', 'error'); return; }
+  parsedCsv = results;
+  showMappingUI(results);
+}
+
+function handleFile(file) {
+  Papa.parse(file, {
+    header: true, skipEmptyLines: true,
+    complete: (results) => {
+      if (!results.data.length) { toast('That CSV looks empty.', 'error'); return; }
+      parsedCsv = results;
+      showMappingUI(results);
+    },
+    error: (err) => toast('Could not read that file: ' + err.message, 'error'),
+  });
+}
+
+const TARGET_FIELDS = [
+  { key: 'item_name', label: 'Item name', required: true },
+  { key: 'winner_name', label: 'Winner / player', required: true },
+  { key: 'class_name', label: 'Player class', required: false },
+  { key: 'awarded_at', label: 'Date', required: false },
+  { key: 'raid_title', label: 'Boss / raid', required: false },
+  { key: 'response', label: 'Response (BIS/MS/OS)', required: false },
+  { key: 'item_id', label: 'Item ID (auto-builds a Wowhead link)', required: false },
+  { key: 'item_link', label: 'Item link (only if you already have a full URL column)', required: false },
+];
+
+function guessColumn(fields, targetKey) {
+  const lower = fields.map(f => f.toLowerCase());
+  const patterns = {
+    item_name: ['item', 'itemname', 'name'],
+    winner_name: ['player', 'name', 'winner', 'recipient', 'candidate'],
+    class_name: ['class', 'playerclass'],
+    awarded_at: ['date', 'time', 'awarded', 'timestamp'],
+    raid_title: ['boss', 'instance', 'raid', 'zone'],
+    response: ['response', 'reason', 'type'],
+    item_id: ['itemid', 'id'],
+    item_link: ['link', 'url', 'wowhead'],
+  };
+  for (const p of patterns[targetKey] || []) { const idx = lower.findIndex(f => f === p); if (idx >= 0) return fields[idx]; }
+  for (const p of patterns[targetKey] || []) { const idx = lower.findIndex(f => f.includes(p)); if (idx >= 0) return fields[idx]; }
+  return '';
+}
+
+function showMappingUI(results) {
+  const fields = results.meta.fields || [];
+  const mappingRows = TARGET_FIELDS.map(t => {
+    const guess = guessColumn(fields, t.key);
+    return `<tr><td>${t.label}${t.required?' *':''}</td><td>
+      <select data-target="${t.key}">
+        <option value="">— not in this CSV —</option>
+        ${fields.map(f => `<option value="${esc(f)}" ${f===guess?'selected':''}>${esc(f)}</option>`).join('')}
+      </select></td></tr>`;
+  }).join('');
+
+  document.getElementById('mapping-ui').innerHTML = `
+    <div class="preview-note">Found ${results.data.length} rows and ${fields.length} columns. Confirm which column is which — auto-guessed where possible.</div>
+    <table class="map-table"><thead><tr><th>Ledger field</th><th>Maps to CSV column</th></tr></thead><tbody>${mappingRows}</tbody></table>
+    <div style="display:flex;gap:0.6rem;">
+      <button class="btn primary" type="button" onclick="confirmImport()">Import ${results.data.length} Rows</button>
+      <button class="btn" type="button" onclick="parsedCsv=null;document.getElementById('mapping-ui').innerHTML='';">Cancel</button>
+    </div>`;
+}
+
+async function confirmImport() {
+  const mapping = {};
+  document.querySelectorAll('#mapping-ui select[data-target]').forEach(sel => { if (sel.value) mapping[sel.getAttribute('data-target')] = sel.value; });
+  if (!mapping.item_name || !mapping.winner_name) { toast('Item name and Winner columns are required.', 'error'); return; }
+
+  const rows = parsedCsv.data.map(row => {
+    const itemId = mapping.item_id ? row[mapping.item_id] : null;
+    return {
+      item_name: cleanItemName(row[mapping.item_name]),
+      winner_name: stripRealm(row[mapping.winner_name]),
+      class_name: mapping.class_name ? row[mapping.class_name] : null,
+      awarded_at: mapping.awarded_at ? parseDate(row[mapping.awarded_at]) : null,
+      raid_title: mapping.raid_title ? row[mapping.raid_title] : null,
+      response: mapping.response ? row[mapping.response] : null,
+      item_link: mapping.item_link ? row[mapping.item_link] : (itemId ? `https://www.wowhead.com/item=${itemId}` : null),
+      raw: row,
+      uploaded_by: currentUser.id,
+    };
+  });
+
+  const { error } = await sb.from('loot_log').insert(rows);
+  if (error) { toast('Import failed: ' + error.message, 'error'); return; }
+  toast(`Imported ${rows.length} awards.`, 'success');
+  parsedCsv = null;
+  document.getElementById('mapping-ui').innerHTML = '';
+  const pasteBox = document.getElementById('csv-paste'); if (pasteBox) pasteBox.value = '';
+  await loadLoot();
+}
+
+function cleanItemName(name) {
+  if (!name) return name;
+  return name.replace(/^\[|\]$/g, '').trim(); // "[Item Name]" -> "Item Name"
+}
+function stripRealm(name) {
+  if (!name) return name;
+  return name.split('-')[0]; // "Deetarded-Spineshatter" -> "Deetarded", matches the addon export's naming
+}
+
+function parseDate(val) { if (!val) return null; const d = new Date(val); return isNaN(d.getTime()) ? null : d.toISOString().slice(0,10); }
+
+function renderAttendanceForm() {
+  document.getElementById('officer-attendance-form').style.display = 'block';
+  document.getElementById('officer-attendance-form').innerHTML = `
+    <div class="card" style="margin-bottom:2rem;">
+      <div class="label" style="margin-bottom:0.8rem;">Log a Raid Night</div>
+      <div style="display:grid;grid-template-columns:1fr 160px;gap:0.8rem;margin-bottom:0.8rem;">
+        <input type="text" id="rn-title" placeholder="Raid title (e.g. Serpentshrine Cavern)">
+        <input type="date" id="rn-date">
+      </div>
+      <textarea id="rn-csv" rows="8" placeholder="Paste the export from /dumpraid here (Name,Class per line)" style="width:100%;margin-bottom:0.8rem;font-family:'IBM Plex Mono',monospace;font-size:0.8rem;"></textarea>
+      <button class="btn primary" type="button" onclick="submitRaidNight()">Save Raid Night</button>
+    </div>
+  `;
+  document.getElementById('rn-date').valueAsDate = new Date();
+}
+
+function parseRosterCsv(text) {
+  const lines = text.trim().split('\n').map(l => l.trim()).filter(Boolean);
+  const out = [];
+  for (const line of lines) {
+    if (/^name\s*,\s*class$/i.test(line)) continue;
+    const [name, className] = line.split(',').map(s => s && s.trim());
+    if (name) out.push({ character_name: name, class_name: className || null });
+  }
+  return out;
+}
+
+async function submitRaidNight() {
+  const title = document.getElementById('rn-title').value.trim();
+  const date = document.getElementById('rn-date').value;
+  const csvText = document.getElementById('rn-csv').value.trim();
+  if (!title || !date || !csvText) { toast('Fill in title, date, and paste the roster export.', 'error'); return; }
+
+  const roster = parseRosterCsv(csvText);
+  if (!roster.length) { toast('No valid names found in that paste.', 'error'); return; }
+
+  const { data: night, error } = await sb.from('raid_nights').insert({ title, raid_date: date, created_by: currentUser.id }).select().single();
+  if (error) { toast(error.message, 'error'); return; }
+
+  const rows = roster.map(r => ({ raid_night_id: night.id, character_name: r.character_name, class_name: r.class_name }));
+  const { error: err2 } = await sb.from('raid_attendees').insert(rows);
+  if (err2) { toast(err2.message, 'error'); return; }
+
+  toast(`Logged ${roster.length} attendees for ${title}.`, 'success');
+  document.getElementById('rn-title').value = '';
+  document.getElementById('rn-csv').value = '';
+  await loadAttendance();
+}
+
+async function loadAttendance() {
+  const { data: nights } = await sb.from('raid_nights').select('*').order('raid_date', { ascending: false });
+  const { data: attendees } = await sb.from('raid_attendees').select('*');
+  allNights = nights || [];
+  allAttendees = attendees || [];
+  renderAttendance();
+}
+
+function renderAttendance() {
+  document.getElementById('nights-count').textContent = allNights.length;
+
+  const lastCard = document.getElementById('last-raid-card');
+  if (allNights.length) {
+    const last = allNights[0];
+    const roster = allAttendees.filter(a => a.raid_night_id === last.id);
+    lastCard.innerHTML = `
+      <div class="card card-accent" style="margin-bottom:2rem;">
+        <div class="label" style="margin-bottom:0.5rem;">Last Raid</div>
+        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:0.6rem;margin-bottom:0.8rem;">
+          <div style="color:var(--white);font-weight:600;font-size:1.1rem;">${esc(last.title)}</div>
+          <span class="label">${last.raid_date ? new Date(last.raid_date).toLocaleDateString() : ''} · ${roster.length} raiders</span>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:0.7rem;">
+          ${roster.map(a => `<span><span class="player-link" onclick="openPlayerModal('${esc(a.character_name).replace(/'/g,"\\'")}')">${esc(a.character_name)}</span> ${classTag(a.class_name)}</span>`).join('')}
+        </div>
+      </div>`;
+  } else {
+    lastCard.innerHTML = '';
+  }
+
+  const byPlayer = {};
+  allAttendees.forEach(a => {
+    if (!byPlayer[a.character_name]) byPlayer[a.character_name] = { className: a.class_name, nightSet: new Set() };
+    byPlayer[a.character_name].nightSet.add(a.raid_night_id);
+    if (a.class_name) byPlayer[a.character_name].className = a.class_name;
+  });
+  const total = allNights.length;
+  const players = Object.entries(byPlayer)
+    .map(([name, d]) => ({ name, className: d.className, attended: d.nightSet.size, pct: total ? Math.round((d.nightSet.size/total)*100) : 0 }))
+    .sort((a,b) => b.pct - a.pct);
+
+  document.getElementById('attendance-body').innerHTML = players.map(p => `
+    <tr>
+      <td><span class="player-link" onclick="openPlayerModal('${esc(p.name).replace(/'/g,"\\'")}')">${esc(p.name)}</span></td>
+      <td>${classTag(p.className)}</td>
+      <td>${p.attended} / ${total}</td>
+      <td class="item-name">${p.pct}%</td>
+    </tr>
+  `).join('') || `<tr><td colspan="4" style="text-align:center;color:var(--dim);">No raid nights logged yet.</td></tr>`;
+
+  document.getElementById('nights-list').innerHTML = allNights.map(n => {
+    const roster = allAttendees.filter(a => a.raid_night_id === n.id);
+    return `
+      <div class="card" style="margin-bottom:0.8rem;">
+        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:0.6rem;margin-bottom:0.6rem;">
+          <div style="color:var(--white);font-weight:600;">${esc(n.title)}</div>
+          <span class="label">${n.raid_date ? new Date(n.raid_date).toLocaleDateString() : ''} · ${roster.length} raiders</span>
+        </div>
+        <div style="color:var(--mist);font-size:0.85rem;">${roster.map(a => esc(a.character_name)).join(', ')}</div>
+      </div>`;
+  }).join('') || `<div class="card" style="text-align:center;color:var(--dim);">Nothing here.</div>`;
+}
+
+function openPlayerModal(name) {
+  if (!name) return;
+
+  const lootItems = allLoot.filter(r => r.winner_name === name);
+  const nightIds = new Set(allAttendees.filter(a => a.character_name === name).map(a => a.raid_night_id));
+  const attendedNights = allNights.filter(n => nightIds.has(n.id));
+  const totalNights = allNights.length;
+  const pct = totalNights ? Math.round((attendedNights.length / totalNights) * 100) : 0;
+
+  const className = (allAttendees.find(a => a.character_name === name)?.class_name)
+    || (lootItems.find(l => l.class_name)?.class_name)
+    || null;
+
+  document.getElementById('player-modal-content').innerHTML = `
+    <div style="display:flex;align-items:baseline;gap:0.7rem;margin-bottom:0.3rem;">
+      <div style="font-family:'Newsreader',serif;font-size:1.5rem;color:var(--white);">${esc(name)}</div>
+      ${classTag(className)}
+    </div>
+    <div class="label">${totalNights ? `${attendedNights.length} of ${totalNights} raid nights` : 'No raid nights logged yet'}</div>
+    <div class="modal-pct">${pct}%</div>
+
+    <div class="modal-section">
+      <h4>Attendance History (${attendedNights.length})</h4>
+      ${attendedNights.length ? attendedNights.map(n => `<div class="modal-row"><span>${esc(n.title)}</span><span>${n.raid_date ? new Date(n.raid_date).toLocaleDateString() : ''}</span></div>`).join('') : '<div style="color:var(--dim);font-size:0.85rem;">Nothing logged.</div>'}
+    </div>
+
+    <div class="modal-section">
+      <h4>Loot History (${lootItems.length})</h4>
+      ${lootItems.length ? lootItems.map(l => `<div class="modal-row"><span class="item-name">${esc(l.item_name)}</span><span>${l.awarded_at ? new Date(l.awarded_at).toLocaleDateString() : ''}</span></div>`).join('') : '<div style="color:var(--dim);font-size:0.85rem;">No loot recorded.</div>'}
+    </div>
+  `;
+  document.getElementById('player-modal').style.display = 'flex';
+}
+function closePlayerModal() { document.getElementById('player-modal').style.display = 'none'; }
+
+(async () => {
+  await loadSession();
+  renderNav('ledger');
+  if (isOfficer()) { renderUploadUI(); renderAttendanceForm(); }
+  await loadLoot();
+  await loadAttendance();
+  showTab('loot');
+})();
+</script>
+</body>
+</html>

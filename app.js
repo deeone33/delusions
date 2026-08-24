@@ -60,7 +60,7 @@ function renderNav(active) {
   const links = [{ href: 'index.html', id: 'home', label: 'Home' }];
   if (isMember() || isOfficer()) {
     links.push({ href: 'roster.html', id: 'roster', label: 'Roster' });
-    links.push({ href: 'loot.html', id: 'loot', label: 'Loot Log' });
+    links.push({ href: 'ledger.html', id: 'ledger', label: 'Ledger' });
   }
   if (isOfficer()) {
     links.push({ href: 'applications.html', id: 'applications', label: 'Applications' });
