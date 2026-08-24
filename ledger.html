@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=12">
+<link rel="stylesheet" href="style.css?v=13">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
   .page-wide{max-width:920px;margin:0 auto;padding:0 2rem 5rem;}
@@ -43,14 +43,29 @@
   .raid-group{border:1px solid var(--hair);margin-bottom:0.7rem;}
   .raid-group-header{display:flex;align-items:center;gap:0.8rem;padding:0.9rem 1.1rem;cursor:pointer;background:var(--surface);}
   .raid-group-header:hover{background:var(--deep);}
-  .raid-group-header .label{margin-left:auto;display:flex;align-items:center;gap:0.6rem;}
-  .expand-icon{font-family:'IBM Plex Mono',monospace;color:var(--red-bright);font-size:1rem;width:1rem;text-align:center;flex-shrink:0;}
+  .raid-group-header .label{margin-left:auto;display:flex;align-items:center;gap:0.7rem;}
+  .expand-icon{
+    font-family:'IBM Plex Mono',monospace;color:var(--red-bright);font-size:0.85rem;
+    width:1.3rem;height:1.3rem;flex-shrink:0;border:1px solid var(--hair);border-radius:3px;
+    display:flex;align-items:center;justify-content:center;
+  }
   .raid-group-title{color:var(--white);font-weight:500;font-size:0.92rem;}
   .raid-group table{margin:0;}
   .raid-group td, .raid-group th{padding:0.55rem 1.1rem;}
 
-  .row-delete{background:none;border:none;cursor:pointer;font-size:0.85rem;opacity:0.5;transition:opacity .15s;padding:0 0.2rem;}
-  .row-delete:hover{opacity:1;}
+  .row-delete{
+    background:none;border:1px solid var(--hair);border-radius:3px;cursor:pointer;
+    color:var(--mist);width:1.6rem;height:1.6rem;display:inline-flex;align-items:center;justify-content:center;
+    flex-shrink:0;transition:all .15s;padding:0;
+  }
+  .row-delete:hover{color:var(--red-glow);border-color:var(--red-bright);background:rgba(197,55,55,0.12);}
+  .row-delete svg{width:14px;height:14px;display:block;}
+
+  .roster-chip{
+    display:inline-flex;align-items:center;gap:0.55rem;background:var(--surface);
+    border:1px solid var(--hair);padding:0.35rem 0.75rem;border-radius:4px;
+  }
+  .roster-chip .player-link{font-size:0.85rem;}
 </style>
 </head>
 <body>
@@ -98,7 +113,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=12"></script>
+<script src="app.js?v=13"></script>
 <script>
 const CLASS_COLORS = {
   warrior:'#C79C6E', paladin:'#F58CBA', hunter:'#ABD473', rogue:'#FFF569',
@@ -110,6 +125,8 @@ function classTag(name) {
   const display = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
   return `<span class="class-tag" style="color:${color};background:${color}22;">${esc(display)}</span>`;
 }
+
+const TRASH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>';
 
 let allLoot = [];
 let allNights = [];
@@ -164,7 +181,10 @@ function renderLoot() {
         <div class="raid-group-header" onclick="toggleLootGroup('${dateKey}')">
           <span class="expand-icon">${expanded ? '−' : '+'}</span>
           <span class="raid-group-title">${esc(dateLabel)}</span>
-          <span class="label">${items.length} item${items.length!==1?'s':''}${bosses.length ? ' · ' + esc(bosses.join(', ')) : ''}</span>
+          <span class="label">
+            ${items.length} item${items.length!==1?'s':''}${bosses.length ? ' · ' + esc(bosses.join(', ')) : ''}
+            ${isOfficer() ? `<button class="row-delete" title="Remove this entire log" onclick="event.stopPropagation(); deleteLootGroup('${dateKey}')">${TRASH_ICON}</button>` : ''}
+          </span>
         </div>
         ${expanded ? `
         <table class="ledger-table">
@@ -176,7 +196,7 @@ function renderLoot() {
                 <td class="item-name">${r.item_link ? `<a href="${esc(r.item_link)}" target="_blank" rel="noopener" style="color:inherit;">${esc(r.item_name)}</a>` : esc(r.item_name || '—')}</td>
                 <td>${esc(r.response || '—')}</td>
                 <td><span class="player-link" onclick="openPlayerModal('${esc(r.winner_name||'').replace(/'/g,"\\'")}')">${esc(r.winner_name || '—')}</span></td>
-                ${isOfficer() ? `<td><button class="row-delete" title="Remove this item" onclick="deleteLootItem('${r.id}')">🗑</button></td>` : ''}
+                ${isOfficer() ? `<td><button class="row-delete" title="Remove this item" onclick="deleteLootItem('${r.id}')">${TRASH_ICON}</button></td>` : ''}
               </tr>
             `).join('')}
           </tbody>
@@ -195,6 +215,16 @@ async function deleteLootItem(id) {
   const { error } = await sb.from('loot_log').delete().eq('id', id);
   if (error) { toast(error.message, 'error'); return; }
   toast('Removed.', 'success');
+  await loadLoot();
+  if (document.getElementById('player-modal').style.display === 'flex') refreshOpenModal();
+}
+
+async function deleteLootGroup(dateKey) {
+  const items = allLoot.filter(r => (r.awarded_at || 'unknown') === dateKey);
+  if (!confirm(`Remove this entire log — all ${items.length} item${items.length!==1?'s':''} for this date? This can't be undone.`)) return;
+  const { error } = await sb.from('loot_log').delete().in('id', items.map(r => r.id));
+  if (error) { toast(error.message, 'error'); return; }
+  toast(`Removed ${items.length} items.`, 'success');
   await loadLoot();
   if (document.getElementById('player-modal').style.display === 'flex') refreshOpenModal();
 }
@@ -407,11 +437,11 @@ function renderAttendance() {
           <div style="color:var(--white);font-weight:600;font-size:1.1rem;">${esc(last.title)}</div>
           <div style="display:flex;align-items:center;gap:0.8rem;">
             <span class="label">${last.raid_date ? new Date(last.raid_date).toLocaleDateString() : ''} · ${roster.length} raiders</span>
-            ${isOfficer() ? `<button class="row-delete" title="Remove this raid" onclick="deleteRaidNight('${last.id}')">🗑</button>` : ''}
+            ${isOfficer() ? `<button class="row-delete" title="Remove this raid" onclick="deleteRaidNight('${last.id}')">${TRASH_ICON}</button>` : ''}
           </div>
         </div>
-        <div style="display:flex;flex-wrap:wrap;gap:0.7rem;">
-          ${roster.map(a => `<span><span class="player-link" onclick="openPlayerModal('${esc(a.character_name).replace(/'/g,"\\'")}')">${esc(a.character_name)}</span> ${classTag(a.class_name)}</span>`).join('')}
+        <div style="display:flex;flex-wrap:wrap;gap:0.6rem;">
+          ${roster.map(a => `<span class="roster-chip"><span class="player-link" onclick="openPlayerModal('${esc(a.character_name).replace(/'/g,"\\'")}')">${esc(a.character_name)}</span>${classTag(a.class_name)}</span>`).join('')}
         </div>
       </div>`;
   } else {
@@ -450,11 +480,11 @@ function renderAttendance() {
           <span class="raid-group-title">${esc(n.title)} — ${n.raid_date ? new Date(n.raid_date).toLocaleDateString() : ''}</span>
           <span class="label" style="display:flex;align-items:center;gap:0.7rem;">
             ${roster.length} raiders
-            ${isOfficer() ? `<button class="row-delete" title="Remove this raid" onclick="event.stopPropagation(); deleteRaidNight('${n.id}')">🗑</button>` : ''}
+            ${isOfficer() ? `<button class="row-delete" title="Remove this raid" onclick="event.stopPropagation(); deleteRaidNight('${n.id}')">${TRASH_ICON}</button>` : ''}
           </span>
         </div>
-        ${expanded ? `<div style="padding:1rem 0 0.4rem;color:var(--mist);font-size:0.85rem;display:flex;flex-wrap:wrap;gap:0.6rem;">
-          ${roster.map(a => `<span><span class="player-link" onclick="openPlayerModal('${esc(a.character_name).replace(/'/g,"\\'")}')">${esc(a.character_name)}</span> ${classTag(a.class_name)}</span>`).join('')}
+        ${expanded ? `<div style="padding:1rem 1.1rem 1.1rem;display:flex;flex-wrap:wrap;gap:0.6rem;border-top:1px solid var(--hair);">
+          ${roster.map(a => `<span class="roster-chip"><span class="player-link" onclick="openPlayerModal('${esc(a.character_name).replace(/'/g,"\\'")}')">${esc(a.character_name)}</span>${classTag(a.class_name)}</span>`).join('')}
         </div>` : ''}
       </div>`;
   }).join('') || `<div class="card" style="text-align:center;color:var(--dim);">Nothing here.</div>`;
@@ -508,7 +538,7 @@ function openPlayerModal(name) {
           <span>${esc(n.title)}</span>
           <span style="display:flex;align-items:center;gap:0.6rem;">
             ${n.raid_date ? new Date(n.raid_date).toLocaleDateString() : ''}
-            ${officer ? `<button class="row-delete" title="Remove this raid entirely" onclick="deleteRaidNight('${n.id}')">🗑</button>` : ''}
+            ${officer ? `<button class="row-delete" title="Remove this raid entirely" onclick="deleteRaidNight('${n.id}')">${TRASH_ICON}</button>` : ''}
           </span>
         </div>`).join('') : '<div style="color:var(--dim);font-size:0.85rem;">Nothing logged.</div>'}
     </div>
@@ -520,7 +550,7 @@ function openPlayerModal(name) {
           <span class="item-name">${esc(l.item_name)}</span>
           <span style="display:flex;align-items:center;gap:0.6rem;">
             ${l.awarded_at ? new Date(l.awarded_at).toLocaleDateString() : ''}
-            ${officer ? `<button class="row-delete" title="Remove this item" onclick="deleteLootItem('${l.id}')">🗑</button>` : ''}
+            ${officer ? `<button class="row-delete" title="Remove this item" onclick="deleteLootItem('${l.id}')">${TRASH_ICON}</button>` : ''}
           </span>
         </div>`).join('') : '<div style="color:var(--dim);font-size:0.85rem;">No loot recorded.</div>'}
     </div>
