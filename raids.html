@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Raids — Delusions</title>
+<link rel="icon" href="logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=8">
+<style>
+  .raid-card{margin-bottom:1rem;}
+  .raid-head{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:0.6rem;margin-bottom:0.8rem;}
+  .raid-head h3{font-family:'Newsreader',serif;font-style:italic;font-weight:500;font-size:1.2rem;color:var(--white);}
+  .role-cols{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-bottom:0.8rem;}
+  .role-col h4{font-family:'IBM Plex Mono',monospace;font-size:0.6rem;letter-spacing:0.1em;color:var(--dim);text-transform:uppercase;margin-bottom:0.4rem;}
+  .role-col div{color:var(--bone);font-size:0.85rem;padding:0.15rem 0;}
+  .parse-row{display:flex;justify-content:space-between;font-size:0.85rem;padding:0.3rem 0;border-bottom:1px solid var(--hair);}
+  .empty-note{color:var(--dim);text-align:center;padding:2rem 0;}
+</style>
+</head>
+<body>
+
+<div class="topbar" id="topnav-top"><span>Spineshatter EU · Horde</span><span></span></div>
+<div class="nav" id="topnav"></div>
+
+<div class="page-wide" style="padding-top:3rem;">
+  <div class="label" style="margin-bottom:0.5rem;">Raid Schedule</div>
+  <h1 style="font-family:'Newsreader',serif;color:var(--white);font-size:2rem;margin-bottom:0.5rem;">Raids</h1>
+  <p style="color:var(--mist);margin-bottom:2.5rem;">Sign-ups happen in Discord via the raid bot — this page mirrors it read-only.</p>
+
+  <h2 style="font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:0.2em;color:var(--dim);text-transform:uppercase;margin-bottom:1rem;border-bottom:1px solid var(--hair);padding-bottom:0.6rem;">Upcoming</h2>
+  <div id="upcoming-list"></div>
+
+  <h2 style="font-family:'IBM Plex Mono',monospace;font-size:0.7rem;letter-spacing:0.2em;color:var(--dim);text-transform:uppercase;margin:2.5rem 0 1rem;border-bottom:1px solid var(--hair);padding-bottom:0.6rem;">Past Raids</h2>
+  <div id="past-list"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js?v=8"></script>
+<script>
+(async () => {
+  await loadSession();
+  renderNav('raids');
+
+  const { data: raids } = await sb.from('raid_events').select('*').order('scheduled_at', { ascending: false });
+  const list = raids || [];
+  const upcoming = list.filter(r => r.status === 'open').sort((a,b) => new Date(a.scheduled_at) - new Date(b.scheduled_at));
+  const past = list.filter(r => r.status !== 'open');
+
+  const upEl = document.getElementById('upcoming-list');
+  if (!upcoming.length) upEl.innerHTML = `<div class="card empty-note">No open raids right now — post one with <code>/raid create</code> in Discord.</div>`;
+  else {
+    for (const r of upcoming) {
+      const { data: signups } = await sb.from('raid_signups').select('*').eq('raid_event_id', r.id).eq('status','signed_up');
+      const byRole = role => (signups||[]).filter(s => s.role === role);
+      const card = document.createElement('div');
+      card.className = 'card raid-card card-accent';
+      card.innerHTML = `
+        <div class="raid-head">
+          <h3>${esc(r.title)}</h3>
+          <span class="label">${r.scheduled_at ? new Date(r.scheduled_at).toLocaleString(undefined,{weekday:'short',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : ''}</span>
+        </div>
+        <div class="role-cols">
+          <div class="role-col"><h4>Tank ${r.tank_cap?`(${byRole('tank').length}/${r.tank_cap})`:`(${byRole('tank').length})`}</h4>${byRole('tank').map(s=>`<div>${esc(s.character_name)}</div>`).join('') || '<div style="color:var(--dim)">—</div>'}</div>
+          <div class="role-col"><h4>Healer ${r.healer_cap?`(${byRole('healer').length}/${r.healer_cap})`:`(${byRole('healer').length})`}</h4>${byRole('healer').map(s=>`<div>${esc(s.character_name)}</div>`).join('') || '<div style="color:var(--dim)">—</div>'}</div>
+          <div class="role-col"><h4>DPS ${r.dps_cap?`(${byRole('dps').length}/${r.dps_cap})`:`(${byRole('dps').length})`}</h4>${byRole('dps').map(s=>`<div>${esc(s.character_name)}</div>`).join('') || '<div style="color:var(--dim)">—</div>'}</div>
+        </div>
+      `;
+      upEl.appendChild(card);
+    }
+  }
+
+  const pastEl = document.getElementById('past-list');
+  if (!past.length) pastEl.innerHTML = `<div class="card empty-note">Nothing here yet.</div>`;
+  else {
+    for (const r of past) {
+      const { data: attendance } = await sb.from('raid_attendance').select('*').eq('raid_event_id', r.id);
+      const { data: logs } = await sb.from('raid_logs').select('*').eq('raid_event_id', r.id);
+      const log = logs?.[0];
+      const byRole = role => (attendance||[]).filter(a => a.role === role);
+
+      const card = document.createElement('div');
+      card.className = 'card raid-card';
+      let logHtml = '';
+      if (log) {
+        const friendly = log.summary?.friendly || {};
+        const parses = (friendly.topParses || []).slice(0,6);
+        logHtml = `
+          <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--hair);">
+            <div class="label" style="margin-bottom:0.5rem;">Log — ${esc(log.zone_name||'')} · ${log.kill_count} kills, ${log.wipe_count} wipes
+              <a href="${esc(log.report_url)}" target="_blank" rel="noopener" style="color:var(--red-bright);margin-left:0.5rem;">View on WCL →</a>
+            </div>
+            ${parses.map(p => `<div class="parse-row"><span>${esc(p.name)} ${p.spec?`(${esc(p.spec)})`:''}</span><span style="color:var(--white);font-family:'IBM Plex Mono',monospace;">${p.percent}</span></div>`).join('')}
+          </div>`;
+      }
+
+      card.innerHTML = `
+        <div class="raid-head">
+          <h3>${esc(r.title)}</h3>
+          <span class="pill ${r.status==='completed'?'accepted':'member'}">${esc(r.status)}</span>
+        </div>
+        <div class="role-cols">
+          <div class="role-col"><h4>Tank (${byRole('tank').length})</h4>${byRole('tank').map(a=>`<div>${esc(a.character_name)}</div>`).join('') || '<div style="color:var(--dim)">—</div>'}</div>
+          <div class="role-col"><h4>Healer (${byRole('healer').length})</h4>${byRole('healer').map(a=>`<div>${esc(a.character_name)}</div>`).join('') || '<div style="color:var(--dim)">—</div>'}</div>
+          <div class="role-col"><h4>DPS (${byRole('dps').length})</h4>${byRole('dps').map(a=>`<div>${esc(a.character_name)}</div>`).join('') || '<div style="color:var(--dim)">—</div>'}</div>
+        </div>
+        ${logHtml}
+      `;
+      pastEl.appendChild(card);
+    }
+  }
+})();
+</script>
+</body>
+</html>

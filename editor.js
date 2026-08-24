@@ -39,6 +39,8 @@ function applyContentOverrides() {
     if (row.bg_color) el.style.backgroundColor = row.bg_color;
   });
 
+  updateBlankVisibility(false); // collapse any blanked text nodes for visitors on initial load
+
   // Boxes (buttons, the colophon frame, the staffbox frame, etc) store their
   // own style under their data-box key. They don't hold text, just look/feel.
   document.querySelectorAll('[data-box]').forEach(el => {
@@ -81,10 +83,27 @@ async function saveSection(key, patch) {
   if (error) toast('Save failed: ' + error.message, 'error');
 }
 
+// A blanked-out text field (officer deleted "Folio I", the colophon note, etc)
+// takes up zero space for regular visitors instead of leaving an empty gap —
+// but stays visible (faded) in edit mode so it can still be found and refilled.
+function updateBlankVisibility(inEditMode) {
+  document.querySelectorAll('[data-edit]:not([data-box])').forEach(el => {
+    const isBlank = el.textContent.trim() === '';
+    if (isBlank) {
+      el.classList.toggle('blank-preview', inEditMode);
+      el.style.display = inEditMode ? '' : 'none';
+    } else {
+      el.classList.remove('blank-preview');
+      el.style.display = '';
+    }
+  });
+}
+
 // ---------- EDIT MODE TOGGLE ----------
 function setEditMode(on) {
   editMode = on;
   document.body.classList.toggle('edit-mode', on);
+  updateBlankVisibility(on);
 
   document.querySelectorAll('[data-edit]:not([data-box])').forEach(el => {
     el.contentEditable = on;

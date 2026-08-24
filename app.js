@@ -58,6 +58,7 @@ function renderNav(active) {
   if (!el) return;
 
   const links = [{ href: 'index.html', id: 'home', label: 'Home' }];
+  links.push({ href: 'raids.html', id: 'raids', label: 'Raids' });
   if (isMember()) links.push({ href: 'roster.html', id: 'roster', label: 'Roster' });
   if (isOfficer()) {
     links.push({ href: 'applications.html', id: 'applications', label: 'Applications' });
