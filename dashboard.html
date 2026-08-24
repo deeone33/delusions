@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=15">
+<link rel="stylesheet" href="style.css?v=16">
 </head>
 <body>
 <div class="topbar" id="topnav-top"><span>Spineshatter EU · Horde</span><span></span></div>
@@ -47,7 +47,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=15"></script>
+<script src="app.js?v=16"></script>
 <script>
 (async () => {
   await loadSession();
@@ -87,8 +87,11 @@
     } catch (e) { mine = null; }
     if (mine) {
       document.getElementById('app-status').innerHTML = `
-        <div class="card ${mine.status==='pending'?'card-warn':''}" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;">
-          <div><div class="label">Your Application</div><div style="color:var(--white)">${esc(mine.applicant_name)} — <span class="pill ${mine.status}">${esc(mine.status)}</span></div></div>
+        <div class="card ${mine.status==='pending'?'card-warn':''}">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;">
+            <div><div class="label">Your Application</div><div style="color:var(--white)">${esc(mine.applicant_name)} — <span class="pill ${mine.status}">${esc(mine.status)}</span></div></div>
+          </div>
+          ${mine.officer_note ? `<div style="margin-top:0.8rem;padding-top:0.8rem;border-top:1px solid var(--hair);"><div class="label" style="margin-bottom:0.3rem;">Note from an officer</div><div style="color:var(--mist);">${esc(mine.officer_note)}</div></div>` : ''}
         </div>`;
     } else {
       document.getElementById('app-status').innerHTML = `

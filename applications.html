@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=15">
+<link rel="stylesheet" href="style.css?v=16">
 </head>
 <body>
 <div class="topbar" id="topnav-top"><span>Spineshatter EU · Horde</span><span></span></div>
@@ -20,7 +20,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=15"></script>
+<script src="app.js?v=16"></script>
 <script>
 let apps = [];
 let webhookUrl = null;
@@ -72,6 +72,12 @@ function render() {
       ${a.warcraftlogs_url ? `<div style="margin-bottom:0.6rem;"><a href="${esc(a.warcraftlogs_url)}" target="_blank" rel="noopener" class="label" style="color:var(--red-bright);">Warcraft Logs →</a></div>` : ''}
       <p style="margin-bottom:0.6rem;"><span class="label" style="display:block;margin-bottom:0.2rem;">Experience</span>${esc(a.experience) || '<span style="color:var(--dim)">Nothing provided.</span>'}</p>
       ${a.why_join ? `<p style="margin-bottom:1rem;"><span class="label" style="display:block;margin-bottom:0.2rem;">Why Delusions</span>${esc(a.why_join)}</p>` : ''}
+      ${a.status === 'pending' ? `
+        <div style="margin-bottom:0.8rem;">
+          <label class="form-label">Note to applicant (optional — they'll see this)</label>
+          <textarea id="note-${a.id}" rows="2" placeholder="e.g. Approved, please join our Discord and introduce yourself!" style="width:100%;font-size:0.85rem;"></textarea>
+        </div>
+      ` : (a.officer_note ? `<p style="margin-bottom:1rem;"><span class="label" style="display:block;margin-bottom:0.2rem;">Note left for applicant</span>${esc(a.officer_note)}</p>` : '')}
       <div style="display:flex;gap:0.6rem;flex-wrap:wrap;">
         ${a.status==='pending' ? `
           <button class="btn primary" onclick="decide('${a.id}','accepted')">Accept</button>
@@ -85,10 +91,16 @@ function render() {
 
 async function decide(id, status) {
   const app = apps.find(a => a.id === id);
-  const { error } = await sb.from('applications').update({ status }).eq('id', id);
+  const noteInput = document.getElementById(`note-${id}`);
+  const note = noteInput ? noteInput.value.trim() : '';
+
+  const { error } = await sb.from('applications').update({ status, officer_note: note || null }).eq('id', id);
   if (error) { toast(error.message, 'error'); return; }
   if (status === 'accepted' && app?.user_id) {
-    await sb.from('profiles').update({ role: 'member' }).eq('id', app.user_id);
+    const { data: profile } = await sb.from('profiles').select('joined_at').eq('id', app.user_id).single();
+    const patch = { role: 'member' };
+    if (profile && !profile.joined_at) patch.joined_at = new Date().toISOString();
+    await sb.from('profiles').update(patch).eq('id', app.user_id);
   }
   const officer = currentProfile?.username || 'An officer';
   const verb = status === 'accepted' ? 'approved' : 'declined';

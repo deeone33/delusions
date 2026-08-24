@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=15">
+<link rel="stylesheet" href="style.css?v=16">
 </head>
 <body>
 <div class="topbar" id="topnav-top"><span>Spineshatter EU · Horde</span><span></span></div>
@@ -20,14 +20,14 @@
 
   <div class="card" style="padding:0;overflow:hidden;">
     <table>
-      <thead><tr><th>Name</th><th>Role</th><th>Rank / Title</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Name</th><th>Character</th><th>Role</th><th>Rank / Title</th><th>Joined</th><th>Actions</th></tr></thead>
       <tbody id="members-body"></tbody>
     </table>
   </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=15"></script>
+<script src="app.js?v=16"></script>
 <script>
 let members = [];
 
@@ -42,14 +42,16 @@ function render() {
   document.getElementById('members-body').innerHTML = members.map(p => `
     <tr>
       <td style="color:var(--white)">${esc(p.username)}</td>
+      <td><input type="text" value="${esc(p.character_name||'')}" placeholder="Links this account to Ledger data" data-charname="${p.id}" style="width:150px;padding:0.35rem 0.5rem;font-size:0.85rem;"></td>
       <td><span class="pill ${p.role}">${esc(p.role)}</span></td>
       <td><input type="text" value="${esc(p.rank||'')}" data-rank="${p.id}" style="width:140px;padding:0.35rem 0.5rem;font-size:0.85rem;"></td>
+      <td><input type="date" value="${p.joined_at ? p.joined_at.slice(0,10) : ''}" data-joined="${p.id}" style="width:145px;padding:0.35rem 0.5rem;font-size:0.82rem;"></td>
       <td style="display:flex;gap:0.4rem;">
         ${p.role !== 'officer' ? `<button class="btn" onclick="setRole('${p.id}','officer')">Make Officer</button>` : `<button class="btn" onclick="setRole('${p.id}','member')">Demote</button>`}
         ${p.role === 'outsider' ? `<button class="btn" onclick="setRole('${p.id}','member')">Make Member</button>` : ''}
       </td>
     </tr>
-  `).join('') || `<tr><td colspan="4" style="text-align:center;color:var(--dim);">No accounts yet.</td></tr>`;
+  `).join('') || `<tr><td colspan="6" style="text-align:center;color:var(--dim);">No accounts yet.</td></tr>`;
 
   document.querySelectorAll('[data-rank]').forEach(input => {
     input.onblur = async () => {
@@ -57,10 +59,28 @@ function render() {
       if (error) toast(error.message, 'error'); else toast('Rank updated.', 'success');
     };
   });
+  document.querySelectorAll('[data-charname]').forEach(input => {
+    input.onblur = async () => {
+      const { error } = await sb.from('profiles').update({ character_name: input.value || null }).eq('id', input.getAttribute('data-charname'));
+      if (error) toast(error.message, 'error'); else toast('Character name updated.', 'success');
+    };
+  });
+  document.querySelectorAll('[data-joined]').forEach(input => {
+    input.onchange = async () => {
+      const val = input.value ? new Date(input.value).toISOString() : null;
+      const { error } = await sb.from('profiles').update({ joined_at: val }).eq('id', input.getAttribute('data-joined'));
+      if (error) toast(error.message, 'error'); else toast('Join date updated.', 'success');
+    };
+  });
 }
 
 async function setRole(id, role) {
-  const { error } = await sb.from('profiles').update({ role }).eq('id', id);
+  const patch = { role };
+  if (role === 'member') {
+    const profile = members.find(m => m.id === id);
+    if (profile && !profile.joined_at) patch.joined_at = new Date().toISOString();
+  }
+  const { error } = await sb.from('profiles').update(patch).eq('id', id);
   if (error) { toast(error.message, 'error'); return; }
   toast('Role updated.', 'success');
   await load();

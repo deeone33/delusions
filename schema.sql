@@ -12,6 +12,9 @@ create table if not exists profiles (
   rank text default '',                     -- display title, e.g. "Guild Master"
   created_at timestamptz default now()
 );
+-- Added later — safe to re-run
+alter table profiles add column if not exists character_name text;  -- links this account to a Ledger character name, set by an officer
+alter table profiles add column if not exists joined_at timestamptz; -- when they became a member (accepted or manually promoted)
 
 -- Auto-create a profile row whenever someone signs in for the first time
 create or replace function public.handle_new_user()
@@ -116,6 +119,7 @@ create table if not exists applications (
 -- Added later — safe to re-run even if you already ran this file once before
 alter table applications add column if not exists warcraftlogs_url text;
 alter table applications add column if not exists why_join text;
+alter table applications add column if not exists officer_note text;  -- visible to the applicant, set when accepting/rejecting
 
 -- ---------- SITE CONTENT (single editable text/style fields) ----------
 create table if not exists site_content (

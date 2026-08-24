@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=15">
+<link rel="stylesheet" href="style.css?v=16">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
   .page-wide{max-width:920px;margin:0 auto;padding:0 2rem 5rem;}
@@ -113,7 +113,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=15"></script>
+<script src="app.js?v=16"></script>
 <script>
 const CLASS_COLORS = {
   warrior:'#C79C6E', paladin:'#F58CBA', hunter:'#ABD473', rogue:'#FFF569',
@@ -428,11 +428,40 @@ async function submitRaidNight() {
   await loadAttendance();
 }
 
+let profilesByCharName = {};
+
+async function loadProfiles() {
+  const { data } = await sb.from('profiles').select('character_name, joined_at').not('character_name', 'is', null);
+  profilesByCharName = {};
+  (data || []).forEach(p => { if (p.character_name) profilesByCharName[p.character_name.toLowerCase()] = p; });
+}
+
+// Attendance % counts only raid nights on or after a player's join date, so
+// someone who joined this week isn't penalized for raids that happened
+// before they existed. Falls back to full history if we don't have a linked
+// account for that character (e.g. they were invited outside the site).
+function computeAttendance(characterName) {
+  const profile = profilesByCharName[characterName.toLowerCase()];
+  const joinedAt = profile?.joined_at || null;
+
+  let eligibleNights = allNights;
+  if (joinedAt) {
+    const joinedTime = new Date(joinedAt).getTime();
+    eligibleNights = allNights.filter(n => n.raid_date && new Date(n.raid_date).getTime() >= joinedTime);
+  }
+  const eligibleIds = new Set(eligibleNights.map(n => n.id));
+  const attendedIds = new Set(allAttendees.filter(a => a.character_name === characterName).map(a => a.raid_night_id));
+  const attended = eligibleNights.filter(n => attendedIds.has(n.id)).length;
+  const total = eligibleNights.length;
+  return { attended, total, pct: total ? Math.round((attended/total)*100) : 0, joinedAt };
+}
+
 async function loadAttendance() {
   const { data: nights } = await sb.from('raid_nights').select('*').order('raid_date', { ascending: false });
   const { data: attendees } = await sb.from('raid_attendees').select('*');
   allNights = nights || [];
   allAttendees = attendees || [];
+  await loadProfiles();
   renderAttendance();
 }
 
@@ -463,20 +492,18 @@ function renderAttendance() {
 
   const byPlayer = {};
   allAttendees.forEach(a => {
-    if (!byPlayer[a.character_name]) byPlayer[a.character_name] = { className: a.class_name, nightSet: new Set() };
-    byPlayer[a.character_name].nightSet.add(a.raid_night_id);
+    if (!byPlayer[a.character_name]) byPlayer[a.character_name] = { className: a.class_name };
     if (a.class_name) byPlayer[a.character_name].className = a.class_name;
   });
-  const total = allNights.length;
   const players = Object.entries(byPlayer)
-    .map(([name, d]) => ({ name, className: d.className, attended: d.nightSet.size, pct: total ? Math.round((d.nightSet.size/total)*100) : 0 }))
+    .map(([name, d]) => ({ name, className: d.className, ...computeAttendance(name) }))
     .sort((a,b) => b.pct - a.pct);
 
   document.getElementById('attendance-body').innerHTML = players.map(p => `
     <tr>
       <td><span class="player-link" onclick="openPlayerModal('${esc(p.name).replace(/'/g,"\\'")}')">${esc(p.name)}</span></td>
       <td>${classTag(p.className)}</td>
-      <td>${p.attended} / ${total}</td>
+      <td>${p.attended} / ${p.total}</td>
       <td class="item-name">${p.pct}%</td>
     </tr>
   `).join('') || `<tr><td colspan="4" style="text-align:center;color:var(--dim);">No raid nights logged yet.</td></tr>`;
@@ -528,8 +555,7 @@ function openPlayerModal(name) {
   const lootItems = allLoot.filter(r => r.winner_name === name);
   const nightIds = new Set(allAttendees.filter(a => a.character_name === name).map(a => a.raid_night_id));
   const attendedNights = allNights.filter(n => nightIds.has(n.id));
-  const totalNights = allNights.length;
-  const pct = totalNights ? Math.round((attendedNights.length / totalNights) * 100) : 0;
+  const att = computeAttendance(name);
 
   const className = (allAttendees.find(a => a.character_name === name)?.class_name)
     || (lootItems.find(l => l.class_name)?.class_name)
@@ -541,8 +567,13 @@ function openPlayerModal(name) {
       ${classTag(className)}
     </div>
     ${officer ? `
-    <div class="label">${totalNights ? `${attendedNights.length} of ${totalNights} raid nights` : 'No raid nights logged yet'}</div>
-    <div class="modal-pct">${pct}%</div>
+    <div class="label" style="margin-bottom:0.8rem;">
+      ${att.joinedAt
+        ? `Joined ${new Date(att.joinedAt).toLocaleDateString()}`
+        : 'No linked account — attendance % uses full raid history'}
+    </div>
+    <div class="label">${att.total ? `${att.attended} of ${att.total} raid nights` : 'No raid nights logged yet'}</div>
+    <div class="modal-pct">${att.pct}%</div>
 
     <div class="modal-section">
       <h4>Attendance History (${attendedNights.length})</h4>
