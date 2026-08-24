@@ -120,7 +120,6 @@ button{font:inherit;}
    ============================================================ */
 .page{max-width:900px;margin:0 auto;padding:3rem 2.5rem 5rem;}
 .page-narrow{max-width:520px;margin:0 auto;padding:0 2rem 5rem;}
-.page-wide{max-width:900px;margin:0 auto;padding:0 2rem 5rem;}
 .back{font-family:'IBM Plex Mono',monospace;font-size:0.62rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--dim);display:inline-block;margin-bottom:2rem;}
 .back:hover{color:var(--white);}
 .label{font-family:'IBM Plex Mono',monospace;font-size:0.6rem;letter-spacing:0.2em;color:var(--dim);text-transform:uppercase;}

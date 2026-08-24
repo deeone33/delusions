@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Loot Log — Delusions</title>
+<link rel="icon" href="logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=8">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+  .page-wide{max-width:920px;margin:0 auto;padding:0 2rem 5rem;}
+  .loot-toolbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.8rem;margin-bottom:1.5rem;}
+  .loot-search{background:var(--deep);border:1px solid var(--hair);color:var(--bone);padding:0.55rem 0.9rem;font-family:'Manrope',sans-serif;font-size:0.85rem;min-width:220px;}
+  .loot-filter-note{display:flex;align-items:center;gap:0.6rem;font-size:0.82rem;color:var(--mist);margin-bottom:1rem;}
+  .loot-filter-note button{font-family:'IBM Plex Mono',monospace;font-size:0.6rem;color:var(--red-bright);background:none;border:none;cursor:pointer;text-decoration:underline;}
+  table.loot-table th{text-align:left;font-family:'IBM Plex Mono',monospace;font-size:0.62rem;letter-spacing:0.1em;color:var(--dim);text-transform:uppercase;padding:0.6rem 0.8rem;border-bottom:1px solid var(--hair);}
+  table.loot-table td{padding:0.6rem 0.8rem;border-bottom:1px solid var(--hair2);font-size:0.88rem;color:var(--mist);}
+  table.loot-table tr:hover td{background:var(--deep);}
+  .player-link{color:var(--bone);cursor:pointer;font-weight:500;}
+  .player-link:hover{color:var(--red-bright);text-decoration:underline;}
+  .item-name{color:var(--white);}
+
+  .upload-zone{border:1px dashed var(--hair);padding:1.5rem;text-align:center;margin-bottom:2rem;}
+  .upload-zone.drag{border-color:var(--red-bright);}
+
+  .map-table{width:100%;margin-bottom:1.2rem;}
+  .map-table th{text-align:left;font-family:'IBM Plex Mono',monospace;font-size:0.6rem;color:var(--dim);text-transform:uppercase;padding:0.4rem;}
+  .map-table td{padding:0.4rem;font-size:0.82rem;color:var(--mist);}
+  .map-table select{background:var(--deep);border:1px solid var(--hair);color:var(--bone);padding:0.3rem 0.5rem;font-size:0.8rem;}
+  .preview-note{font-size:0.8rem;color:var(--dim);margin-bottom:1rem;}
+</style>
+</head>
+<body>
+
+<div class="topbar" id="topnav-top"><span>Spineshatter EU · Horde</span><span></span></div>
+<div class="nav" id="topnav"></div>
+
+<div class="page-wide" style="padding-top:3rem;">
+  <div class="label" style="margin-bottom:0.5rem;">Loot Council</div>
+  <h1 style="font-family:'Newsreader',serif;color:var(--white);font-size:2rem;margin-bottom:0.5rem;">Loot Log</h1>
+  <p style="color:var(--mist);margin-bottom:2rem;">Every item awarded, from council to roster — click a name to see their full history.</p>
+
+  <div id="officer-upload" style="display:none;"></div>
+
+  <div class="loot-toolbar">
+    <input type="text" class="loot-search" id="search" placeholder="Search item or player...">
+    <span class="label" id="count-label"></span>
+  </div>
+
+  <div id="filter-note" class="loot-filter-note" style="display:none;"></div>
+
+  <div class="card" style="padding:0;overflow-x:auto;">
+    <table class="loot-table">
+      <thead><tr><th>Date</th><th>Raid</th><th>Item</th><th>Response</th><th>Winner</th></tr></thead>
+      <tbody id="loot-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js?v=8"></script>
+<script>
+let allRows = [];
+let filterPlayer = null;
+let parsedCsv = null; // {fields, data} from PapaParse, held during the mapping step
+
+async function load() {
+  const { data, error } = await sb.from('loot_log').select('*').order('awarded_at', { ascending: false }).order('created_at', { ascending: false });
+  if (error) { toast(error.message, 'error'); return; }
+  allRows = data || [];
+  render();
+}
+
+function render() {
+  const search = document.getElementById('search').value.trim().toLowerCase();
+  let rows = allRows;
+  if (filterPlayer) rows = rows.filter(r => (r.winner_name||'').toLowerCase() === filterPlayer.toLowerCase());
+  if (search) rows = rows.filter(r => (r.item_name||'').toLowerCase().includes(search) || (r.winner_name||'').toLowerCase().includes(search));
+
+  document.getElementById('count-label').textContent = `${rows.length} award${rows.length!==1?'s':''}`;
+
+  const note = document.getElementById('filter-note');
+  if (filterPlayer) {
+    note.style.display = 'flex';
+    note.innerHTML = `Showing only <b style="color:var(--white)">${esc(filterPlayer)}</b> <button onclick="clearFilter()">clear</button>`;
+  } else {
+    note.style.display = 'none';
+  }
+
+  document.getElementById('loot-body').innerHTML = rows.map(r => `
+    <tr>
+      <td>${r.awarded_at ? new Date(r.awarded_at).toLocaleDateString() : '—'}</td>
+      <td>${esc(r.raid_title || '—')}</td>
+      <td class="item-name">${r.item_link ? `<a href="${esc(r.item_link)}" target="_blank" rel="noopener" style="color:inherit;">${esc(r.item_name)}</a>` : esc(r.item_name || '—')}</td>
+      <td>${esc(r.response || '—')}</td>
+      <td><span class="player-link" onclick="filterByPlayer('${esc(r.winner_name||'').replace(/'/g,"\\'")}')">${esc(r.winner_name || '—')}</span></td>
+    </tr>
+  `).join('') || `<tr><td colspan="5" style="text-align:center;color:var(--dim);">No loot logged yet.</td></tr>`;
+}
+
+function filterByPlayer(name) { filterPlayer = name; render(); }
+function clearFilter() { filterPlayer = null; render(); }
+
+document.getElementById('search').addEventListener('input', render);
+
+// ---------- OFFICER: CSV UPLOAD + COLUMN MAPPING ----------
+function renderUploadUI() {
+  document.getElementById('officer-upload').style.display = 'block';
+  document.getElementById('officer-upload').innerHTML = `
+    <div class="upload-zone" id="drop-zone">
+      <p style="margin-bottom:0.8rem;color:var(--mist);">Drop your RCLootCouncil CSV export here, or</p>
+      <input type="file" id="csv-input" accept=".csv" style="display:none;">
+      <button class="btn primary" type="button" onclick="document.getElementById('csv-input').click()">Choose CSV File</button>
+    </div>
+    <div id="mapping-ui"></div>
+  `;
+
+  const dropZone = document.getElementById('drop-zone');
+  const fileInput = document.getElementById('csv-input');
+  fileInput.addEventListener('change', e => e.target.files[0] && handleFile(e.target.files[0]));
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault(); dropZone.classList.remove('drag');
+    if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+  });
+}
+
+function handleFile(file) {
+  Papa.parse(file, {
+    header: true,
+    skipEmptyLines: true,
+    complete: (results) => {
+      if (!results.data.length) { toast('That CSV looks empty.', 'error'); return; }
+      parsedCsv = results;
+      showMappingUI(results);
+    },
+    error: (err) => toast('Could not read that file: ' + err.message, 'error'),
+  });
+}
+
+const TARGET_FIELDS = [
+  { key: 'item_name', label: 'Item name', required: true },
+  { key: 'winner_name', label: 'Winner / player', required: true },
+  { key: 'awarded_at', label: 'Date', required: false },
+  { key: 'raid_title', label: 'Raid / boss', required: false },
+  { key: 'response', label: 'Response (BIS/MS/OS)', required: false },
+  { key: 'item_link', label: 'Item link (Wowhead etc)', required: false },
+];
+
+// Best-effort auto-guess so officers usually just have to confirm, not build the mapping from scratch
+function guessColumn(fields, targetKey) {
+  const lower = fields.map(f => f.toLowerCase());
+  const patterns = {
+    item_name: ['item', 'itemname', 'name'],
+    winner_name: ['player', 'name', 'winner', 'recipient', 'candidate'],
+    awarded_at: ['date', 'time', 'awarded', 'timestamp'],
+    raid_title: ['instance', 'boss', 'raid', 'zone'],
+    response: ['response', 'reason', 'type'],
+    item_link: ['link', 'url', 'wowhead'],
+  };
+  for (const p of patterns[targetKey] || []) {
+    const idx = lower.findIndex(f => f === p);
+    if (idx >= 0) return fields[idx];
+  }
+  for (const p of patterns[targetKey] || []) {
+    const idx = lower.findIndex(f => f.includes(p));
+    if (idx >= 0) return fields[idx];
+  }
+  return '';
+}
+
+function showMappingUI(results) {
+  const fields = results.meta.fields || [];
+  const mappingRows = TARGET_FIELDS.map(t => {
+    const guess = guessColumn(fields, t.key);
+    return `
+      <tr>
+        <td>${t.label}${t.required ? ' *' : ''}</td>
+        <td>
+          <select data-target="${t.key}">
+            <option value="">— not in this CSV —</option>
+            ${fields.map(f => `<option value="${esc(f)}" ${f===guess?'selected':''}>${esc(f)}</option>`).join('')}
+          </select>
+        </td>
+      </tr>`;
+  }).join('');
+
+  document.getElementById('mapping-ui').innerHTML = `
+    <div class="preview-note">Found ${results.data.length} rows and ${fields.length} columns (${fields.map(esc).join(', ')}). Confirm which column is which below — auto-guessed where possible, double check before importing.</div>
+    <table class="map-table">
+      <thead><tr><th>Loot Log field</th><th>Maps to CSV column</th></tr></thead>
+      <tbody>${mappingRows}</tbody>
+    </table>
+    <div style="display:flex;gap:0.6rem;">
+      <button class="btn primary" type="button" onclick="confirmImport()">Import ${results.data.length} Rows</button>
+      <button class="btn" type="button" onclick="parsedCsv=null;document.getElementById('mapping-ui').innerHTML='';">Cancel</button>
+    </div>
+  `;
+}
+
+async function confirmImport() {
+  const mapping = {};
+  document.querySelectorAll('#mapping-ui select[data-target]').forEach(sel => {
+    if (sel.value) mapping[sel.getAttribute('data-target')] = sel.value;
+  });
+  if (!mapping.item_name || !mapping.winner_name) {
+    toast('Item name and Winner columns are required.', 'error');
+    return;
+  }
+
+  const rows = parsedCsv.data.map(row => ({
+    item_name: row[mapping.item_name] || null,
+    winner_name: row[mapping.winner_name] || null,
+    awarded_at: mapping.awarded_at ? parseDate(row[mapping.awarded_at]) : null,
+    raid_title: mapping.raid_title ? row[mapping.raid_title] : null,
+    response: mapping.response ? row[mapping.response] : null,
+    item_link: mapping.item_link ? row[mapping.item_link] : null,
+    raw: row,
+    uploaded_by: currentUser.id,
+  }));
+
+  const { error } = await sb.from('loot_log').insert(rows);
+  if (error) { toast('Import failed: ' + error.message, 'error'); return; }
+
+  toast(`Imported ${rows.length} awards.`, 'success');
+  parsedCsv = null;
+  document.getElementById('mapping-ui').innerHTML = '';
+  await load();
+}
+
+function parseDate(val) {
+  if (!val) return null;
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? null : d.toISOString().slice(0,10);
+}
+
+(async () => {
+  await loadSession();
+  renderNav('loot');
+  if (isOfficer()) renderUploadUI();
+  await load();
+})();
+</script>
+</body>
+</html>

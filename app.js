@@ -58,8 +58,10 @@ function renderNav(active) {
   if (!el) return;
 
   const links = [{ href: 'index.html', id: 'home', label: 'Home' }];
-  links.push({ href: 'raids.html', id: 'raids', label: 'Raids' });
-  if (isMember()) links.push({ href: 'roster.html', id: 'roster', label: 'Roster' });
+  if (isMember() || isOfficer()) {
+    links.push({ href: 'roster.html', id: 'roster', label: 'Roster' });
+    links.push({ href: 'loot.html', id: 'loot', label: 'Loot Log' });
+  }
   if (isOfficer()) {
     links.push({ href: 'applications.html', id: 'applications', label: 'Applications' });
     links.push({ href: 'officers.html', id: 'officers', label: 'Officers' });

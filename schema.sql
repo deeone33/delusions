@@ -33,7 +33,35 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
 
--- ---------- APPLICATIONS ----------
+-- ---------- LOOT LOG ----------
+create table if not exists loot_log (
+  id uuid primary key default gen_random_uuid(),
+  raid_title text,
+  awarded_at date,
+  item_name text,
+  item_link text,
+  winner_name text,
+  response text,          -- BIS / MS / OS / etc, whatever the officer's council uses
+  raw jsonb,               -- the original CSV row, untouched, so nothing is ever lost
+  uploaded_by uuid references profiles(id),
+  created_at timestamptz default now()
+);
+
+alter table loot_log enable row level security;
+
+drop policy if exists "public read loot_log" on loot_log;
+create policy "public read loot_log" on loot_log for select using (true);
+
+drop policy if exists "officers insert loot_log" on loot_log;
+create policy "officers insert loot_log" on loot_log for insert with check (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+);
+
+drop policy if exists "officers delete loot_log" on loot_log;
+create policy "officers delete loot_log" on loot_log for delete using (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+);
+
 create table if not exists applications (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references auth.users(id) on delete cascade,
