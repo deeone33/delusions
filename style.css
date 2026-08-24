@@ -134,9 +134,10 @@ p{color:var(--mid);}
 
 .form-group{margin-bottom:1.1rem;}
 .form-label{display:block;font-family:'IBM Plex Mono',monospace;font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--dim);margin-bottom:0.4rem;}
-input[type="text"],input[type="email"],textarea,select{
+input[type="text"],input[type="email"],input[type="date"],textarea,select{
   width:100%;background:var(--deep);border:1px solid var(--hair);color:var(--bone);
   padding:0.65rem 0.8rem;font-family:'Newsreader',serif;font-size:0.95rem;
+  color-scheme:dark;
 }
 textarea{resize:vertical;}
 input:focus,textarea:focus,select:focus{outline:none;border-color:var(--red-bright);}
@@ -182,6 +183,12 @@ body.edit-mode [data-box]{outline:1px dashed rgba(197,55,55,0.25);outline-offset
   background:var(--danger);color:var(--white);border:none;font-size:11px;line-height:1;cursor:pointer;z-index:41;
 }
 .edit-add-btn{display:block;margin:1rem auto 0;}
+.collapse-icon{
+  font-family:'IBM Plex Mono',monospace;color:var(--red-bright);font-size:0.9rem;
+  display:inline-flex;align-items:center;justify-content:center;
+  width:1.3rem;height:1.3rem;border:1px solid var(--hair);border-radius:3px;
+  vertical-align:middle;margin-right:0.3rem;
+}
 .edit-ph-btn{
   font-family:'IBM Plex Mono',monospace;font-size:0.6rem;letter-spacing:0.06em;
   color:var(--red-bright);background:none;border:none;cursor:pointer;

@@ -104,3 +104,14 @@ function fmtDate(d) {
   if (!d) return '';
   return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
+
+// ---- COLLAPSIBLE SECTIONS ----
+// Generic +/- toggle used for anything that should start hidden (officer
+// forms, upload panels) so pages don't open cluttered by default.
+function toggleCollapse(bodyId, iconId) {
+  const body = document.getElementById(bodyId);
+  const icon = document.getElementById(iconId);
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  if (icon) icon.textContent = isOpen ? '+' : '−';
+}

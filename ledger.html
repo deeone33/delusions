@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=13">
+<link rel="stylesheet" href="style.css?v=14">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
   .page-wide{max-width:920px;margin:0 auto;padding:0 2rem 5rem;}
@@ -80,7 +80,7 @@
 
   <div style="display:flex;gap:0.6rem;margin-bottom:2rem;border-bottom:1px solid var(--hair);padding-bottom:1rem;">
     <button class="btn" id="tab-loot" onclick="showTab('loot')">Loot</button>
-    <button class="btn" id="tab-attendance" onclick="showTab('attendance')">Attendance</button>
+    <button class="btn" id="tab-attendance" style="display:none;" onclick="showTab('attendance')">Attendance</button>
   </div>
 
   <div id="panel-loot">
@@ -113,7 +113,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=13"></script>
+<script src="app.js?v=14"></script>
 <script>
 const CLASS_COLORS = {
   warrior:'#C79C6E', paladin:'#F58CBA', hunter:'#ABD473', rogue:'#FFF569',
@@ -235,17 +235,22 @@ let parsedCsv = null;
 function renderUploadUI() {
   document.getElementById('officer-upload').style.display = 'block';
   document.getElementById('officer-upload').innerHTML = `
-    <div class="upload-zone" id="drop-zone">
-      <p style="margin-bottom:0.8rem;color:var(--mist);">Drop your RCLootCouncil CSV export here, or</p>
-      <input type="file" id="csv-input" accept=".csv" style="display:none;">
-      <button class="btn primary" type="button" onclick="document.getElementById('csv-input').click()">Choose CSV File</button>
+    <h3 style="margin-bottom:1rem;cursor:pointer;font-size:0.95rem;color:var(--white);" onclick="toggleCollapse('upload-body','upload-toggle')">
+      <span id="upload-toggle" class="collapse-icon">+</span> Add Loot
+    </h3>
+    <div id="upload-body" style="display:none;margin-bottom:1.5rem;">
+      <div class="upload-zone" id="drop-zone">
+        <p style="margin-bottom:0.8rem;color:var(--mist);">Drop your RCLootCouncil CSV export here, or</p>
+        <input type="file" id="csv-input" accept=".csv" style="display:none;">
+        <button class="btn primary" type="button" onclick="document.getElementById('csv-input').click()">Choose CSV File</button>
+      </div>
+      <div class="card" style="margin-bottom:1.2rem;">
+        <div class="label" style="margin-bottom:0.6rem;">Or paste it directly</div>
+        <textarea id="csv-paste" rows="6" placeholder="Paste the raw CSV text here (header row + data rows)" style="width:100%;margin-bottom:0.8rem;font-family:'IBM Plex Mono',monospace;font-size:0.75rem;"></textarea>
+        <button class="btn primary" type="button" onclick="handlePastedCsv()">Parse Pasted CSV</button>
+      </div>
+      <div id="mapping-ui"></div>
     </div>
-    <div class="card" style="margin-bottom:1.2rem;">
-      <div class="label" style="margin-bottom:0.6rem;">Or paste it directly</div>
-      <textarea id="csv-paste" rows="6" placeholder="Paste the raw CSV text here (header row + data rows)" style="width:100%;margin-bottom:0.8rem;font-family:'IBM Plex Mono',monospace;font-size:0.75rem;"></textarea>
-      <button class="btn primary" type="button" onclick="handlePastedCsv()">Parse Pasted CSV</button>
-    </div>
-    <div id="mapping-ui"></div>
   `;
   const dropZone = document.getElementById('drop-zone');
   document.getElementById('csv-input').addEventListener('change', e => e.target.files[0] && handleFile(e.target.files[0]));
@@ -369,14 +374,18 @@ function parseDate(val) { if (!val) return null; const d = new Date(val); return
 function renderAttendanceForm() {
   document.getElementById('officer-attendance-form').style.display = 'block';
   document.getElementById('officer-attendance-form').innerHTML = `
-    <div class="card" style="margin-bottom:2rem;">
-      <div class="label" style="margin-bottom:0.8rem;">Log a Raid Night</div>
-      <div style="display:grid;grid-template-columns:1fr 160px;gap:0.8rem;margin-bottom:0.8rem;">
-        <input type="text" id="rn-title" placeholder="Raid title (e.g. Serpentshrine Cavern)">
-        <input type="date" id="rn-date">
+    <h3 style="margin-bottom:1rem;cursor:pointer;font-size:0.95rem;color:var(--white);" onclick="toggleCollapse('rn-body','rn-toggle')">
+      <span id="rn-toggle" class="collapse-icon">+</span> Log a Raid Night
+    </h3>
+    <div id="rn-body" style="display:none;margin-bottom:1.5rem;">
+      <div class="card">
+        <div style="display:grid;grid-template-columns:1fr 160px;gap:0.8rem;margin-bottom:0.8rem;">
+          <input type="text" id="rn-title" placeholder="Raid title (e.g. Serpentshrine Cavern)">
+          <input type="date" id="rn-date">
+        </div>
+        <textarea id="rn-csv" rows="8" placeholder="Paste the export from /dumpraid here (Name,Class per line)" style="width:100%;margin-bottom:0.8rem;font-family:'IBM Plex Mono',monospace;font-size:0.8rem;"></textarea>
+        <button class="btn primary" type="button" onclick="submitRaidNight()">Save Raid Night</button>
       </div>
-      <textarea id="rn-csv" rows="8" placeholder="Paste the export from /dumpraid here (Name,Class per line)" style="width:100%;margin-bottom:0.8rem;font-family:'IBM Plex Mono',monospace;font-size:0.8rem;"></textarea>
-      <button class="btn primary" type="button" onclick="submitRaidNight()">Save Raid Night</button>
     </div>
   `;
   document.getElementById('rn-date').valueAsDate = new Date();
@@ -565,9 +574,16 @@ function refreshOpenModal() {
 function closePlayerModal() { document.getElementById('player-modal').style.display = 'none'; openModalPlayer = null; }
 
 (async () => {
-  await loadSession();
+  const ok = await requireMember();
+  if (!ok) return;
   renderNav('ledger');
-  if (isOfficer()) { renderUploadUI(); renderAttendanceForm(); }
+  if (isOfficer()) {
+    document.getElementById('tab-attendance').style.display = '';
+    renderUploadUI();
+    renderAttendanceForm();
+  } else {
+    document.getElementById('tab-attendance').style.display = 'none';
+  }
   await loadLoot();
   await loadAttendance();
   showTab('loot');
