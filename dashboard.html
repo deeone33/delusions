@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=14">
+<link rel="stylesheet" href="style.css?v=15">
 </head>
 <body>
 <div class="topbar" id="topnav-top"><span>Spineshatter EU · Horde</span><span></span></div>
@@ -47,7 +47,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=14"></script>
+<script src="app.js?v=15"></script>
 <script>
 (async () => {
   await loadSession();
@@ -64,9 +64,11 @@
   `;
 
   const links = [{ href: 'index.html', label: 'Home' }];
-  if (role === 'member' || isOfficer()) {
+  if (isOfficer()) {
     links.push({ href: 'roster.html', label: 'Roster' });
     links.push({ href: 'ledger.html', label: 'Ledger (Loot & Attendance)' });
+  } else if (role === 'member') {
+    links.push({ href: 'ledger.html', label: 'Loot' });
   }
   if (!isMember() && !isOfficer()) links.push({ href: 'apply.html', label: 'Apply to Trial' });
   if (isOfficer()) {

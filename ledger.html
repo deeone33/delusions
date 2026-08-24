@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=14">
+<link rel="stylesheet" href="style.css?v=15">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
   .page-wide{max-width:920px;margin:0 auto;padding:0 2rem 5rem;}
@@ -78,7 +78,7 @@
   <h1 style="font-family:'Newsreader',serif;color:var(--white);font-size:2rem;margin-bottom:0.5rem;" id="page-h1">Loot</h1>
   <p style="color:var(--mist);margin-bottom:1.5rem;" id="page-sub">Every item awarded, from council to roster — click a name for their full history.</p>
 
-  <div style="display:flex;gap:0.6rem;margin-bottom:2rem;border-bottom:1px solid var(--hair);padding-bottom:1rem;">
+  <div id="tab-row" style="display:flex;gap:0.6rem;margin-bottom:2rem;border-bottom:1px solid var(--hair);padding-bottom:1rem;">
     <button class="btn" id="tab-loot" onclick="showTab('loot')">Loot</button>
     <button class="btn" id="tab-attendance" style="display:none;" onclick="showTab('attendance')">Attendance</button>
   </div>
@@ -113,7 +113,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=14"></script>
+<script src="app.js?v=15"></script>
 <script>
 const CLASS_COLORS = {
   warrior:'#C79C6E', paladin:'#F58CBA', hunter:'#ABD473', rogue:'#FFF569',
@@ -138,9 +138,13 @@ function showTab(name) {
   document.getElementById('tab-loot').classList.toggle('primary', name === 'loot');
   document.getElementById('tab-attendance').classList.toggle('primary', name === 'attendance');
   document.getElementById('page-h1').textContent = name === 'attendance' ? 'Attendance' : 'Loot';
-  document.getElementById('page-sub').textContent = name === 'attendance'
-    ? 'Who showed up, raid by raid — exported from the in-game addon.'
-    : 'Every item awarded, from council to roster — click a name for their full history.';
+  if (name === 'attendance') {
+    document.getElementById('page-sub').textContent = 'Who showed up, raid by raid — exported from the in-game addon.';
+  } else if (isOfficer()) {
+    document.getElementById('page-sub').textContent = 'Every item awarded, from council to roster — click a name for their full history.';
+  } else {
+    document.getElementById('page-sub').textContent = "Every item awarded to the guild — click a name to see what they've received.";
+  }
 }
 
 async function loadLoot() {
@@ -519,6 +523,7 @@ let openModalPlayer = null;
 function openPlayerModal(name) {
   if (!name) return;
   openModalPlayer = name;
+  const officer = isOfficer();
 
   const lootItems = allLoot.filter(r => r.winner_name === name);
   const nightIds = new Set(allAttendees.filter(a => a.character_name === name).map(a => a.raid_night_id));
@@ -530,13 +535,12 @@ function openPlayerModal(name) {
     || (lootItems.find(l => l.class_name)?.class_name)
     || null;
 
-  const officer = isOfficer();
-
   document.getElementById('player-modal-content').innerHTML = `
     <div style="display:flex;align-items:baseline;gap:0.7rem;margin-bottom:0.3rem;">
       <div style="font-family:'Newsreader',serif;font-size:1.5rem;color:var(--white);">${esc(name)}</div>
       ${classTag(className)}
     </div>
+    ${officer ? `
     <div class="label">${totalNights ? `${attendedNights.length} of ${totalNights} raid nights` : 'No raid nights logged yet'}</div>
     <div class="modal-pct">${pct}%</div>
 
@@ -547,12 +551,12 @@ function openPlayerModal(name) {
           <span>${esc(n.title)}</span>
           <span style="display:flex;align-items:center;gap:0.6rem;">
             ${n.raid_date ? new Date(n.raid_date).toLocaleDateString() : ''}
-            ${officer ? `<button class="row-delete" title="Remove this raid entirely" onclick="deleteRaidNight('${n.id}')">${TRASH_ICON}</button>` : ''}
+            <button class="row-delete" title="Remove this raid entirely" onclick="deleteRaidNight('${n.id}')">${TRASH_ICON}</button>
           </span>
         </div>`).join('') : '<div style="color:var(--dim);font-size:0.85rem;">Nothing logged.</div>'}
-    </div>
+    </div>` : ''}
 
-    <div class="modal-section">
+    <div class="modal-section" style="${officer ? '' : 'margin-top:1rem;padding-top:0;border-top:none;'}">
       <h4>Loot History (${lootItems.length})</h4>
       ${lootItems.length ? lootItems.map(l => `
         <div class="modal-row">
@@ -582,7 +586,8 @@ function closePlayerModal() { document.getElementById('player-modal').style.disp
     renderUploadUI();
     renderAttendanceForm();
   } else {
-    document.getElementById('tab-attendance').style.display = 'none';
+    // Members only ever see Loot — no point showing a tab switcher with one option
+    document.getElementById('tab-row').style.display = 'none';
   }
   await loadLoot();
   await loadAttendance();

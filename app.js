@@ -58,9 +58,11 @@ function renderNav(active) {
   if (!el) return;
 
   const links = [{ href: 'index.html', id: 'home', label: 'Home' }];
-  if (isMember() || isOfficer()) {
+  if (isOfficer()) {
     links.push({ href: 'roster.html', id: 'roster', label: 'Roster' });
     links.push({ href: 'ledger.html', id: 'ledger', label: 'Ledger' });
+  } else if (isMember()) {
+    links.push({ href: 'ledger.html', id: 'ledger', label: 'Loot' });
   }
   if (isOfficer()) {
     links.push({ href: 'applications.html', id: 'applications', label: 'Applications' });
