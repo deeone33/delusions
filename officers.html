@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=17">
+<link rel="stylesheet" href="style.css?v=18">
 <style>
   .char-chip-wrap{display:flex;flex-wrap:wrap;gap:0.3rem;align-items:center;max-width:220px;}
   .char-chip{
@@ -52,7 +52,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=17"></script>
+<script src="app.js?v=18"></script>
 <script>
 let members = [];
 let charactersByProfile = {};
@@ -116,11 +116,15 @@ function showAddCharInput(profileId) {
   const input = document.createElement('input');
   input.type = 'text'; input.placeholder = 'Name';
   input.style.cssText = 'width:80px;font-size:0.78rem;padding:0.2rem 0.4rem;';
+  let committed = false;
   const commit = () => {
+    if (committed) return; // Enter triggers this via keydown, then the re-render removes
+    committed = true;      // the input and fires blur too — without this guard that's a double-submit.
+    input.onblur = null;
     if (input.value.trim()) addCharacter(profileId, input.value);
     else { input.remove(); addBtn.style.display = ''; }
   };
-  input.onkeydown = (e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { input.remove(); addBtn.style.display=''; } };
+  input.onkeydown = (e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { committed = true; input.remove(); addBtn.style.display=''; } };
   input.onblur = commit;
   wrap.insertBefore(input, addBtn);
   input.focus();
