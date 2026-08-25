@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=16">
+<link rel="stylesheet" href="style.css?v=17">
 </head>
 <body>
 <div class="topbar" id="topnav-top"><span>Spineshatter EU · Horde</span><span></span></div>
@@ -20,7 +20,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=16"></script>
+<script src="app.js?v=17"></script>
 <script>
 let apps = [];
 let webhookUrl = null;
@@ -105,6 +105,7 @@ async function decide(id, status) {
   const officer = currentProfile?.username || 'An officer';
   const verb = status === 'accepted' ? 'approved' : 'declined';
   if (app) pingDiscord(`${officer} ${verb} application of **${app.applicant_name}** - ${app.class_spec}`, true);
+  if (app) logActivity(`${verb === 'approved' ? 'Approved' : 'Declined'} application of ${app.applicant_name} - ${app.class_spec}`);
   toast(`Application ${status}.`, 'success');
   await load();
 }
@@ -116,6 +117,7 @@ async function removeApp(id) {
   if (error) { toast(error.message, 'error'); return; }
   const officer = currentProfile?.username || 'An officer';
   if (app) pingDiscord(`${officer} removed application of **${app.applicant_name}** - ${app.class_spec}`, true);
+  if (app) logActivity(`Removed application of ${app.applicant_name} - ${app.class_spec}`);
   toast('Application removed.', 'success');
   await load();
 }

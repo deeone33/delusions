@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=16">
+<link rel="stylesheet" href="style.css?v=17">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
   .page-wide{max-width:920px;margin:0 auto;padding:0 2rem 5rem;}
@@ -87,7 +87,10 @@
     <div id="officer-upload" style="display:none;"></div>
     <div class="ledger-toolbar">
       <input type="text" class="ledger-search" id="loot-search" placeholder="Search item or player...">
-      <span class="label" id="loot-count"></span>
+      <span style="display:flex;align-items:center;gap:1rem;">
+        <span class="label" id="loot-count"></span>
+        <button class="btn" type="button" onclick="downloadLootCSV()">Download CSV</button>
+      </span>
     </div>
     <div id="loot-body"></div>
   </div>
@@ -101,7 +104,10 @@
         <tbody id="attendance-body"></tbody>
       </table>
     </div>
-    <h3 style="font-family:'Newsreader',serif;font-style:italic;color:var(--white);margin-bottom:1rem;">All Raid Nights (<span id="nights-count">0</span>)</h3>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+      <h3 style="font-family:'Newsreader',serif;font-style:italic;color:var(--white);">All Raid Nights (<span id="nights-count">0</span>)</h3>
+      <button class="btn" type="button" onclick="downloadAttendanceCSV()">Download CSV</button>
+    </div>
     <div id="nights-list"></div>
   </div></div>
 
@@ -113,7 +119,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=16"></script>
+<script src="app.js?v=17"></script>
 <script>
 const CLASS_COLORS = {
   warrior:'#C79C6E', paladin:'#F58CBA', hunter:'#ABD473', rogue:'#FFF569',
@@ -127,6 +133,31 @@ function classTag(name) {
 }
 
 const TRASH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>';
+
+function downloadCSV(filename, headers, rows) {
+  const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const csv = [headers.map(esc).join(','), ...rows.map(r => r.map(esc).join(','))].join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function downloadLootCSV() {
+  downloadCSV('delusions-loot-log.csv',
+    ['Date', 'Boss', 'Item', 'Response', 'Winner'],
+    allLoot.map(r => [r.awarded_at || '', r.raid_title || '', r.item_name || '', r.response || '', r.winner_name || '']));
+}
+
+function downloadAttendanceCSV() {
+  const rows = allAttendees.map(a => {
+    const night = allNights.find(n => n.id === a.raid_night_id);
+    return [night?.raid_date || '', night?.title || '', a.character_name || '', a.class_name || ''];
+  });
+  downloadCSV('delusions-attendance.csv', ['Date', 'Raid', 'Character', 'Class'], rows);
+}
 
 let allLoot = [];
 let allNights = [];
@@ -215,9 +246,11 @@ function toggleLootGroup(dateKey) {
 }
 
 async function deleteLootItem(id) {
+  const item = allLoot.find(r => r.id === id);
   if (!confirm('Remove this item from the loot log?')) return;
   const { error } = await sb.from('loot_log').delete().eq('id', id);
   if (error) { toast(error.message, 'error'); return; }
+  if (item) logActivity(`Removed loot item "${item.item_name}" (${item.winner_name})`);
   toast('Removed.', 'success');
   await loadLoot();
   if (document.getElementById('player-modal').style.display === 'flex') refreshOpenModal();
@@ -228,6 +261,7 @@ async function deleteLootGroup(dateKey) {
   if (!confirm(`Remove this entire log — all ${items.length} item${items.length!==1?'s':''} for this date? This can't be undone.`)) return;
   const { error } = await sb.from('loot_log').delete().in('id', items.map(r => r.id));
   if (error) { toast(error.message, 'error'); return; }
+  logActivity(`Removed entire loot log for ${dateKey} (${items.length} items)`);
   toast(`Removed ${items.length} items.`, 'success');
   await loadLoot();
   if (document.getElementById('player-modal').style.display === 'flex') refreshOpenModal();
@@ -357,6 +391,7 @@ async function confirmImport() {
 
   const { error } = await sb.from('loot_log').insert(rows);
   if (error) { toast('Import failed: ' + error.message, 'error'); return; }
+  logActivity(`Imported ${rows.length} loot awards from CSV`);
   toast(`Imported ${rows.length} awards.`, 'success');
   parsedCsv = null;
   document.getElementById('mapping-ui').innerHTML = '';
@@ -387,7 +422,7 @@ function renderAttendanceForm() {
           <input type="text" id="rn-title" placeholder="Raid title (e.g. Serpentshrine Cavern)">
           <input type="date" id="rn-date">
         </div>
-        <textarea id="rn-csv" rows="8" placeholder="Paste the export from /dumpraid here (Name,Class per line)" style="width:100%;margin-bottom:0.8rem;font-family:'IBM Plex Mono',monospace;font-size:0.8rem;"></textarea>
+        <textarea id="rn-csv" rows="8" placeholder="Paste the export from /dumpraid here (Name,Class,Guild per line — non-guild entries are auto-excluded)" style="width:100%;margin-bottom:0.8rem;font-family:'IBM Plex Mono',monospace;font-size:0.8rem;"></textarea>
         <button class="btn primary" type="button" onclick="submitRaidNight()">Save Raid Night</button>
       </div>
     </div>
@@ -395,15 +430,26 @@ function renderAttendanceForm() {
   document.getElementById('rn-date').valueAsDate = new Date();
 }
 
+const GUILD_NAME = 'Delusions'; // must match your addon's captured guild name — see /dumpraid export
+
 function parseRosterCsv(text) {
   const lines = text.trim().split('\n').map(l => l.trim()).filter(Boolean);
-  const out = [];
+  const included = [];
+  const excluded = [];
   for (const line of lines) {
-    if (/^name\s*,\s*class$/i.test(line)) continue;
-    const [name, className] = line.split(',').map(s => s && s.trim());
-    if (name) out.push({ character_name: name, class_name: className || null });
+    if (/^name\s*,\s*class/i.test(line)) continue; // header row, either 2 or 3 column version
+    const parts = line.split(',').map(s => s && s.trim());
+    const [name, className, guild] = parts;
+    if (!name) continue;
+    // Older addon exports (2 columns, no guild) have nothing to check against —
+    // include them as-is rather than guessing.
+    if (guild !== undefined && guild.toLowerCase() !== GUILD_NAME.toLowerCase()) {
+      excluded.push(name);
+      continue;
+    }
+    included.push({ character_name: name, class_name: className || null });
   }
-  return out;
+  return { included, excluded };
 }
 
 async function submitRaidNight() {
@@ -412,48 +458,67 @@ async function submitRaidNight() {
   const csvText = document.getElementById('rn-csv').value.trim();
   if (!title || !date || !csvText) { toast('Fill in title, date, and paste the roster export.', 'error'); return; }
 
-  const roster = parseRosterCsv(csvText);
-  if (!roster.length) { toast('No valid names found in that paste.', 'error'); return; }
+  const { included, excluded } = parseRosterCsv(csvText);
+  if (!included.length) { toast('No valid guild members found in that paste.', 'error'); return; }
 
   const { data: night, error } = await sb.from('raid_nights').insert({ title, raid_date: date, created_by: currentUser.id }).select().single();
   if (error) { toast(error.message, 'error'); return; }
 
-  const rows = roster.map(r => ({ raid_night_id: night.id, character_name: r.character_name, class_name: r.class_name }));
+  const rows = included.map(r => ({ raid_night_id: night.id, character_name: r.character_name, class_name: r.class_name }));
   const { error: err2 } = await sb.from('raid_attendees').insert(rows);
   if (err2) { toast(err2.message, 'error'); return; }
 
-  toast(`Logged ${roster.length} attendees for ${title}.`, 'success');
+  logActivity(`Logged raid night "${title}" (${included.length} attendees${excluded.length ? `, ${excluded.length} pugs excluded` : ''})`);
+  const excludedNote = excluded.length ? ` (${excluded.length} non-guild excluded: ${excluded.join(', ')})` : '';
+  toast(`Logged ${included.length} attendees for ${title}.${excludedNote}`, 'success');
   document.getElementById('rn-title').value = '';
   document.getElementById('rn-csv').value = '';
   await loadAttendance();
 }
 
-let profilesByCharName = {};
+let charToIdentity = {}; // lowercased character name -> { profileId, joinedAt, allNames }
 
 async function loadProfiles() {
-  const { data } = await sb.from('profiles').select('character_name, joined_at').not('character_name', 'is', null);
-  profilesByCharName = {};
-  (data || []).forEach(p => { if (p.character_name) profilesByCharName[p.character_name.toLowerCase()] = p; });
+  const { data } = await sb.from('profile_characters').select('character_name, profile_id, profiles(joined_at)');
+  const byProfile = {};
+  (data || []).forEach(row => {
+    const pid = row.profile_id;
+    if (!byProfile[pid]) byProfile[pid] = { profileId: pid, joinedAt: row.profiles?.joined_at || null, allNames: [] };
+    byProfile[pid].allNames.push(row.character_name);
+  });
+  charToIdentity = {};
+  Object.values(byProfile).forEach(identity => {
+    identity.allNames.forEach(n => { charToIdentity[n.toLowerCase()] = identity; });
+  });
+}
+
+// Resolves a character name to its full identity (all linked alts + join
+// date) if an officer has linked it to an account, otherwise treats it as
+// a standalone unlinked name.
+function getIdentity(characterName) {
+  return charToIdentity[characterName.toLowerCase()] || { profileId: null, joinedAt: null, allNames: [characterName] };
 }
 
 // Attendance % counts only raid nights on or after a player's join date, so
 // someone who joined this week isn't penalized for raids that happened
-// before they existed. Falls back to full history if we don't have a linked
-// account for that character (e.g. they were invited outside the site).
+// before they existed. Aggregates across all of an account's linked
+// characters (main + alts) rather than just the one name clicked. Falls
+// back to full history if we don't have a linked account (e.g. invited
+// outside the site).
 function computeAttendance(characterName) {
-  const profile = profilesByCharName[characterName.toLowerCase()];
-  const joinedAt = profile?.joined_at || null;
+  const identity = getIdentity(characterName);
+  const namesLower = new Set(identity.allNames.map(n => n.toLowerCase()));
+  const joinedAt = identity.joinedAt;
 
   let eligibleNights = allNights;
   if (joinedAt) {
     const joinedTime = new Date(joinedAt).getTime();
     eligibleNights = allNights.filter(n => n.raid_date && new Date(n.raid_date).getTime() >= joinedTime);
   }
-  const eligibleIds = new Set(eligibleNights.map(n => n.id));
-  const attendedIds = new Set(allAttendees.filter(a => a.character_name === characterName).map(a => a.raid_night_id));
+  const attendedIds = new Set(allAttendees.filter(a => namesLower.has((a.character_name||'').toLowerCase())).map(a => a.raid_night_id));
   const attended = eligibleNights.filter(n => attendedIds.has(n.id)).length;
   const total = eligibleNights.length;
-  return { attended, total, pct: total ? Math.round((attended/total)*100) : 0, joinedAt };
+  return { attended, total, pct: total ? Math.round((attended/total)*100) : 0, joinedAt, allNames: identity.allNames };
 }
 
 async function loadAttendance() {
@@ -490,18 +555,25 @@ function renderAttendance() {
     lastCard.innerHTML = '';
   }
 
-  const byPlayer = {};
+  const seenIdentity = new Set();
+  const players = [];
   allAttendees.forEach(a => {
-    if (!byPlayer[a.character_name]) byPlayer[a.character_name] = { className: a.class_name };
-    if (a.class_name) byPlayer[a.character_name].className = a.class_name;
+    const identity = getIdentity(a.character_name);
+    const key = identity.profileId || ('unlinked:' + a.character_name.toLowerCase());
+    if (seenIdentity.has(key)) return;
+    seenIdentity.add(key);
+    players.push({
+      name: a.character_name, // used to resolve the modal — any linked name works
+      displayName: identity.allNames.length > 1 ? identity.allNames.join(' / ') : a.character_name,
+      className: a.class_name,
+      ...computeAttendance(a.character_name),
+    });
   });
-  const players = Object.entries(byPlayer)
-    .map(([name, d]) => ({ name, className: d.className, ...computeAttendance(name) }))
-    .sort((a,b) => b.pct - a.pct);
+  players.sort((a,b) => b.pct - a.pct);
 
   document.getElementById('attendance-body').innerHTML = players.map(p => `
     <tr>
-      <td><span class="player-link" onclick="openPlayerModal('${esc(p.name).replace(/'/g,"\\'")}')">${esc(p.name)}</span></td>
+      <td><span class="player-link" onclick="openPlayerModal('${esc(p.name).replace(/'/g,"\\'")}')">${esc(p.displayName)}</span></td>
       <td>${classTag(p.className)}</td>
       <td>${p.attended} / ${p.total}</td>
       <td class="item-name">${p.pct}%</td>
@@ -537,9 +609,11 @@ function toggleNight(id) {
 }
 
 async function deleteRaidNight(id) {
+  const night = allNights.find(n => n.id === id);
   if (!confirm('Remove this entire raid night? This also removes everyone\'s attendance record for it.')) return;
   const { error } = await sb.from('raid_nights').delete().eq('id', id);
   if (error) { toast(error.message, 'error'); return; }
+  if (night) logActivity(`Removed raid night "${night.title}" (${night.raid_date})`);
   toast('Raid night removed.', 'success');
   await loadAttendance();
   if (document.getElementById('player-modal').style.display === 'flex') refreshOpenModal();
@@ -551,19 +625,23 @@ function openPlayerModal(name) {
   if (!name) return;
   openModalPlayer = name;
   const officer = isOfficer();
+  const identity = getIdentity(name);
+  const namesLower = new Set(identity.allNames.map(n => n.toLowerCase()));
 
-  const lootItems = allLoot.filter(r => r.winner_name === name);
-  const nightIds = new Set(allAttendees.filter(a => a.character_name === name).map(a => a.raid_night_id));
+  const lootItems = allLoot.filter(r => namesLower.has((r.winner_name||'').toLowerCase()));
+  const nightIds = new Set(allAttendees.filter(a => namesLower.has((a.character_name||'').toLowerCase())).map(a => a.raid_night_id));
   const attendedNights = allNights.filter(n => nightIds.has(n.id));
   const att = computeAttendance(name);
 
-  const className = (allAttendees.find(a => a.character_name === name)?.class_name)
+  const className = (allAttendees.find(a => namesLower.has((a.character_name||'').toLowerCase()))?.class_name)
     || (lootItems.find(l => l.class_name)?.class_name)
     || null;
 
+  const displayName = identity.allNames.length > 1 ? identity.allNames.join(' / ') : name;
+
   document.getElementById('player-modal-content').innerHTML = `
     <div style="display:flex;align-items:baseline;gap:0.7rem;margin-bottom:0.3rem;">
-      <div style="font-family:'Newsreader',serif;font-size:1.5rem;color:var(--white);">${esc(name)}</div>
+      <div style="font-family:'Newsreader',serif;font-size:1.5rem;color:var(--white);">${esc(displayName)}</div>
       ${classTag(className)}
     </div>
     ${officer ? `

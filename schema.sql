@@ -13,8 +13,39 @@ create table if not exists profiles (
   created_at timestamptz default now()
 );
 -- Added later — safe to re-run
-alter table profiles add column if not exists character_name text;  -- links this account to a Ledger character name, set by an officer
+alter table profiles add column if not exists character_name text;  -- deprecated, kept for backward-compat only — see profile_characters below
 alter table profiles add column if not exists joined_at timestamptz; -- when they became a member (accepted or manually promoted)
+
+-- One account can have multiple linked characters (main + alts), so
+-- attendance/loot aggregate correctly regardless of which character
+-- someone brought to a given raid.
+create table if not exists profile_characters (
+  id uuid primary key default gen_random_uuid(),
+  profile_id uuid references profiles(id) on delete cascade,
+  character_name text not null,
+  created_at timestamptz default now()
+);
+-- One-time migration: carry over anything already set in the old single
+-- character_name field so existing officer work isn't lost.
+insert into profile_characters (profile_id, character_name)
+select id, character_name from profiles
+where character_name is not null and character_name <> ''
+  and not exists (
+    select 1 from profile_characters pc
+    where pc.profile_id = profiles.id and lower(pc.character_name) = lower(profiles.character_name)
+  );
+
+alter table profile_characters enable row level security;
+drop policy if exists "public read profile_characters" on profile_characters;
+create policy "public read profile_characters" on profile_characters for select using (true);
+drop policy if exists "officers write profile_characters" on profile_characters;
+create policy "officers write profile_characters" on profile_characters for insert with check (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+);
+drop policy if exists "officers delete profile_characters" on profile_characters;
+create policy "officers delete profile_characters" on profile_characters for delete using (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+);
 
 -- Auto-create a profile row whenever someone signs in for the first time
 create or replace function public.handle_new_user()
@@ -120,6 +151,26 @@ create table if not exists applications (
 alter table applications add column if not exists warcraftlogs_url text;
 alter table applications add column if not exists why_join text;
 alter table applications add column if not exists officer_note text;  -- visible to the applicant, set when accepting/rejecting
+
+-- ---------- ACTIVITY LOG ----------
+-- Audit trail for officer actions — who deleted/approved/edited what.
+create table if not exists activity_log (
+  id uuid primary key default gen_random_uuid(),
+  officer_id uuid references profiles(id),
+  officer_name text,
+  action text not null,
+  created_at timestamptz default now()
+);
+
+alter table activity_log enable row level security;
+drop policy if exists "officers read activity_log" on activity_log;
+create policy "officers read activity_log" on activity_log for select using (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+);
+drop policy if exists "officers write activity_log" on activity_log;
+create policy "officers write activity_log" on activity_log for insert with check (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+);
 
 -- ---------- SITE CONTENT (single editable text/style fields) ----------
 create table if not exists site_content (

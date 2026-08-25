@@ -107,6 +107,18 @@ function fmtDate(d) {
   return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+// ---- ACTIVITY LOG ----
+// Fire-and-forget audit trail for officer actions. Never blocks or throws —
+// losing a log entry is fine, losing the actual action it's logging is not.
+function logActivity(action) {
+  if (!isOfficer()) return;
+  sb.from('activity_log').insert({
+    officer_id: currentUser?.id,
+    officer_name: currentProfile?.username || 'An officer',
+    action,
+  }).then(({ error }) => { if (error) console.warn('activity log failed:', error.message); });
+}
+
 // ---- COLLAPSIBLE SECTIONS ----
 // Generic +/- toggle used for anything that should start hidden (officer
 // forms, upload panels) so pages don't open cluttered by default.

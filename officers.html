@@ -7,7 +7,23 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=16">
+<link rel="stylesheet" href="style.css?v=17">
+<style>
+  .char-chip-wrap{display:flex;flex-wrap:wrap;gap:0.3rem;align-items:center;max-width:220px;}
+  .char-chip{
+    display:inline-flex;align-items:center;gap:0.3rem;background:var(--deep);border:1px solid var(--hair);
+    padding:0.15rem 0.3rem 0.15rem 0.5rem;border-radius:3px;font-size:0.78rem;color:var(--bone);white-space:nowrap;
+  }
+  .char-chip button{background:none;border:none;color:var(--dim);cursor:pointer;font-size:0.85rem;padding:0 0.15rem;line-height:1;}
+  .char-chip button:hover{color:var(--red-bright);}
+  .char-add-btn{
+    width:1.4rem;height:1.4rem;border:1px dashed var(--hair);border-radius:3px;background:none;
+    color:var(--dim);cursor:pointer;font-size:0.85rem;line-height:1;flex-shrink:0;
+  }
+  .char-add-btn:hover{color:var(--red-bright);border-color:var(--red-bright);}
+  .activity-row{display:flex;justify-content:space-between;gap:1rem;padding:0.5rem 0;border-bottom:1px solid var(--hair2);font-size:0.85rem;}
+  .activity-row .who{color:var(--bone);}
+</style>
 </head>
 <body>
 <div class="topbar" id="topnav-top"><span>Spineshatter EU · Horde</span><span></span></div>
@@ -20,29 +36,54 @@
 
   <div class="card" style="padding:0;overflow:hidden;">
     <table>
-      <thead><tr><th>Name</th><th>Character</th><th>Role</th><th>Rank / Title</th><th>Joined</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Name</th><th>Characters</th><th>Role</th><th>Rank / Title</th><th>Joined</th><th>Actions</th></tr></thead>
       <tbody id="members-body"></tbody>
     </table>
+  </div>
+
+  <div style="margin-top:2.5rem;">
+    <h2 style="margin-bottom:1rem;cursor:pointer;" onclick="toggleCollapse('activity-body','activity-toggle')">
+      <span id="activity-toggle" class="collapse-icon">+</span> Activity Log
+    </h2>
+    <div id="activity-body" style="display:none;">
+      <div class="card" id="activity-list">Loading…</div>
+    </div>
   </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=16"></script>
+<script src="app.js?v=17"></script>
 <script>
 let members = [];
+let charactersByProfile = {};
 
 async function load() {
   const { data, error } = await sb.from('profiles').select('*').order('role', {ascending:false});
   if (error) { toast(error.message, 'error'); return; }
   members = data || [];
+  await loadCharacters();
   render();
+}
+
+async function loadCharacters() {
+  const { data } = await sb.from('profile_characters').select('*');
+  charactersByProfile = {};
+  (data || []).forEach(c => {
+    if (!charactersByProfile[c.profile_id]) charactersByProfile[c.profile_id] = [];
+    charactersByProfile[c.profile_id].push(c);
+  });
 }
 
 function render() {
   document.getElementById('members-body').innerHTML = members.map(p => `
     <tr>
       <td style="color:var(--white)">${esc(p.username)}</td>
-      <td><input type="text" value="${esc(p.character_name||'')}" placeholder="Links this account to Ledger data" data-charname="${p.id}" style="width:150px;padding:0.35rem 0.5rem;font-size:0.85rem;"></td>
+      <td>
+        <div class="char-chip-wrap" data-charwrap="${p.id}">
+          ${(charactersByProfile[p.id]||[]).map(c => `<span class="char-chip">${esc(c.character_name)}<button onclick="removeCharacter('${c.id}','${p.id}')" title="Unlink">&times;</button></span>`).join('')}
+          <button class="char-add-btn" onclick="showAddCharInput('${p.id}')" title="Link a character">+</button>
+        </div>
+      </td>
       <td><span class="pill ${p.role}">${esc(p.role)}</span></td>
       <td><input type="text" value="${esc(p.rank||'')}" data-rank="${p.id}" style="width:140px;padding:0.35rem 0.5rem;font-size:0.85rem;"></td>
       <td><input type="date" value="${p.joined_at ? p.joined_at.slice(0,10) : ''}" data-joined="${p.id}" style="width:145px;padding:0.35rem 0.5rem;font-size:0.82rem;"></td>
@@ -59,12 +100,6 @@ function render() {
       if (error) toast(error.message, 'error'); else toast('Rank updated.', 'success');
     };
   });
-  document.querySelectorAll('[data-charname]').forEach(input => {
-    input.onblur = async () => {
-      const { error } = await sb.from('profiles').update({ character_name: input.value || null }).eq('id', input.getAttribute('data-charname'));
-      if (error) toast(error.message, 'error'); else toast('Character name updated.', 'success');
-    };
-  });
   document.querySelectorAll('[data-joined]').forEach(input => {
     input.onchange = async () => {
       const val = input.value ? new Date(input.value).toISOString() : null;
@@ -74,16 +109,70 @@ function render() {
   });
 }
 
+function showAddCharInput(profileId) {
+  const wrap = document.querySelector(`[data-charwrap="${profileId}"]`);
+  const addBtn = wrap.querySelector('.char-add-btn');
+  addBtn.style.display = 'none';
+  const input = document.createElement('input');
+  input.type = 'text'; input.placeholder = 'Name';
+  input.style.cssText = 'width:80px;font-size:0.78rem;padding:0.2rem 0.4rem;';
+  const commit = () => {
+    if (input.value.trim()) addCharacter(profileId, input.value);
+    else { input.remove(); addBtn.style.display = ''; }
+  };
+  input.onkeydown = (e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { input.remove(); addBtn.style.display=''; } };
+  input.onblur = commit;
+  wrap.insertBefore(input, addBtn);
+  input.focus();
+}
+
+async function addCharacter(profileId, name) {
+  name = name.trim();
+  if (!name) return;
+  const { error } = await sb.from('profile_characters').insert({ profile_id: profileId, character_name: name });
+  if (error) { toast(error.message, 'error'); return; }
+  const who = members.find(m => m.id === profileId)?.username || 'an account';
+  logActivity(`Linked character "${name}" to ${who}`);
+  toast(`Linked ${name}.`, 'success');
+  await loadCharacters();
+  render();
+}
+
+async function removeCharacter(charId, profileId) {
+  const char = (charactersByProfile[profileId]||[]).find(c => c.id === charId);
+  if (!confirm(`Unlink ${char?.character_name || 'this character'}?`)) return;
+  const { error } = await sb.from('profile_characters').delete().eq('id', charId);
+  if (error) { toast(error.message, 'error'); return; }
+  const who = members.find(m => m.id === profileId)?.username || 'an account';
+  logActivity(`Unlinked character "${char?.character_name}" from ${who}`);
+  toast('Unlinked.', 'success');
+  await loadCharacters();
+  render();
+}
+
 async function setRole(id, role) {
   const patch = { role };
-  if (role === 'member') {
-    const profile = members.find(m => m.id === id);
-    if (profile && !profile.joined_at) patch.joined_at = new Date().toISOString();
-  }
+  const profile = members.find(m => m.id === id);
+  if (role === 'member' && profile && !profile.joined_at) patch.joined_at = new Date().toISOString();
   const { error } = await sb.from('profiles').update(patch).eq('id', id);
   if (error) { toast(error.message, 'error'); return; }
+  logActivity(`Set ${profile?.username || 'an account'}'s role to ${role}`);
   toast('Role updated.', 'success');
   await load();
+}
+
+// ---------- ACTIVITY LOG ----------
+async function loadActivity() {
+  const { data, error } = await sb.from('activity_log').select('*').order('created_at', { ascending: false }).limit(50);
+  const el = document.getElementById('activity-list');
+  if (error) { el.innerHTML = `<div style="color:var(--dim);">Couldn't load activity log.</div>`; return; }
+  if (!data || !data.length) { el.innerHTML = `<div style="color:var(--dim);">Nothing logged yet.</div>`; return; }
+  el.innerHTML = data.map(a => `
+    <div class="activity-row">
+      <span><span class="who">${esc(a.officer_name)}</span> — ${esc(a.action)}</span>
+      <span class="label">${fmtDate(a.created_at)}</span>
+    </div>
+  `).join('');
 }
 
 (async () => {
@@ -91,6 +180,7 @@ async function setRole(id, role) {
   if (!ok) return;
   renderNav('officers');
   await load();
+  await loadActivity();
 })();
 </script>
 </body>
