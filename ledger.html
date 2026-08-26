@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=23">
+<link rel="stylesheet" href="style.css?v=24">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
   .page-wide{max-width:920px;margin:0 auto;padding:0 2rem 5rem;}
@@ -110,7 +110,7 @@
       <input type="text" class="ledger-search" id="loot-search" placeholder="Search item or player...">
       <span style="display:flex;align-items:center;gap:1rem;">
         <span class="label" id="loot-count"></span>
-        <button class="btn" type="button" onclick="downloadLootCSV()">Download CSV</button>
+        <button class="btn" id="loot-csv-btn" type="button" onclick="downloadLootCSV()" style="display:none;">Download CSV</button>
       </span>
     </div>
     <div id="loot-body"></div>
@@ -127,7 +127,7 @@
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
       <h3 style="font-family:'Newsreader',serif;font-style:italic;color:var(--white);">All Raid Nights (<span id="nights-count">0</span>)</h3>
-      <button class="btn" type="button" onclick="downloadAttendanceCSV()">Download CSV</button>
+      <button class="btn" id="attendance-csv-btn" type="button" onclick="downloadAttendanceCSV()" style="display:none;">Download CSV</button>
     </div>
     <div id="nights-list"></div>
   </div>
@@ -135,7 +135,7 @@
   <div id="panel-polls" style="display:none;">
     <div id="officer-poll-form" style="display:none;"></div>
     <div id="polls-toolbar" style="display:flex;justify-content:flex-end;margin-bottom:1rem;">
-      <button class="btn" type="button" onclick="downloadPollsCSV()">Download CSV</button>
+      <button class="btn" id="polls-csv-btn" type="button" onclick="downloadPollsCSV()" style="display:none;">Download CSV</button>
     </div>
     <div id="current-polls-list"></div>
     <h3 style="font-family:'Newsreader',serif;font-style:italic;color:var(--white);margin:2.5rem 0 1rem;">Past Polls</h3>
@@ -151,7 +151,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=23"></script>
+<script src="app.js?v=24"></script>
 <script>
 const CLASS_COLORS = {
   warrior:'#C79C6E', paladin:'#F58CBA', hunter:'#ABD473', rogue:'#FFF569',
@@ -788,17 +788,34 @@ function renderPollCard(poll, isOpen) {
 
   const officerActions = isOfficer() ? `
     <div class="poll-actions">
-      ${isOpen ? `<button class="btn" onclick="closePoll('${poll.id}')">Close Poll</button>` : ''}
+      ${isOpen ? `<button class="btn" onclick="closePoll('${poll.id}')">Close Poll</button>` : `<button class="btn" onclick="reopenPoll('${poll.id}')">Reopen Poll</button>`}
       <button class="btn" onclick="deletePoll('${poll.id}')">Delete Poll</button>
     </div>` : '';
 
-  return `
-    <div class="poll-card ${isOpen?'open':''}">
+  const innerHtml = `
       <div class="poll-q">${esc(poll.question)}</div>
       <div class="label poll-meta">${audienceLabel} · ${totalVotes} vote${totalVotes!==1?'s':''} · ${isOpen ? 'Open' : 'Closed ' + fmtDate(poll.closed_at)}</div>
       <div id="poll-body-${poll.id}">${body}</div>
       ${officerBreakdown}
-      ${officerActions}
+      ${officerActions}`;
+
+  // Open polls always show in full. Past polls collapse to just a title +
+  // date row by default — expanding a long poll history shouldn't mean
+  // scrolling past every full result breakdown to find the one you want.
+  if (isOpen) {
+    return `<div class="poll-card open">${innerHtml}</div>`;
+  }
+
+  const pcToggleId = `pc-toggle-${poll.id}`;
+  const pcBodyId = `pc-body-${poll.id}`;
+  return `
+    <div class="poll-card">
+      <div style="display:flex;align-items:center;gap:0.8rem;cursor:pointer;" onclick="toggleCollapse('${pcBodyId}','${pcToggleId}')">
+        <span class="collapse-icon" id="${pcToggleId}">+</span>
+        <span class="poll-q" style="margin-bottom:0;flex:1;">${esc(poll.question)}</span>
+        <span class="label">${fmtDate(poll.closed_at)}</span>
+      </div>
+      <div id="${pcBodyId}" style="display:none;margin-top:1rem;">${innerHtml}</div>
     </div>`;
 }
 
@@ -840,6 +857,16 @@ async function closePoll(id) {
   if (error) { toast(error.message, 'error'); return; }
   if (poll) logActivity(`Closed poll "${poll.question}"`);
   toast('Poll closed.', 'success');
+  await loadPolls();
+}
+
+async function reopenPoll(id) {
+  const poll = allPolls.find(p => p.id === id);
+  if (!confirm('Reopen this poll? It will accept votes again and move back to Current.')) return;
+  const { error } = await sb.from('polls').update({ status: 'open', closed_at: null }).eq('id', id);
+  if (error) { toast(error.message, 'error'); return; }
+  if (poll) logActivity(`Reopened poll "${poll.question}"`);
+  toast('Poll reopened.', 'success');
   await loadPolls();
 }
 
@@ -944,6 +971,12 @@ async function submitPoll() {
   document.getElementById('tab-loot').style.display = canSeeLootAttendance ? '' : 'none';
   document.getElementById('tab-attendance').style.display = isOfficer() ? '' : 'none';
   document.getElementById('tab-polls').style.display = (isOfficer() || hasVisiblePolls) ? '' : 'none';
+
+  if (isOfficer()) {
+    document.getElementById('loot-csv-btn').style.display = '';
+    document.getElementById('attendance-csv-btn').style.display = '';
+    document.getElementById('polls-csv-btn').style.display = '';
+  }
 
   const visibleTabs = [];
   if (canSeeLootAttendance) visibleTabs.push('loot');

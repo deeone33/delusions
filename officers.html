@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=23">
+<link rel="stylesheet" href="style.css?v=24">
 <style>
   .char-chip-wrap{display:flex;flex-wrap:wrap;gap:0.3rem;align-items:center;max-width:220px;}
   .char-chip{
@@ -55,7 +55,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=23"></script>
+<script src="app.js?v=24"></script>
 <script>
 let members = [];
 let charactersByProfile = {};
@@ -90,9 +90,10 @@ function render() {
       <td><span class="pill ${p.role}">${esc(p.role)}</span></td>
       <td><input type="text" value="${esc(p.rank||'')}" data-rank="${p.id}" style="width:140px;padding:0.35rem 0.5rem;font-size:0.85rem;"></td>
       <td><input type="date" value="${p.joined_at ? p.joined_at.slice(0,10) : ''}" data-joined="${p.id}" style="width:145px;padding:0.35rem 0.5rem;font-size:0.82rem;"></td>
-      <td style="display:flex;gap:0.4rem;">
+      <td style="display:flex;gap:0.4rem;align-items:center;min-height:2.2rem;">
         ${isGM() && p.role !== 'gm' ? (p.role !== 'officer' ? `<button class="btn" onclick="setRole('${p.id}','officer')">Make Officer</button>` : `<button class="btn" onclick="setRole('${p.id}','member')">Demote</button>`) : ''}
         ${p.role === 'outsider' ? `<button class="btn" onclick="setRole('${p.id}','member')">Make Member</button>` : ''}
+        ${(!isGM() || p.role === 'gm') && p.role !== 'outsider' ? `<span style="color:var(--dim);">—</span>` : ''}
       </td>
     </tr>
   `).join('') || `<tr><td colspan="6" style="text-align:center;color:var(--dim);">No accounts yet.</td></tr>`;
@@ -178,9 +179,20 @@ async function loadActivity() {
   el.innerHTML = data.map(a => `
     <div class="activity-row">
       <span><span class="who">${esc(a.officer_name)}</span> — ${esc(a.action)}</span>
-      <span class="label">${fmtDate(a.created_at)}</span>
+      <span style="display:flex;align-items:center;gap:0.7rem;">
+        <span class="label">${fmtDate(a.created_at)}</span>
+        ${isGM() ? `<button onclick="deleteActivityEntry('${a.id}')" title="Remove this entry" style="background:none;border:1px solid var(--hair);border-radius:3px;color:var(--dim);width:1.4rem;height:1.4rem;cursor:pointer;font-size:0.8rem;line-height:1;">&times;</button>` : ''}
+      </span>
     </div>
   `).join('');
+}
+
+async function deleteActivityEntry(id) {
+  if (!confirm('Remove this activity log entry?')) return;
+  const { error } = await sb.from('activity_log').delete().eq('id', id);
+  if (error) { toast(error.message, 'error'); return; }
+  toast('Entry removed.', 'success');
+  await loadActivity();
 }
 
 async function clearActivityLog() {
