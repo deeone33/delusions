@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=26">
+<link rel="stylesheet" href="style.css?v=27">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
   .page-wide{max-width:920px;margin:0 auto;padding:0 2rem 5rem;}
@@ -18,9 +18,10 @@
   table.ledger-table td{padding:0.6rem 0.8rem;border-bottom:1px solid var(--hair2);font-size:0.88rem;color:var(--mist);}
   table.ledger-table tr:hover td{background:var(--deep);}
   .player-link{color:var(--bone);cursor:pointer;font-weight:500;}
-  .player-link:hover{color:var(--red-bright);text-decoration:underline;}
+  .player-link:hover{color:var(--red-bright) !important;text-decoration:underline;}
+  .cls-name-row{display:inline-flex;align-items:center;gap:0.4rem;}
+  .cls-icon{width:18px;height:18px;border-radius:3px;display:block;flex-shrink:0;}
   .item-name{color:var(--white);}
-  .class-tag{padding:0.1rem 0.5rem;border-radius:3px;font-size:0.78rem;font-weight:600;display:inline-block;white-space:nowrap;}
 
   .upload-zone{border:1px dashed var(--hair);padding:1.5rem;text-align:center;margin-bottom:1.2rem;}
   .upload-zone.drag{border-color:var(--red-bright);}
@@ -60,12 +61,6 @@
   }
   .row-delete:hover{color:var(--red-glow);border-color:var(--red-bright);background:rgba(197,55,55,0.12);}
   .row-delete svg{width:14px;height:14px;display:block;}
-
-  .roster-chip{
-    display:inline-flex;align-items:center;gap:0.55rem;background:var(--surface);
-    border:1px solid var(--hair);padding:0.35rem 0.75rem;border-radius:4px;
-  }
-  .roster-chip .player-link{font-size:0.85rem;}
 
   .poll-card{border:1px solid var(--hair);padding:1.4rem 1.5rem;margin-bottom:1rem;}
   .poll-card.open{border-color:var(--red-bright);}
@@ -125,7 +120,7 @@
     <div id="last-raid-card"></div>
     <div class="card" style="padding:0;overflow-x:auto;margin-bottom:2rem;">
       <table class="ledger-table">
-        <thead><tr><th>Player</th><th>Class</th><th>Nights</th><th>Attendance %</th></tr></thead>
+        <thead><tr><th>Player</th><th>Nights</th><th>Attendance %</th></tr></thead>
         <tbody id="attendance-body"></tbody>
       </table>
     </div>
@@ -155,17 +150,29 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=26"></script>
+<script src="app.js?v=27"></script>
 <script>
 const CLASS_COLORS = {
   warrior:'#C79C6E', paladin:'#F58CBA', hunter:'#ABD473', rogue:'#FFF569',
   priest:'#FFFFFF', shaman:'#0070DE', mage:'#69CCF0', warlock:'#9482C9', druid:'#FF7D0A'
 };
-function classTag(name) {
-  if (!name) return '<span style="color:var(--dim)">—</span>';
-  const color = CLASS_COLORS[name.toLowerCase()] || '#948a8a';
-  const display = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
-  return `<span class="class-tag" style="color:${color};background:${color}22;">${esc(display)}</span>`;
+const CLASS_ICONS = {
+  warrior:'icons/warrior.png', paladin:'icons/paladin.png', hunter:'icons/hunter.png',
+  rogue:'icons/rogue.png', priest:'icons/priest.png', shaman:'icons/shaman.png',
+  mage:'icons/mage.png', warlock:'icons/warlock.png', druid:'icons/druid.png'
+};
+function classIcon(className) {
+  const src = CLASS_ICONS[(className||'').toLowerCase()];
+  return src ? `<img src="${src}" class="cls-icon" alt="">` : '';
+}
+function classColor(className) {
+  return CLASS_COLORS[(className||'').toLowerCase()] || null;
+}
+// Option C: icon + class-colored clickable player name, no badge/container.
+function playerLink(name, className, displayText) {
+  const color = classColor(className);
+  const style = color ? ` style="color:${color};"` : '';
+  return `<span class="cls-name-row">${classIcon(className)}<span class="player-link"${style} onclick="openPlayerModal('${esc(name||'').replace(/'/g,"\\'")}')">${esc(displayText || name || '—')}</span></span>`;
 }
 
 const TRASH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>';
@@ -270,7 +277,7 @@ function renderLoot() {
                 <td>${esc(r.raid_title || '—')}</td>
                 <td class="item-name">${r.item_link ? `<a href="${esc(r.item_link)}" target="_blank" rel="noopener" style="color:inherit;">${esc(r.item_name)}</a>` : esc(r.item_name || '—')}</td>
                 <td>${esc(r.response || '—')}</td>
-                <td><span class="player-link" onclick="openPlayerModal('${esc(r.winner_name||'').replace(/'/g,"\\'")}')">${esc(r.winner_name || '—')}</span></td>
+                <td>${playerLink(r.winner_name, r.class_name)}</td>
                 ${isOfficer() ? `<td><button class="row-delete" title="Remove this item" onclick="deleteLootItem('${r.id}')">${TRASH_ICON}</button></td>` : ''}
               </tr>
             `).join('')}
@@ -587,8 +594,8 @@ function renderAttendance() {
             ${isOfficer() ? `<button class="row-delete" title="Remove this raid" onclick="deleteRaidNight('${last.id}')">${TRASH_ICON}</button>` : ''}
           </div>
         </div>
-        <div style="display:flex;flex-wrap:wrap;gap:0.6rem;">
-          ${roster.map(a => `<span class="roster-chip"><span class="player-link" onclick="openPlayerModal('${esc(a.character_name).replace(/'/g,"\\'")}')">${esc(a.character_name)}</span>${classTag(a.class_name)}</span>`).join('')}
+        <div style="display:flex;flex-wrap:wrap;gap:0.5rem 1.1rem;">
+          ${roster.map(a => playerLink(a.character_name, a.class_name)).join('')}
         </div>
       </div>`;
   } else {
@@ -613,8 +620,7 @@ function renderAttendance() {
 
   document.getElementById('attendance-body').innerHTML = players.map(p => `
     <tr>
-      <td><span class="player-link" onclick="openPlayerModal('${esc(p.name).replace(/'/g,"\\'")}')">${esc(p.displayName)}</span></td>
-      <td>${classTag(p.className)}</td>
+      <td>${playerLink(p.name, p.className, p.displayName)}</td>
       <td>${p.attended} / ${p.total}</td>
       <td class="item-name">${p.pct}%</td>
     </tr>
@@ -635,8 +641,8 @@ function renderAttendance() {
             ${isOfficer() ? `<button class="row-delete" title="Remove this raid" onclick="event.stopPropagation(); deleteRaidNight('${n.id}')">${TRASH_ICON}</button>` : ''}
           </span>
         </div>
-        ${expanded ? `<div style="padding:1rem 1.1rem 1.1rem;display:flex;flex-wrap:wrap;gap:0.6rem;border-top:1px solid var(--hair);">
-          ${roster.map(a => `<span class="roster-chip"><span class="player-link" onclick="openPlayerModal('${esc(a.character_name).replace(/'/g,"\\'")}')">${esc(a.character_name)}</span>${classTag(a.class_name)}</span>`).join('')}
+        ${expanded ? `<div style="padding:1rem 1.1rem 1.1rem;display:flex;flex-wrap:wrap;gap:0.5rem 1.1rem;border-top:1px solid var(--hair);">
+          ${roster.map(a => playerLink(a.character_name, a.class_name)).join('')}
         </div>` : ''}
       </div>`;
   }).join('') || `<div class="card" style="text-align:center;color:var(--dim);">Nothing here.</div>`;
@@ -680,9 +686,9 @@ function openPlayerModal(name) {
   const displayName = identity.allNames.length > 1 ? identity.allNames.join(' / ') : name;
 
   document.getElementById('player-modal-content').innerHTML = `
-    <div style="display:flex;align-items:baseline;gap:0.7rem;margin-bottom:0.3rem;">
-      <div style="font-family:'Newsreader',serif;font-size:1.5rem;color:var(--white);">${esc(displayName)}</div>
-      ${classTag(className)}
+    <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.3rem;">
+      ${classIcon(className)}
+      <div style="font-family:'Newsreader',serif;font-size:1.5rem;color:${classColor(className) || 'var(--white)'};">${esc(displayName)}</div>
     </div>
     ${officer ? `
     <div class="label" style="margin-bottom:0.8rem;">
