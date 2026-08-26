@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=21">
+<link rel="stylesheet" href="style.css?v=23">
 <style>
   .char-chip-wrap{display:flex;flex-wrap:wrap;gap:0.3rem;align-items:center;max-width:220px;}
   .char-chip{
@@ -46,13 +46,16 @@
       <span id="activity-toggle" class="collapse-icon">+</span> Activity Log
     </h2>
     <div id="activity-body" style="display:none;">
+      <div id="activity-clear-wrap" style="display:none;text-align:right;margin-bottom:0.8rem;">
+        <button class="btn" onclick="clearActivityLog()">Clear Log</button>
+      </div>
       <div class="card" id="activity-list">Loading…</div>
     </div>
   </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=21"></script>
+<script src="app.js?v=23"></script>
 <script>
 let members = [];
 let charactersByProfile = {};
@@ -88,7 +91,7 @@ function render() {
       <td><input type="text" value="${esc(p.rank||'')}" data-rank="${p.id}" style="width:140px;padding:0.35rem 0.5rem;font-size:0.85rem;"></td>
       <td><input type="date" value="${p.joined_at ? p.joined_at.slice(0,10) : ''}" data-joined="${p.id}" style="width:145px;padding:0.35rem 0.5rem;font-size:0.82rem;"></td>
       <td style="display:flex;gap:0.4rem;">
-        ${p.role !== 'officer' ? `<button class="btn" onclick="setRole('${p.id}','officer')">Make Officer</button>` : `<button class="btn" onclick="setRole('${p.id}','member')">Demote</button>`}
+        ${isGM() && p.role !== 'gm' ? (p.role !== 'officer' ? `<button class="btn" onclick="setRole('${p.id}','officer')">Make Officer</button>` : `<button class="btn" onclick="setRole('${p.id}','member')">Demote</button>`) : ''}
         ${p.role === 'outsider' ? `<button class="btn" onclick="setRole('${p.id}','member')">Make Member</button>` : ''}
       </td>
     </tr>
@@ -167,6 +170,7 @@ async function setRole(id, role) {
 
 // ---------- ACTIVITY LOG ----------
 async function loadActivity() {
+  document.getElementById('activity-clear-wrap').style.display = isGM() ? '' : 'none';
   const { data, error } = await sb.from('activity_log').select('*').order('created_at', { ascending: false }).limit(50);
   const el = document.getElementById('activity-list');
   if (error) { el.innerHTML = `<div style="color:var(--dim);">Couldn't load activity log.</div>`; return; }
@@ -177,6 +181,17 @@ async function loadActivity() {
       <span class="label">${fmtDate(a.created_at)}</span>
     </div>
   `).join('');
+}
+
+async function clearActivityLog() {
+  if (!confirm('Clear the entire activity log? This removes every past entry permanently, with no trace left behind — even for you.')) return;
+  const { data: rows } = await sb.from('activity_log').select('id');
+  if (rows && rows.length) {
+    const { error } = await sb.from('activity_log').delete().in('id', rows.map(r => r.id));
+    if (error) { toast(error.message, 'error'); return; }
+  }
+  toast('Activity log cleared.', 'success');
+  await loadActivity();
 }
 
 (async () => {

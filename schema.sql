@@ -40,11 +40,11 @@ drop policy if exists "public read profile_characters" on profile_characters;
 create policy "public read profile_characters" on profile_characters for select using (true);
 drop policy if exists "officers write profile_characters" on profile_characters;
 create policy "officers write profile_characters" on profile_characters for insert with check (
-  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
 );
 drop policy if exists "officers delete profile_characters" on profile_characters;
 create policy "officers delete profile_characters" on profile_characters for delete using (
-  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
 );
 
 -- Auto-create a profile row whenever someone signs in for the first time
@@ -109,18 +109,18 @@ drop policy if exists "public read raid_nights" on raid_nights;
 create policy "public read raid_nights" on raid_nights for select using (true);
 drop policy if exists "officers insert raid_nights" on raid_nights;
 create policy "officers insert raid_nights" on raid_nights for insert with check (
-  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
 );
 drop policy if exists "officers delete raid_nights" on raid_nights;
 create policy "officers delete raid_nights" on raid_nights for delete using (
-  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
 );
 
 drop policy if exists "public read raid_attendees" on raid_attendees;
 create policy "public read raid_attendees" on raid_attendees for select using (true);
 drop policy if exists "officers insert raid_attendees" on raid_attendees;
 create policy "officers insert raid_attendees" on raid_attendees for insert with check (
-  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
 );
 
 alter table loot_log enable row level security;
@@ -130,12 +130,12 @@ create policy "public read loot_log" on loot_log for select using (true);
 
 drop policy if exists "officers insert loot_log" on loot_log;
 create policy "officers insert loot_log" on loot_log for insert with check (
-  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
 );
 
 drop policy if exists "officers delete loot_log" on loot_log;
 create policy "officers delete loot_log" on loot_log for delete using (
-  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
 );
 
 create table if not exists applications (
@@ -191,40 +191,40 @@ alter table poll_votes   enable row level security;
 
 drop policy if exists "polls visible by audience" on polls;
 create policy "polls visible by audience" on polls for select using (
-  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
   or (audience = 'members' and exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('member','officer')))
   or (audience = 'all' and auth.uid() is not null)
 );
 drop policy if exists "officers write polls" on polls;
 create policy "officers write polls" on polls for insert with check (
-  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
 );
 drop policy if exists "officers update polls" on polls;
 create policy "officers update polls" on polls for update using (
-  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
 );
 drop policy if exists "officers delete polls" on polls;
 create policy "officers delete polls" on polls for delete using (
-  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
 );
 
 drop policy if exists "poll_options visible with poll" on poll_options;
 create policy "poll_options visible with poll" on poll_options for select using (
   exists (select 1 from polls po where po.id = poll_id and (
-    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+    exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
     or (po.audience = 'members' and exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('member','officer')))
     or (po.audience = 'all' and auth.uid() is not null)
   ))
 );
 drop policy if exists "officers write poll_options" on poll_options;
 create policy "officers write poll_options" on poll_options for insert with check (
-  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
 );
 
 drop policy if exists "poll_votes visible with poll" on poll_votes;
 create policy "poll_votes visible with poll" on poll_votes for select using (
   exists (select 1 from polls po where po.id = poll_id and (
-    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+    exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
     or (po.audience = 'members' and exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('member','officer')))
     or (po.audience = 'all' and auth.uid() is not null)
   ))
@@ -232,7 +232,7 @@ create policy "poll_votes visible with poll" on poll_votes for select using (
 drop policy if exists "vote if audience allows" on poll_votes;
 create policy "vote if audience allows" on poll_votes for insert with check (
   voter_id = auth.uid() and exists (select 1 from polls po where po.id = poll_id and po.status = 'open' and (
-    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+    exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
     or (po.audience = 'members' and exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('member','officer')))
     or (po.audience = 'all' and auth.uid() is not null)
   ))
@@ -241,7 +241,7 @@ drop policy if exists "voter update own vote" on poll_votes;
 create policy "voter update own vote" on poll_votes for update using (voter_id = auth.uid());
 drop policy if exists "officers delete poll_votes" on poll_votes;
 create policy "officers delete poll_votes" on poll_votes for delete using (
-  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
 );
 
 -- ---------- ACTIVITY LOG ----------
@@ -257,11 +257,17 @@ create table if not exists activity_log (
 alter table activity_log enable row level security;
 drop policy if exists "officers read activity_log" on activity_log;
 create policy "officers read activity_log" on activity_log for select using (
-  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
 );
 drop policy if exists "officers write activity_log" on activity_log;
 create policy "officers write activity_log" on activity_log for insert with check (
-  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
+);
+-- Clearing the audit trail is GM-only, deliberately — a corrupt officer
+-- shouldn't be able to erase evidence of their own actions.
+drop policy if exists "gm clear activity_log" on activity_log;
+create policy "gm clear activity_log" on activity_log for delete using (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'gm')
 );
 
 -- ---------- SITE CONTENT (single editable text/style fields) ----------
@@ -314,8 +320,22 @@ drop policy if exists "profiles update own" on profiles;
 create policy "profiles update own" on profiles for update using (auth.uid() = id);
 
 drop policy if exists "officers update any profile" on profiles;
-create policy "officers update any profile" on profiles for update using (
-  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+-- Plain officers can promote outsiders to members and manage non-officer
+-- accounts freely, but this USING clause means an officer/gm-tier row is
+-- simply not selectable for update by a plain officer at all — not just
+-- role-locked, invisible to the update entirely. That's what stops a
+-- corrupt officer from touching (or demoting) another officer or the GM.
+create policy "officers manage non-officer profiles" on profiles for update using (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
+  and role in ('outsider','member')
+) with check (
+  role in ('outsider','member')
+);
+-- GM has full, unrestricted control — the only role that can promote to
+-- officer, demote an officer, or touch another officer's account at all.
+drop policy if exists "gm update any profile" on profiles;
+create policy "gm update any profile" on profiles for update using (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'gm')
 );
 
 -- applications: a user can submit + see their own; officers see/update all
@@ -327,17 +347,17 @@ create policy "applications select own" on applications for select using (auth.u
 
 drop policy if exists "officers select all applications" on applications;
 create policy "officers select all applications" on applications for select using (
-  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
 );
 
 drop policy if exists "officers update applications" on applications;
 create policy "officers update applications" on applications for update using (
-  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
 );
 
 drop policy if exists "officers delete applications" on applications;
 create policy "officers delete applications" on applications for delete using (
-  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
 );
 
 -- site_content / site_sections: public read (so the homepage renders for everyone),
@@ -347,12 +367,12 @@ create policy "site_content read all" on site_content for select using (true);
 
 drop policy if exists "site_content officer insert" on site_content;
 create policy "site_content officer insert" on site_content for insert with check (
-  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
 );
 
 drop policy if exists "site_content officer update" on site_content;
 create policy "site_content officer update" on site_content for update using (
-  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
 );
 
 drop policy if exists "site_sections read all" on site_sections;
@@ -360,10 +380,10 @@ create policy "site_sections read all" on site_sections for select using (true);
 
 drop policy if exists "site_sections officer insert" on site_sections;
 create policy "site_sections officer insert" on site_sections for insert with check (
-  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
 );
 
 drop policy if exists "site_sections officer update" on site_sections;
 create policy "site_sections officer update" on site_sections for update using (
-  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
 );

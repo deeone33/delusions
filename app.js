@@ -20,7 +20,8 @@ async function loadSession() {
   return data;
 }
 
-const isOfficer  = () => currentProfile?.role === 'officer';
+const isGM       = () => currentProfile?.role === 'gm';
+const isOfficer  = () => currentProfile?.role === 'officer' || isGM();
 const isMember   = () => currentProfile?.role === 'member' || isOfficer();
 const isLoggedIn = () => !!currentUser;
 
@@ -77,7 +78,7 @@ function renderNav(active) {
   let user = '';
   if (currentProfile) {
     user = `<a href="dashboard.html" class="nav-user-link">
-              <span class="pill ${isOfficer() ? 'officer' : isMember() ? 'member' : 'outsider'}">${esc(currentProfile.rank || currentProfile.role)}</span>
+              <span class="pill ${isGM() ? 'gm' : isOfficer() ? 'officer' : isMember() ? 'member' : 'outsider'}">${esc(currentProfile.rank || currentProfile.role)}</span>
               <span style="color:var(--bone);font-family:'IBM Plex Mono',monospace;font-size:0.62rem;">${esc(currentProfile.username)}</span>
             </a>
             <button class="btn" onclick="doLogout()">Logout</button>`;

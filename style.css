@@ -153,6 +153,7 @@ table td{color:var(--mist);}
 .pill.rejected{color:var(--danger);border-color:rgba(201,48,48,0.35);}
 .pill.member{color:var(--mist);border-color:var(--hair);}
 .pill.officer{color:var(--red-bright);border-color:rgba(197,55,55,0.35);}
+.pill.gm{color:var(--warn);border-color:rgba(201,169,97,0.5);}
 .pill.outsider{color:var(--dim);border-color:var(--hair);}
 
 .toast{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--lift);border:1px solid var(--hair);border-left:3px solid var(--red-bright);color:var(--bone);padding:0.8rem 1.2rem;font-family:'IBM Plex Mono',monospace;font-size:0.72rem;z-index:200;box-shadow:0 8px 24px rgba(0,0,0,0.5);}

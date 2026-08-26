@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=21">
+<link rel="stylesheet" href="style.css?v=23">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
   .page-wide{max-width:920px;margin:0 auto;padding:0 2rem 5rem;}
@@ -151,7 +151,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=21"></script>
+<script src="app.js?v=23"></script>
 <script>
 const CLASS_COLORS = {
   warrior:'#C79C6E', paladin:'#F58CBA', hunter:'#ABD473', rogue:'#FFF569',
@@ -764,19 +764,26 @@ function renderPollCard(poll, isOpen) {
         const count = votes.filter(v => v.option_id === o.id).length;
         const pct = totalVotes ? Math.round((count/totalVotes)*100) : 0;
         const mine = myVote?.option_id === o.id;
+        const clickable = isOfficer() && count > 0;
         return `
-          <div class="poll-result-row">
+          <div class="poll-result-row"${clickable ? ` style="cursor:pointer;" onclick="openPollOptionVoters('${poll.id}','${o.id}')" title="Click to see who voted for this"` : ''}>
             <div class="poll-result-label"><span>${esc(o.option_text)}${mine ? ' <span style="color:var(--red-bright);">(your vote)</span>' : ''}</span><span>${pct}% (${count})</span></div>
             <div class="poll-bar-track"><div class="poll-bar-fill" style="width:${pct}%;"></div></div>
           </div>`;
       }).join('') + (isOpen ? `<button class="btn" style="margin-top:0.6rem;" onclick="revoteMode('${poll.id}')">Change vote</button>` : '');
 
+  const breakdownId = `pv-list-${poll.id}`;
+  const toggleId = `pv-toggle-${poll.id}`;
   const officerBreakdown = isOfficer() && votes.length ? `
-    <div class="poll-voters">
-      ${votes.map(v => {
-        const opt = options.find(o => o.id === v.option_id);
-        return `${esc(v.voter_name)} → ${esc(opt?.option_text||'?')} · ${fmtDate(v.created_at)}`;
-      }).join('<br>')}
+    <div style="margin-top:0.8rem;">
+      <span class="collapse-icon" id="${toggleId}" style="cursor:pointer;" onclick="toggleCollapse('${breakdownId}','${toggleId}')">+</span>
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:0.65rem;color:var(--dim);cursor:pointer;letter-spacing:0.05em;" onclick="toggleCollapse('${breakdownId}','${toggleId}')">Show all ${votes.length} votes</span>
+      <div id="${breakdownId}" class="poll-voters" style="display:none;margin-top:0.5rem;">
+        ${votes.map(v => {
+          const opt = options.find(o => o.id === v.option_id);
+          return `${esc(v.voter_name)} → ${esc(opt?.option_text||'?')} · ${fmtDate(v.created_at)}`;
+        }).join('<br>')}
+      </div>
     </div>` : '';
 
   const officerActions = isOfficer() ? `
@@ -793,6 +800,22 @@ function renderPollCard(poll, isOpen) {
       ${officerBreakdown}
       ${officerActions}
     </div>`;
+}
+
+// Reuses the same modal DOM as the player profile popup — only one modal is
+// ever open at a time, so this is just a second thing that can be shown in it.
+function openPollOptionVoters(pollId, optionId) {
+  const poll = allPolls.find(p => p.id === pollId);
+  const opt = allPollOptions.find(o => o.id === optionId);
+  const voters = allPollVotes.filter(v => v.poll_id === pollId && v.option_id === optionId);
+
+  document.getElementById('player-modal-content').innerHTML = `
+    <div style="font-family:'Newsreader',serif;font-size:1.3rem;color:var(--white);margin-bottom:0.2rem;">${esc(opt?.option_text || '')}</div>
+    <div class="label" style="margin-bottom:1rem;">${esc(poll?.question || '')} · ${voters.length} vote${voters.length!==1?'s':''}</div>
+    ${voters.length ? voters.map(v => `<div class="modal-row"><span>${esc(v.voter_name)}</span><span>${fmtDate(v.created_at)}</span></div>`).join('') : '<div style="color:var(--dim);font-size:0.85rem;">No votes for this option.</div>'}
+  `;
+  openModalPlayer = null; // this isn't a player profile — avoid a stale refresh target
+  document.getElementById('player-modal').style.display = 'flex';
 }
 
 function revoteMode(pollId) {
