@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=29">
+<link rel="stylesheet" href="style.css?v=30">
 </head>
 <body>
 <div class="topbar" id="topnav-top"><span>Spineshatter EU · Horde</span><span></span></div>
@@ -20,7 +20,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=29"></script>
+<script src="app.js?v=30"></script>
 <script>
 let apps = [];
 let webhookUrl = null;
@@ -70,6 +70,15 @@ function render() {
         <span class="pill ${a.status}">${esc(a.status)}</span>
       </div>
       ${a.warcraftlogs_url ? `<div style="margin-bottom:0.6rem;"><a href="${esc(a.warcraftlogs_url)}" target="_blank" rel="noopener" class="label" style="color:var(--red-bright);">Warcraft Logs →</a></div>` : ''}
+      ${(a.additional_characters && a.additional_characters.length) ? `
+        <div style="margin-bottom:0.6rem;">
+          <span class="label" style="display:block;margin-bottom:0.3rem;">Also applying with</span>
+          ${a.additional_characters.map(c => `
+            <div style="font-size:0.85rem;color:var(--mist);margin-bottom:0.2rem;">
+              ${esc(c.name)}${c.spec||c.class_name ? ` — ${esc(c.spec||'')} ${esc(c.class_name ? c.class_name.charAt(0).toUpperCase()+c.class_name.slice(1) : '')}`.trim() : ''}
+              ${c.warcraftlogs_url ? ` · <a href="${esc(c.warcraftlogs_url)}" target="_blank" rel="noopener" style="color:var(--red-bright);">logs</a>` : ''}
+            </div>`).join('')}
+        </div>` : ''}
       <p style="margin-bottom:0.6rem;"><span class="label" style="display:block;margin-bottom:0.2rem;">Experience</span>${esc(a.experience) || '<span style="color:var(--dim)">Nothing provided.</span>'}</p>
       ${a.why_join ? `<p style="margin-bottom:1rem;"><span class="label" style="display:block;margin-bottom:0.2rem;">Why Delusions</span>${esc(a.why_join)}</p>` : ''}
       ${a.status === 'pending' ? `
@@ -102,15 +111,20 @@ async function decide(id, status) {
     if (profile && !profile.joined_at) patch.joined_at = new Date().toISOString();
     await sb.from('profiles').update(patch).eq('id', app.user_id);
 
-    // Auto-link the character they applied with, so officers don't have to
-    // manually re-enter what the applicant already told us. Skip if this
-    // exact character is somehow already linked to them (re-approval edge case).
-    if (app.applicant_name) {
+    // Auto-link every character they applied with (primary + alts), so
+    // officers don't have to manually re-enter what the applicant already
+    // told us. Skip any that are somehow already linked (re-approval edge case).
+    const allChars = [
+      { name: app.applicant_name, class_name: app.class_name },
+      ...((app.additional_characters || []).map(c => ({ name: c.name, class_name: c.class_name }))),
+    ].filter(c => c.name);
+
+    for (const c of allChars) {
       const { data: existing } = await sb.from('profile_characters').select('id')
-        .eq('profile_id', app.user_id).ilike('character_name', app.applicant_name).limit(1);
+        .eq('profile_id', app.user_id).ilike('character_name', c.name).limit(1);
       if (!existing || !existing.length) {
         await sb.from('profile_characters').insert({
-          profile_id: app.user_id, character_name: app.applicant_name, class_name: app.class_name || null,
+          profile_id: app.user_id, character_name: c.name, class_name: c.class_name || null,
         });
       }
     }

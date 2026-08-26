@@ -157,6 +157,11 @@ alter table applications add column if not exists officer_note text;  -- visible
 -- compatibility with existing display code and Discord messages.
 alter table applications add column if not exists class_name text;  -- lowercase, e.g. "shaman" — matches the site's CLASS_ICONS keys
 alter table applications add column if not exists spec text;         -- e.g. "Restoration"
+-- Extra characters beyond the primary one (applicant_name/class_name/spec
+-- above), each { name, class_name, spec, warcraftlogs_url }. Kept as a
+-- simple JSON array rather than a separate table since it's small,
+-- write-once-per-application data, not something queried independently.
+alter table applications add column if not exists additional_characters jsonb default '[]'::jsonb;
 
 -- ---------- POLLS ----------
 -- Audience controls who can see AND vote: officers | members (officers+members) | all (any logged-in account, outsiders included).
