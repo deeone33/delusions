@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=28">
+<link rel="stylesheet" href="style.css?v=29">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
   .page-wide{max-width:920px;margin:0 auto;padding:0 2rem 5rem;}
@@ -116,12 +116,20 @@
   <div id="panel-attendance" style="display:none;">
     <div id="officer-attendance-form" style="display:none;"></div>
     <div id="last-raid-card"></div>
-    <div class="card" style="padding:0;overflow-x:auto;margin-bottom:2rem;">
-      <table class="ledger-table">
-        <thead><tr><th>Player</th><th>Nights</th><th>Attendance %</th></tr></thead>
-        <tbody id="attendance-body"></tbody>
-      </table>
+
+    <h3 style="margin-bottom:1rem;cursor:pointer;font-size:0.95rem;color:var(--white);" onclick="toggleCollapse('attendance-table-body','attendance-table-toggle')">
+      <span id="attendance-table-toggle" class="collapse-icon">+</span> Attendance (<span id="attendance-player-count">0</span> players)
+    </h3>
+    <div id="attendance-table-body" style="display:none;margin-bottom:2rem;">
+      <input type="text" id="attendance-search" placeholder="Search by name or class..." style="max-width:320px;margin-bottom:0.9rem;" oninput="renderAttendance()">
+      <div class="card" style="padding:0;overflow-x:auto;">
+        <table class="ledger-table">
+          <thead><tr><th>Player</th><th>Nights</th><th>Attendance %</th></tr></thead>
+          <tbody id="attendance-body"></tbody>
+        </table>
+      </div>
     </div>
+
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
       <h3 style="font-family:'Newsreader',serif;font-style:italic;color:var(--white);">All Raid Nights (<span id="nights-count">0</span>)</h3>
       <button class="btn" id="attendance-csv-btn" type="button" onclick="downloadAttendanceCSV()" style="display:none;">Download CSV</button>
@@ -148,7 +156,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=28"></script>
+<script src="app.js?v=29"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -552,7 +560,7 @@ function computeAttendance(characterName) {
 }
 
 async function loadAttendance() {
-  const { data: nights } = await sb.from('raid_nights').select('*').order('raid_date', { ascending: false });
+  const { data: nights } = await sb.from('raid_nights').select('*').order('raid_date', { ascending: false }).order('created_at', { ascending: false });
   const { data: attendees } = await sb.from('raid_attendees').select('*');
   allNights = nights || [];
   allAttendees = attendees || [];
@@ -601,13 +609,20 @@ function renderAttendance() {
   });
   players.sort((a,b) => b.pct - a.pct);
 
-  document.getElementById('attendance-body').innerHTML = players.map(p => `
+  document.getElementById('attendance-player-count').textContent = players.length;
+
+  const search = (document.getElementById('attendance-search')?.value || '').trim().toLowerCase();
+  const filtered = search
+    ? players.filter(p => p.displayName.toLowerCase().includes(search) || (p.className||'').toLowerCase().includes(search))
+    : players;
+
+  document.getElementById('attendance-body').innerHTML = filtered.map(p => `
     <tr>
       <td>${playerLink(p.name, p.className, p.displayName)}</td>
       <td>${p.attended} / ${p.total}</td>
       <td class="item-name">${p.pct}%</td>
     </tr>
-  `).join('') || `<tr><td colspan="4" style="text-align:center;color:var(--dim);">No raid nights logged yet.</td></tr>`;
+  `).join('') || `<tr><td colspan="3" style="text-align:center;color:var(--dim);">${search ? 'No matches.' : 'No raid nights logged yet.'}</td></tr>`;
 
   if (expandedNights === null) expandedNights = new Set(); // all collapsed by default — "Last Raid" card already covers the newest one
 
