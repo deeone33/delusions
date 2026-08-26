@@ -65,6 +65,7 @@ function renderNav(active) {
   } else if (isMember()) {
     links.push({ href: 'ledger.html', id: 'ledger', label: 'Ledger' });
   }
+  if (isMember()) links.push({ href: 'feedback.html', id: 'feedback', label: 'Feedback' });
   if (isOfficer()) {
     links.push({ href: 'applications.html', id: 'applications', label: 'Applications' });
     links.push({ href: 'officers.html', id: 'officers', label: 'Officers' });
@@ -72,7 +73,7 @@ function renderNav(active) {
   if (!isMember()) links.push({ href: 'apply.html', id: 'apply', label: 'Apply' });
 
   const navLinks = links.map(l =>
-    `<a href="${l.href}" class="${l.id === active ? 'active' : ''}">${l.label}</a>`
+    `<a href="${l.href}" class="${l.id === active ? 'active' : ''}" id="navlink-${l.id}">${l.label}<span class="nav-badge" id="navbadge-${l.id}" style="display:none;"></span></a>`
   ).join('');
 
   let user = '';
@@ -87,6 +88,23 @@ function renderNav(active) {
   }
 
   el.innerHTML = `${navLinks}<div class="divider"></div><div class="nav-ctas">${user}</div>`;
+
+  if (isOfficer()) loadNavBadges();
+}
+
+// Runs after the nav is already visible, so a couple of extra queries never
+// delay the page — badges just pop in a moment later.
+async function loadNavBadges() {
+  const { count: appCount } = await sb.from('applications').select('*', {count:'exact',head:true}).eq('status','pending');
+  setNavBadge('applications', appCount);
+  const { count: fbCount } = await sb.from('feedback').select('*', {count:'exact',head:true}).eq('status','new');
+  setNavBadge('feedback', fbCount);
+}
+function setNavBadge(id, count) {
+  const el = document.getElementById(`navbadge-${id}`);
+  if (!el) return;
+  if (count > 0) { el.textContent = count; el.style.display = ''; }
+  else { el.style.display = 'none'; }
 }
 
 // ---- TOAST ----

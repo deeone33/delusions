@@ -255,6 +255,39 @@ create policy "officers delete poll_votes" on poll_votes for delete using (
   exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
 );
 
+-- ---------- FEEDBACK ----------
+-- Same visibility shape as applications: submitter sees their own,
+-- officers/gm see and manage everything.
+create table if not exists feedback (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references profiles(id) on delete set null,
+  username text,
+  message text not null,
+  status text not null default 'new',   -- new | reviewed
+  created_at timestamptz default now()
+);
+
+alter table feedback enable row level security;
+
+drop policy if exists "feedback insert own" on feedback;
+create policy "feedback insert own" on feedback for insert with check (auth.uid() = user_id);
+
+drop policy if exists "feedback select own or officer" on feedback;
+create policy "feedback select own or officer" on feedback for select using (
+  auth.uid() = user_id
+  or exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
+);
+
+drop policy if exists "officers update feedback" on feedback;
+create policy "officers update feedback" on feedback for update using (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
+);
+
+drop policy if exists "officers delete feedback" on feedback;
+create policy "officers delete feedback" on feedback for delete using (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
+);
+
 -- ---------- ACTIVITY LOG ----------
 -- Audit trail for officer actions — who deleted/approved/edited what.
 create table if not exists activity_log (

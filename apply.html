@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=31">
+<link rel="stylesheet" href="style.css?v=33">
 </head>
 <body>
 <div class="topbar" id="topnav-top">
@@ -77,8 +77,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=31"></script>
-<script src="editor.js?v=31"></script>
+<script src="app.js?v=33"></script>
+<script src="editor.js?v=33"></script>
 <script>
 function updateSpecOptions() {
   const classVal = document.getElementById('f-class-select').value;
@@ -175,26 +175,78 @@ function collectExtraCharacters() {
     }
   }
 
-  document.getElementById('apply-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    if (!isLoggedIn()) { toast('Please login with Discord first.', 'error'); setTimeout(()=>window.location.href='login.html', 1000); return; }
-    const classVal = document.getElementById('f-class-select').value;
-    const specVal = document.getElementById('f-spec-select').value;
-    const classDisplay = classVal.charAt(0).toUpperCase() + classVal.slice(1);
-    const payload = {
-      user_id: currentUser.id,
-      applicant_name: document.getElementById('f-name').value,
-      class_name: classVal,
-      spec: specVal,
-      class_spec: specVal ? `${specVal} ${classDisplay}` : classDisplay,
-      warcraftlogs_url: document.getElementById('f-logs').value,
-      additional_characters: collectExtraCharacters(),
-      experience: document.getElementById('f-exp').value,
-      why_join: document.getElementById('f-why').value,
-      status: 'pending'
-    };
-    const { error } = await sb.from('applications').insert(payload);
-    if (error) { toast(error.message, 'error'); return; }
+const DRAFT_KEY = 'delusions_apply_draft';
+
+function buildDraftFromForm() {
+  return {
+    name: document.getElementById('f-name').value,
+    classVal: document.getElementById('f-class-select').value,
+    specVal: document.getElementById('f-spec-select').value,
+    logs: document.getElementById('f-logs').value,
+    extras: collectExtraCharacters(),
+    exp: document.getElementById('f-exp').value,
+    why: document.getElementById('f-why').value,
+  };
+}
+
+function restoreDraftToForm(draft) {
+  document.getElementById('f-name').value = draft.name || '';
+  document.getElementById('f-class-select').value = draft.classVal || '';
+  updateSpecOptions();
+  document.getElementById('f-spec-select').value = draft.specVal || '';
+  document.getElementById('f-logs').value = draft.logs || '';
+  document.getElementById('f-exp').value = draft.exp || '';
+  document.getElementById('f-why').value = draft.why || '';
+  (draft.extras || []).forEach(c => {
+    addExtraCharacter();
+    const card = document.getElementById(`extra-char-${extraCharCount}`);
+    card.querySelector('.extra-name').value = c.name || '';
+    card.querySelector('.extra-class').value = c.class_name || '';
+    updateExtraSpecOptions(extraCharCount);
+    card.querySelector('.extra-spec').value = c.spec || '';
+    card.querySelector('.extra-logs').value = c.warcraftlogs_url || '';
+  });
+}
+
+const savedDraft = localStorage.getItem(DRAFT_KEY);
+if (savedDraft && document.getElementById('apply-form').style.display !== 'none') {
+  try {
+    restoreDraftToForm(JSON.parse(savedDraft));
+    toast('Welcome back — your answers were restored. Just hit Submit below.', 'success');
+  } catch (e) { /* corrupt draft, ignore */ }
+  localStorage.removeItem(DRAFT_KEY);
+}
+
+document.getElementById('apply-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+
+  if (!isLoggedIn()) {
+    // Save exactly what they've typed, then log in and land back on this
+    // same page — no full redirect-to-login round trip that would lose it.
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(buildDraftFromForm()));
+    toast('Saving your answers — log in to finish submitting.', 'info');
+    const { error } = await sb.auth.signInWithOAuth({ provider: 'discord', options: { redirectTo: window.location.href } });
+    if (error) toast(error.message, 'error');
+    return;
+  }
+
+  const draft = buildDraftFromForm();
+  const classDisplay = draft.classVal.charAt(0).toUpperCase() + draft.classVal.slice(1);
+  const payload = {
+    user_id: currentUser.id,
+    applicant_name: draft.name,
+    class_name: draft.classVal,
+    spec: draft.specVal,
+    class_spec: draft.specVal ? `${draft.specVal} ${classDisplay}` : classDisplay,
+    warcraftlogs_url: draft.logs,
+    additional_characters: draft.extras,
+    experience: draft.exp,
+    why_join: draft.why,
+    status: 'pending'
+  };
+  const { error } = await sb.from('applications').insert(payload);
+  if (error) { toast(error.message, 'error'); return; }
 
     // Ping Discord if an officer has set a webhook URL (and optionally an @role to mention)
     let cfg = null, cfgRole = null;

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Feedback — Delusions</title>
+<link rel="icon" href="logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=33">
+</head>
+<body>
+<div class="topbar" id="topnav-top"><span>Spineshatter EU · Horde</span><span></span></div>
+<div class="nav" id="topnav"></div>
+
+<div class="page-narrow" style="padding-top:4rem;">
+  <a href="dashboard.html" class="back">← Dashboard</a>
+  <div class="label" style="margin-bottom:0.5rem;">Have Your Say</div>
+  <h1 style="margin-bottom:0.5rem;">Feedback</h1>
+  <p style="margin-bottom:2rem;">Something on your mind about the guild, loot, raids, or anything else? Officers see this directly.</p>
+
+  <form id="feedback-form" class="card" style="padding:1.8rem;margin-bottom:3rem;">
+    <div class="form-group" style="margin-bottom:1rem;">
+      <label class="form-label">Your Message</label>
+      <textarea id="fb-message" rows="5" required placeholder="Share whatever's on your mind..."></textarea>
+    </div>
+    <button type="submit" class="btn primary" style="width:100%;justify-content:center;padding:0.85rem;">Send Feedback</button>
+  </form>
+
+  <div id="officer-review" style="display:none;">
+    <h2 style="margin-bottom:1.2rem;">Review</h2>
+    <div id="feedback-list"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js?v=33"></script>
+<script>
+let allFeedback = [];
+
+async function loadFeedback() {
+  const { data, error } = await sb.from('feedback').select('*').order('created_at', { ascending: false });
+  if (error) { toast(error.message, 'error'); return; }
+  allFeedback = data || [];
+  if (isOfficer()) renderFeedbackList();
+}
+
+function renderFeedbackList() {
+  const el = document.getElementById('feedback-list');
+  if (!allFeedback.length) { el.innerHTML = `<div class="card" style="text-align:center;color:var(--dim);">Nothing here yet.</div>`; return; }
+  el.innerHTML = allFeedback.map(f => `
+    <div class="card ${f.status==='new'?'card-warn':''}" style="margin-bottom:0.8rem;">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:0.6rem;margin-bottom:0.6rem;">
+        <div style="color:var(--white);font-weight:600;">${esc(f.username || 'Unknown')}</div>
+        <span class="label">${fmtDate(f.created_at)}</span>
+      </div>
+      <p style="margin-bottom:1rem;">${esc(f.message)}</p>
+      <div style="display:flex;gap:0.6rem;">
+        ${f.status==='new' ? `<button class="btn primary" onclick="markReviewed('${f.id}')">Mark Reviewed</button>` : `<span class="pill accepted">Reviewed</span>`}
+        <button class="btn" onclick="deleteFeedback('${f.id}')">Remove</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function markReviewed(id) {
+  const { error } = await sb.from('feedback').update({ status: 'reviewed' }).eq('id', id);
+  if (error) { toast(error.message, 'error'); return; }
+  logActivity('Marked feedback as reviewed');
+  toast('Marked reviewed.', 'success');
+  await loadFeedback();
+}
+
+async function deleteFeedback(id) {
+  if (!confirm('Remove this feedback entirely?')) return;
+  const { error } = await sb.from('feedback').delete().eq('id', id);
+  if (error) { toast(error.message, 'error'); return; }
+  logActivity('Removed a feedback entry');
+  toast('Removed.', 'success');
+  await loadFeedback();
+}
+
+document.getElementById('feedback-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!isLoggedIn()) { toast('Please login first.', 'error'); setTimeout(()=>window.location.href='login.html', 1000); return; }
+  const message = document.getElementById('fb-message').value.trim();
+  if (!message) return;
+  const { error } = await sb.from('feedback').insert({ user_id: currentUser.id, username: currentProfile.username, message });
+  if (error) { toast(error.message, 'error'); return; }
+  toast('Feedback sent — thank you!', 'success');
+  document.getElementById('fb-message').value = '';
+  if (isOfficer()) await loadFeedback();
+});
+
+(async () => {
+  const ok = await requireMember();
+  if (!ok) return;
+  renderNav('feedback');
+  if (isOfficer()) document.getElementById('officer-review').style.display = 'block';
+  await loadFeedback();
+})();
+</script>
+</body>
+</html>
