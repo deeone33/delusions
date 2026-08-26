@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=30">
+<link rel="stylesheet" href="style.css?v=31">
 </head>
 <body>
 <div class="topbar" id="topnav-top">
@@ -56,7 +56,7 @@
       </div>
     </div>
     <div class="form-group">
-      <label class="form-label" data-edit="apply.field.logs">Warcraft Logs</label>
+      <label class="form-label" data-edit="apply.field.logs">Warcraftlogs</label>
       <input type="text" id="f-logs" placeholder="Link to your logs (Warcraft Logs profile or a recent parse)" data-edit-placeholder="apply.field.logs.ph">
     </div>
     <div id="extra-characters-wrap"></div>
@@ -77,8 +77,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=30"></script>
-<script src="editor.js?v=30"></script>
+<script src="app.js?v=31"></script>
+<script src="editor.js?v=31"></script>
 <script>
 function updateSpecOptions() {
   const classVal = document.getElementById('f-class-select').value;
@@ -106,7 +106,7 @@ function addExtraCharacter() {
     <button type="button" onclick="document.getElementById('extra-char-${id}').remove()" style="position:absolute;top:0.8rem;right:0.8rem;background:none;border:none;color:var(--dim);cursor:pointer;font-size:1rem;" title="Remove this character">&times;</button>
     <div class="form-group">
       <label class="form-label">Character Name</label>
-      <input type="text" class="extra-name" placeholder="e.g. Deetardeh">
+      <input type="text" class="extra-name" placeholder="e.g. Altcrawler">
     </div>
     <div class="form-group" style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem;">
       <div>
@@ -119,8 +119,8 @@ function addExtraCharacter() {
       </div>
     </div>
     <div class="form-group" style="margin-bottom:0;">
-      <label class="form-label">Warcraft Logs</label>
-      <input type="text" class="extra-logs" placeholder="Link to logs for this character (optional)">
+      <label class="form-label">Warcraftlogs</label>
+      <input type="text" class="extra-logs" placeholder="Link to logs for this character">
     </div>
   `;
   document.getElementById('extra-characters-wrap').appendChild(wrap);
