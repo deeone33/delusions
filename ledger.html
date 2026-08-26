@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=20">
+<link rel="stylesheet" href="style.css?v=21">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
   .page-wide{max-width:920px;margin:0 auto;padding:0 2rem 5rem;}
@@ -151,7 +151,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=20"></script>
+<script src="app.js?v=21"></script>
 <script>
 const CLASS_COLORS = {
   warrior:'#C79C6E', paladin:'#F58CBA', hunter:'#ABD473', rogue:'#FFF569',
@@ -758,7 +758,7 @@ function renderPollCard(poll, isOpen) {
   const myVote = votes.find(v => v.voter_id === currentUser?.id);
   const audienceLabel = { officers: 'Officers Only', members: 'Members & Officers', all: 'Everyone' }[poll.audience] || poll.audience;
 
-  const body = isOpen && !isOfficer() && !myVote
+  const body = isOpen && !myVote
     ? options.map(o => `<button class="poll-option-btn" onclick="castVote('${poll.id}','${o.id}')">${esc(o.option_text)}</button>`).join('')
     : options.map(o => {
         const count = votes.filter(v => v.option_id === o.id).length;
@@ -769,7 +769,7 @@ function renderPollCard(poll, isOpen) {
             <div class="poll-result-label"><span>${esc(o.option_text)}${mine ? ' <span style="color:var(--red-bright);">(your vote)</span>' : ''}</span><span>${pct}% (${count})</span></div>
             <div class="poll-bar-track"><div class="poll-bar-fill" style="width:${pct}%;"></div></div>
           </div>`;
-      }).join('') + (isOpen && !isOfficer() ? `<button class="btn" style="margin-top:0.6rem;" onclick="revoteMode('${poll.id}')">Change vote</button>` : '');
+      }).join('') + (isOpen ? `<button class="btn" style="margin-top:0.6rem;" onclick="revoteMode('${poll.id}')">Change vote</button>` : '');
 
   const officerBreakdown = isOfficer() && votes.length ? `
     <div class="poll-voters">
