@@ -25,6 +25,7 @@ create table if not exists profile_characters (
   character_name text not null,
   created_at timestamptz default now()
 );
+alter table profile_characters add column if not exists class_name text;
 -- One-time migration: carry over anything already set in the old single
 -- character_name field so existing officer work isn't lost.
 insert into profile_characters (profile_id, character_name)
@@ -151,6 +152,11 @@ create table if not exists applications (
 alter table applications add column if not exists warcraftlogs_url text;
 alter table applications add column if not exists why_join text;
 alter table applications add column if not exists officer_note text;  -- visible to the applicant, set when accepting/rejecting
+-- Structured versions of class_spec, from the dropdown-based apply form.
+-- class_spec stays populated too (e.g. "Restoration Shaman") for backward
+-- compatibility with existing display code and Discord messages.
+alter table applications add column if not exists class_name text;  -- lowercase, e.g. "shaman" — matches the site's CLASS_ICONS keys
+alter table applications add column if not exists spec text;         -- e.g. "Restoration"
 
 -- ---------- POLLS ----------
 -- Audience controls who can see AND vote: officers | members (officers+members) | all (any logged-in account, outsiders included).
@@ -320,6 +326,7 @@ drop policy if exists "profiles update own" on profiles;
 create policy "profiles update own" on profiles for update using (auth.uid() = id);
 
 drop policy if exists "officers update any profile" on profiles;
+drop policy if exists "officers manage non-officer profiles" on profiles;
 -- Plain officers can promote outsiders to members and manage non-officer
 -- accounts freely, but this USING clause means an officer/gm-tier row is
 -- simply not selectable for update by a plain officer at all — not just

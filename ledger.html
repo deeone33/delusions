@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=27">
+<link rel="stylesheet" href="style.css?v=28">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
   .page-wide{max-width:920px;margin:0 auto;padding:0 2rem 5rem;}
@@ -19,8 +19,6 @@
   table.ledger-table tr:hover td{background:var(--deep);}
   .player-link{color:var(--bone);cursor:pointer;font-weight:500;}
   .player-link:hover{color:var(--red-bright) !important;text-decoration:underline;}
-  .cls-name-row{display:inline-flex;align-items:center;gap:0.4rem;}
-  .cls-icon{width:18px;height:18px;border-radius:3px;display:block;flex-shrink:0;}
   .item-name{color:var(--white);}
 
   .upload-zone{border:1px dashed var(--hair);padding:1.5rem;text-align:center;margin-bottom:1.2rem;}
@@ -150,24 +148,9 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=27"></script>
+<script src="app.js?v=28"></script>
 <script>
-const CLASS_COLORS = {
-  warrior:'#C79C6E', paladin:'#F58CBA', hunter:'#ABD473', rogue:'#FFF569',
-  priest:'#FFFFFF', shaman:'#0070DE', mage:'#69CCF0', warlock:'#9482C9', druid:'#FF7D0A'
-};
-const CLASS_ICONS = {
-  warrior:'icons/warrior.png', paladin:'icons/paladin.png', hunter:'icons/hunter.png',
-  rogue:'icons/rogue.png', priest:'icons/priest.png', shaman:'icons/shaman.png',
-  mage:'icons/mage.png', warlock:'icons/warlock.png', druid:'icons/druid.png'
-};
-function classIcon(className) {
-  const src = CLASS_ICONS[(className||'').toLowerCase()];
-  return src ? `<img src="${src}" class="cls-icon" alt="">` : '';
-}
-function classColor(className) {
-  return CLASS_COLORS[(className||'').toLowerCase()] || null;
-}
+
 // Option C: icon + class-colored clickable player name, no badge/container.
 function playerLink(name, className, displayText) {
   const color = classColor(className);

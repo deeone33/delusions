@@ -7,14 +7,14 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=27">
+<link rel="stylesheet" href="style.css?v=28">
 <style>
-  .char-chip-wrap{display:flex;flex-wrap:wrap;gap:0.3rem;align-items:center;max-width:220px;}
+  .char-chip-wrap{display:flex;flex-wrap:wrap;gap:0.3rem;align-items:center;max-width:260px;}
   .char-chip{
     display:inline-flex;align-items:center;gap:0.3rem;background:var(--deep);border:1px solid var(--hair);
-    padding:0.15rem 0.3rem 0.15rem 0.5rem;border-radius:3px;font-size:0.78rem;color:var(--bone);white-space:nowrap;
+    padding:0.15rem 0.3rem 0.15rem 0.4rem;border-radius:3px;font-size:0.78rem;white-space:nowrap;
   }
-  .char-chip button{background:none;border:none;color:var(--dim);cursor:pointer;font-size:0.85rem;padding:0 0.15rem;line-height:1;}
+  .char-chip button{background:none;border:none;color:var(--dim);cursor:pointer;font-size:0.85rem;padding:0 0.1rem;line-height:1;}
   .char-chip button:hover{color:var(--red-bright);}
   .char-add-btn{
     width:1.4rem;height:1.4rem;border:1px dashed var(--hair);border-radius:3px;background:none;
@@ -23,6 +23,8 @@
   .char-add-btn:hover{color:var(--red-bright);border-color:var(--red-bright);}
   .activity-row{display:flex;justify-content:space-between;gap:1rem;padding:0.5rem 0;border-bottom:1px solid var(--hair2);font-size:0.85rem;}
   .activity-row .who{color:var(--bone);}
+  #members-body td{padding:0.55rem 0.8rem;}
+  #members-body th{padding:0.5rem 0.8rem;}
 </style>
 </head>
 <body>
@@ -35,6 +37,9 @@
   <p style="margin-bottom:2rem;">Promote members to officer (unlocks Edit Mode + this page) or demote as needed. This only manages account roles — the "Circle" list shown on the homepage is edited directly there via Edit Mode.</p>
 
   <div class="card" style="padding:0;overflow:hidden;">
+    <div style="padding:1rem 1.2rem;border-bottom:1px solid var(--hair);">
+      <input type="text" id="member-search" placeholder="Search by name, character, or class..." style="max-width:340px;" oninput="render()">
+    </div>
     <table>
       <thead><tr><th>Name</th><th>Characters</th><th>Role</th><th>Rank / Title</th><th>Joined</th><th>Actions</th></tr></thead>
       <tbody id="members-body"></tbody>
@@ -55,7 +60,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=27"></script>
+<script src="app.js?v=28"></script>
 <script>
 let members = [];
 let charactersByProfile = {};
@@ -85,12 +90,25 @@ function actionCellFor(p) {
 }
 
 function render() {
-  document.getElementById('members-body').innerHTML = members.map(p => `
+  const search = (document.getElementById('member-search')?.value || '').trim().toLowerCase();
+  let rows = members;
+  if (search) {
+    rows = members.filter(p => {
+      const chars = charactersByProfile[p.id] || [];
+      return p.username.toLowerCase().includes(search)
+        || chars.some(c => c.character_name.toLowerCase().includes(search) || (c.class_name||'').toLowerCase().includes(search));
+    });
+  }
+
+  document.getElementById('members-body').innerHTML = rows.map(p => `
     <tr>
       <td style="color:var(--white)">${esc(p.username)}</td>
       <td>
         <div class="char-chip-wrap" data-charwrap="${p.id}">
-          ${(charactersByProfile[p.id]||[]).map(c => `<span class="char-chip">${esc(c.character_name)}<button onclick="removeCharacter('${c.id}','${p.id}')" title="Unlink">&times;</button></span>`).join('')}
+          ${(charactersByProfile[p.id]||[]).map(c => {
+            const color = classColor(c.class_name);
+            return `<span class="char-chip">${classIcon(c.class_name)}<span${color?` style="color:${color};"`:''}>${esc(c.character_name)}</span><button onclick="removeCharacter('${c.id}','${p.id}')" title="Unlink">&times;</button></span>`;
+          }).join('')}
           <button class="char-add-btn" onclick="showAddCharInput('${p.id}')" title="Link a character">+</button>
         </div>
       </td>
@@ -99,7 +117,7 @@ function render() {
       <td><input type="date" value="${p.joined_at ? p.joined_at.slice(0,10) : ''}" data-joined="${p.id}" style="width:145px;padding:0.35rem 0.5rem;font-size:0.82rem;"></td>
       <td style="vertical-align:middle;">${actionCellFor(p)}</td>
     </tr>
-  `).join('') || `<tr><td colspan="6" style="text-align:center;color:var(--dim);">No accounts yet.</td></tr>`;
+  `).join('') || `<tr><td colspan="6" style="text-align:center;color:var(--dim);">${search ? 'No matches.' : 'No accounts yet.'}</td></tr>`;
 
   document.querySelectorAll('[data-rank]').forEach(input => {
     input.onblur = async () => {
@@ -120,27 +138,37 @@ function showAddCharInput(profileId) {
   const wrap = document.querySelector(`[data-charwrap="${profileId}"]`);
   const addBtn = wrap.querySelector('.char-add-btn');
   addBtn.style.display = 'none';
+
   const input = document.createElement('input');
   input.type = 'text'; input.placeholder = 'Name';
-  input.style.cssText = 'width:80px;font-size:0.78rem;padding:0.2rem 0.4rem;';
+  input.style.cssText = 'width:74px;font-size:0.78rem;padding:0.2rem 0.4rem;';
+
+  const select = document.createElement('select');
+  select.style.cssText = 'font-size:0.72rem;padding:0.2rem 0.3rem;width:80px;';
+  select.innerHTML = `<option value="">Class</option>` + Object.keys(CLASS_ICONS).map(c => `<option value="${c}">${c.charAt(0).toUpperCase()+c.slice(1)}</option>`).join('');
+
   let committed = false;
   const commit = () => {
     if (committed) return; // Enter triggers this via keydown, then the re-render removes
     committed = true;      // the input and fires blur too — without this guard that's a double-submit.
-    input.onblur = null;
-    if (input.value.trim()) addCharacter(profileId, input.value);
-    else { input.remove(); addBtn.style.display = ''; }
+    input.onblur = null; select.onblur = null;
+    if (input.value.trim()) addCharacter(profileId, input.value, select.value);
+    else { input.remove(); select.remove(); addBtn.style.display = ''; }
   };
-  input.onkeydown = (e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { committed = true; input.remove(); addBtn.style.display=''; } };
-  input.onblur = commit;
+  const onBlurCheck = () => { setTimeout(() => { if (!input.matches(':focus') && !select.matches(':focus')) commit(); }, 120); };
+  input.onkeydown = (e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { committed = true; input.remove(); select.remove(); addBtn.style.display=''; } };
+  input.onblur = onBlurCheck;
+  select.onblur = onBlurCheck;
+
   wrap.insertBefore(input, addBtn);
+  wrap.insertBefore(select, addBtn);
   input.focus();
 }
 
-async function addCharacter(profileId, name) {
+async function addCharacter(profileId, name, className) {
   name = name.trim();
   if (!name) return;
-  const { error } = await sb.from('profile_characters').insert({ profile_id: profileId, character_name: name });
+  const { error } = await sb.from('profile_characters').insert({ profile_id: profileId, character_name: name, class_name: className || null });
   if (error) { toast(error.message, 'error'); return; }
   const who = members.find(m => m.id === profileId)?.username || 'an account';
   logActivity(`Linked character "${name}" to ${who}`);

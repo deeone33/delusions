@@ -103,6 +103,33 @@ function esc(s) {
   if (s == null) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+// ---- CLASS DATA (shared: Ledger, Manage Members, Apply form) ----
+const CLASS_COLORS = {
+  warrior:'#C79C6E', paladin:'#F58CBA', hunter:'#ABD473', rogue:'#FFF569',
+  priest:'#FFFFFF', shaman:'#0070DE', mage:'#69CCF0', warlock:'#9482C9', druid:'#FF7D0A'
+};
+const CLASS_ICONS = {
+  warrior:'icons/warrior.png', paladin:'icons/paladin.png', hunter:'icons/hunter.png',
+  rogue:'icons/rogue.png', priest:'icons/priest.png', shaman:'icons/shaman.png',
+  mage:'icons/mage.png', warlock:'icons/warlock.png', druid:'icons/druid.png'
+};
+const CLASS_SPECS = {
+  warrior: ['Arms','Fury','Protection'],
+  paladin: ['Holy','Protection','Retribution'],
+  hunter: ['Beast Mastery','Marksmanship','Survival'],
+  rogue: ['Assassination','Combat','Subtlety'],
+  priest: ['Discipline','Holy','Shadow'],
+  shaman: ['Elemental','Enhancement','Restoration'],
+  mage: ['Arcane','Fire','Frost'],
+  warlock: ['Affliction','Demonology','Destruction'],
+  druid: ['Balance','Feral Combat','Restoration'],
+};
+function classColor(className) { return CLASS_COLORS[(className||'').toLowerCase()] || null; }
+function classIcon(className) {
+  const src = CLASS_ICONS[(className||'').toLowerCase()];
+  return src ? `<img src="${src}" class="cls-icon" alt="">` : '';
+}
+
 function fmtDate(d) {
   if (!d) return '';
   return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });

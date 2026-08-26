@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=27">
+<link rel="stylesheet" href="style.css?v=28">
 </head>
 <body>
 <div class="topbar" id="topnav-top">
@@ -32,9 +32,28 @@
       <label class="form-label" data-edit="apply.field.name">Character Name</label>
       <input type="text" id="f-name" required placeholder="e.g. Deetarded" data-edit-placeholder="apply.field.name.ph">
     </div>
-    <div class="form-group">
-      <label class="form-label" data-edit="apply.field.class">Class / Spec</label>
-      <input type="text" id="f-class" required placeholder="e.g. Resto Shaman" data-edit-placeholder="apply.field.class.ph">
+    <div class="form-group" style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem;">
+      <div>
+        <label class="form-label" data-edit="apply.field.class">Class</label>
+        <select id="f-class-select" required onchange="updateSpecOptions()">
+          <option value="">Choose class...</option>
+          <option value="warrior">Warrior</option>
+          <option value="paladin">Paladin</option>
+          <option value="hunter">Hunter</option>
+          <option value="rogue">Rogue</option>
+          <option value="priest">Priest</option>
+          <option value="shaman">Shaman</option>
+          <option value="mage">Mage</option>
+          <option value="warlock">Warlock</option>
+          <option value="druid">Druid</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label" data-edit="apply.field.spec">Spec</label>
+        <select id="f-spec-select" required>
+          <option value="">Pick a class first</option>
+        </select>
+      </div>
     </div>
     <div class="form-group">
       <label class="form-label" data-edit="apply.field.logs">Warcraft Logs</label>
@@ -53,9 +72,18 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=27"></script>
-<script src="editor.js?v=27"></script>
+<script src="app.js?v=28"></script>
+<script src="editor.js?v=28"></script>
 <script>
+function updateSpecOptions() {
+  const classVal = document.getElementById('f-class-select').value;
+  const specSelect = document.getElementById('f-spec-select');
+  const specs = CLASS_SPECS[classVal] || [];
+  specSelect.innerHTML = specs.length
+    ? `<option value="">Choose spec...</option>` + specs.map(s => `<option value="${s}">${s}</option>`).join('')
+    : `<option value="">Pick a class first</option>`;
+}
+
 (async () => {
   await loadSession();
   renderNav('apply');
@@ -89,10 +117,15 @@
   document.getElementById('apply-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     if (!isLoggedIn()) { toast('Please login with Discord first.', 'error'); setTimeout(()=>window.location.href='login.html', 1000); return; }
+    const classVal = document.getElementById('f-class-select').value;
+    const specVal = document.getElementById('f-spec-select').value;
+    const classDisplay = classVal.charAt(0).toUpperCase() + classVal.slice(1);
     const payload = {
       user_id: currentUser.id,
       applicant_name: document.getElementById('f-name').value,
-      class_spec: document.getElementById('f-class').value,
+      class_name: classVal,
+      spec: specVal,
+      class_spec: specVal ? `${specVal} ${classDisplay}` : classDisplay,
       warcraftlogs_url: document.getElementById('f-logs').value,
       experience: document.getElementById('f-exp').value,
       why_join: document.getElementById('f-why').value,
