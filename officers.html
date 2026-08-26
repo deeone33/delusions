@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=24">
+<link rel="stylesheet" href="style.css?v=25">
 <style>
   .char-chip-wrap{display:flex;flex-wrap:wrap;gap:0.3rem;align-items:center;max-width:220px;}
   .char-chip{
@@ -55,7 +55,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=24"></script>
+<script src="app.js?v=25"></script>
 <script>
 let members = [];
 let charactersByProfile = {};
@@ -77,6 +77,13 @@ async function loadCharacters() {
   });
 }
 
+function actionCellFor(p) {
+  if (p.role === 'outsider') return `<button class="btn btn-sm" onclick="setRole('${p.id}','member')">Promote</button>`;
+  if (p.role === 'member' && isGM()) return `<button class="btn btn-sm" onclick="setRole('${p.id}','officer')">Promote</button>`;
+  if (p.role === 'officer' && isGM()) return `<button class="btn btn-sm" onclick="setRole('${p.id}','member')">Demote</button>`;
+  return `<span style="color:var(--dim);">—</span>`;
+}
+
 function render() {
   document.getElementById('members-body').innerHTML = members.map(p => `
     <tr>
@@ -90,11 +97,7 @@ function render() {
       <td><span class="pill ${p.role}">${esc(p.role)}</span></td>
       <td><input type="text" value="${esc(p.rank||'')}" data-rank="${p.id}" style="width:140px;padding:0.35rem 0.5rem;font-size:0.85rem;"></td>
       <td><input type="date" value="${p.joined_at ? p.joined_at.slice(0,10) : ''}" data-joined="${p.id}" style="width:145px;padding:0.35rem 0.5rem;font-size:0.82rem;"></td>
-      <td style="display:flex;gap:0.4rem;align-items:center;min-height:2.2rem;">
-        ${isGM() && p.role !== 'gm' ? (p.role !== 'officer' ? `<button class="btn" onclick="setRole('${p.id}','officer')">Make Officer</button>` : `<button class="btn" onclick="setRole('${p.id}','member')">Demote</button>`) : ''}
-        ${p.role === 'outsider' ? `<button class="btn" onclick="setRole('${p.id}','member')">Make Member</button>` : ''}
-        ${(!isGM() || p.role === 'gm') && p.role !== 'outsider' ? `<span style="color:var(--dim);">—</span>` : ''}
-      </td>
+      <td style="vertical-align:middle;">${actionCellFor(p)}</td>
     </tr>
   `).join('') || `<tr><td colspan="6" style="text-align:center;color:var(--dim);">No accounts yet.</td></tr>`;
 

@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=24">
+<link rel="stylesheet" href="style.css?v=25">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
   .page-wide{max-width:920px;margin:0 auto;padding:0 2rem 5rem;}
@@ -69,6 +69,10 @@
 
   .poll-card{border:1px solid var(--hair);padding:1.4rem 1.5rem;margin-bottom:1rem;}
   .poll-card.open{border-color:var(--red-bright);}
+  .poll-card-compact{border:1px solid var(--hair);padding:0.65rem 0.9rem;margin-bottom:0.5rem;}
+  .poll-collapsed-row{display:flex;align-items:center;gap:0.7rem;cursor:pointer;}
+  .poll-collapsed-title{font-family:'Manrope',sans-serif;font-size:0.85rem;color:var(--bone);flex:1;}
+  .poll-collapsed-row:hover .poll-collapsed-title{color:var(--white);}
   .poll-q{font-family:'Newsreader',serif;font-style:italic;font-size:1.1rem;color:var(--white);margin-bottom:0.3rem;}
   .poll-meta{margin-bottom:1rem;}
   .poll-option-btn{
@@ -151,7 +155,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=24"></script>
+<script src="app.js?v=25"></script>
 <script>
 const CLASS_COLORS = {
   warrior:'#C79C6E', paladin:'#F58CBA', hunter:'#ABD473', rogue:'#FFF569',
@@ -809,13 +813,15 @@ function renderPollCard(poll, isOpen) {
   const pcToggleId = `pc-toggle-${poll.id}`;
   const pcBodyId = `pc-body-${poll.id}`;
   return `
-    <div class="poll-card">
-      <div style="display:flex;align-items:center;gap:0.8rem;cursor:pointer;" onclick="toggleCollapse('${pcBodyId}','${pcToggleId}')">
+    <div class="poll-card-compact">
+      <div class="poll-collapsed-row" onclick="toggleCollapse('${pcBodyId}','${pcToggleId}')">
         <span class="collapse-icon" id="${pcToggleId}">+</span>
-        <span class="poll-q" style="margin-bottom:0;flex:1;">${esc(poll.question)}</span>
+        <span class="poll-collapsed-title">${esc(poll.question)}</span>
         <span class="label">${fmtDate(poll.closed_at)}</span>
       </div>
-      <div id="${pcBodyId}" style="display:none;margin-top:1rem;">${innerHtml}</div>
+      <div id="${pcBodyId}" style="display:none;">
+        <div class="poll-card open" style="border:none;border-top:1px solid var(--hair2);margin-top:0.7rem;padding:0.9rem 0 0;">${innerHtml}</div>
+      </div>
     </div>`;
 }
 

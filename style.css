@@ -56,7 +56,8 @@ button{font:inherit;}
 .nav-user-link{display:flex;align-items:center;gap:0.6rem;padding:0.3rem 0.5rem;border-radius:4px;transition:background .15s;}
 .nav-user-link:hover{background:var(--hair2);}
 
-.btn{display:inline-flex;align-items:center;gap:0.5rem;font-family:'IBM Plex Mono',monospace;font-size:0.6rem;letter-spacing:0.14em;text-transform:uppercase;padding:0.5rem 1.1rem;border:1px solid var(--hair);color:var(--bone);background:transparent;cursor:pointer;}
+.btn{display:inline-flex;align-items:center;gap:0.5rem;font-family:'IBM Plex Mono',monospace;font-size:0.6rem;letter-spacing:0.14em;text-transform:uppercase;padding:0.5rem 1.1rem;border:1px solid var(--hair);color:var(--bone);background:transparent;cursor:pointer;white-space:nowrap;}
+.btn-sm{padding:0.35rem 0.7rem;font-size:0.56rem;}
 .btn.primary{background:var(--red-bright);border-color:var(--red-bright);color:var(--void);}
 .btn:hover{border-color:var(--moon);color:var(--white);}
 .btn.primary:hover{background:var(--red-glow);border-color:var(--red-glow);color:var(--void);}
