@@ -66,7 +66,7 @@
   const links = [{ href: 'index.html', label: 'Home' }];
   if (isOfficer()) {
     links.push({ href: 'roster.html', label: 'Roster' });
-    links.push({ href: 'ledger.html', label: 'Ledger (Loot & Attendance)' });
+    links.push({ href: 'ledger.html', label: 'Ledger (Loot / Attendance / Polls)' });
   } else if (role === 'member') {
     links.push({ href: 'ledger.html', label: 'Loot' });
   }
