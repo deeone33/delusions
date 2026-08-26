@@ -63,7 +63,7 @@ function renderNav(active) {
     links.push({ href: 'roster.html', id: 'roster', label: 'Roster' });
     links.push({ href: 'ledger.html', id: 'ledger', label: 'Ledger' });
   } else if (isMember()) {
-    links.push({ href: 'ledger.html', id: 'ledger', label: 'Loot' });
+    links.push({ href: 'ledger.html', id: 'ledger', label: 'Ledger' });
   }
   if (isOfficer()) {
     links.push({ href: 'applications.html', id: 'applications', label: 'Applications' });
