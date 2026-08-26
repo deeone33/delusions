@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=18">
+<link rel="stylesheet" href="style.css?v=19">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
   .page-wide{max-width:920px;margin:0 auto;padding:0 2rem 5rem;}
@@ -66,6 +66,26 @@
     border:1px solid var(--hair);padding:0.35rem 0.75rem;border-radius:4px;
   }
   .roster-chip .player-link{font-size:0.85rem;}
+
+  .poll-card{border:1px solid var(--hair);padding:1.4rem 1.5rem;margin-bottom:1rem;}
+  .poll-card.open{border-color:var(--red-bright);}
+  .poll-q{font-family:'Newsreader',serif;font-style:italic;font-size:1.1rem;color:var(--white);margin-bottom:0.3rem;}
+  .poll-meta{margin-bottom:1rem;}
+  .poll-option-btn{
+    display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;
+    background:var(--deep);border:1px solid var(--hair);color:var(--bone);
+    padding:0.6rem 0.9rem;margin-bottom:0.5rem;cursor:pointer;font-family:'Manrope',sans-serif;font-size:0.88rem;
+  }
+  .poll-option-btn:hover{border-color:var(--red-bright);}
+  .poll-option-btn.voted{border-color:var(--red-bright);background:rgba(197,55,55,0.1);color:var(--white);}
+  .poll-bar-track{height:6px;background:var(--hair);border-radius:3px;overflow:hidden;margin-top:0.3rem;}
+  .poll-bar-fill{height:100%;background:linear-gradient(90deg,var(--red-bright),var(--red-glow));}
+  .poll-result-row{margin-bottom:0.7rem;}
+  .poll-result-label{display:flex;justify-content:space-between;font-size:0.85rem;color:var(--bone);margin-bottom:0.25rem;}
+  .poll-voters{font-size:0.78rem;color:var(--dim);margin-top:0.3rem;}
+  .poll-actions{display:flex;gap:0.5rem;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--hair2);}
+  .poll-opt-row{display:flex;gap:0.5rem;margin-bottom:0.5rem;align-items:center;}
+  .poll-opt-row input{flex:1;}
 </style>
 </head>
 <body>
@@ -81,6 +101,7 @@
   <div id="tab-row" style="display:flex;gap:0.6rem;margin-bottom:2rem;border-bottom:1px solid var(--hair);padding-bottom:1rem;">
     <button class="btn" id="tab-loot" onclick="showTab('loot')">Loot</button>
     <button class="btn" id="tab-attendance" style="display:none;" onclick="showTab('attendance')">Attendance</button>
+    <button class="btn" id="tab-polls" style="display:none;" onclick="showTab('polls')">Polls</button>
   </div>
 
   <div id="panel-loot">
@@ -109,7 +130,18 @@
       <button class="btn" type="button" onclick="downloadAttendanceCSV()">Download CSV</button>
     </div>
     <div id="nights-list"></div>
-  </div></div>
+  </div>
+
+  <div id="panel-polls" style="display:none;">
+    <div id="officer-poll-form" style="display:none;"></div>
+    <div id="polls-toolbar" style="display:flex;justify-content:flex-end;margin-bottom:1rem;">
+      <button class="btn" type="button" onclick="downloadPollsCSV()">Download CSV</button>
+    </div>
+    <div id="current-polls-list"></div>
+    <h3 style="font-family:'Newsreader',serif;font-style:italic;color:var(--white);margin:2.5rem 0 1rem;">Past Polls</h3>
+    <div id="past-polls-list"></div>
+  </div>
+</div>
 
 <div class="modal-backdrop" id="player-modal" style="display:none;" onclick="if(event.target===this) closePlayerModal()">
   <div class="modal-card">
@@ -119,7 +151,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=18"></script>
+<script src="app.js?v=19"></script>
 <script>
 const CLASS_COLORS = {
   warrior:'#C79C6E', paladin:'#F58CBA', hunter:'#ABD473', rogue:'#FFF569',
@@ -166,11 +198,15 @@ let allAttendees = [];
 function showTab(name) {
   document.getElementById('panel-loot').style.display = name === 'loot' ? '' : 'none';
   document.getElementById('panel-attendance').style.display = name === 'attendance' ? '' : 'none';
+  document.getElementById('panel-polls').style.display = name === 'polls' ? '' : 'none';
   document.getElementById('tab-loot').classList.toggle('primary', name === 'loot');
   document.getElementById('tab-attendance').classList.toggle('primary', name === 'attendance');
-  document.getElementById('page-h1').textContent = name === 'attendance' ? 'Attendance' : 'Loot';
+  document.getElementById('tab-polls').classList.toggle('primary', name === 'polls');
+  document.getElementById('page-h1').textContent = name === 'attendance' ? 'Attendance' : name === 'polls' ? 'Polls' : 'Loot';
   if (name === 'attendance') {
     document.getElementById('page-sub').textContent = 'Who showed up, raid by raid — exported from the in-game addon.';
+  } else if (name === 'polls') {
+    document.getElementById('page-sub').textContent = 'Officer polls — cast your vote below.';
   } else if (isOfficer()) {
     document.getElementById('page-sub').textContent = 'Every item awarded, from council to roster — click a name for their full history.';
   } else {
@@ -686,21 +722,213 @@ function refreshOpenModal() {
 
 function closePlayerModal() { document.getElementById('player-modal').style.display = 'none'; openModalPlayer = null; }
 
+// ================= POLLS =================
+let allPolls = [];
+let allPollOptions = [];
+let allPollVotes = [];
+
+async function loadPolls() {
+  const { data: polls } = await sb.from('polls').select('*').order('created_at', { ascending: false });
+  const { data: options } = await sb.from('poll_options').select('*').order('sort_order', { ascending: true });
+  const { data: votes } = await sb.from('poll_votes').select('*');
+  allPolls = polls || [];
+  allPollOptions = options || [];
+  allPollVotes = votes || [];
+  renderPolls();
+  return allPolls.length > 0;
+}
+
+function renderPolls() {
+  const current = allPolls.filter(p => p.status === 'open');
+  const past = allPolls.filter(p => p.status === 'closed');
+
+  document.getElementById('current-polls-list').innerHTML = current.length
+    ? current.map(p => renderPollCard(p, true)).join('')
+    : `<div class="card" style="text-align:center;color:var(--dim);">No open polls right now.</div>`;
+
+  document.getElementById('past-polls-list').innerHTML = past.length
+    ? past.map(p => renderPollCard(p, false)).join('')
+    : `<div class="card" style="text-align:center;color:var(--dim);">Nothing here yet.</div>`;
+}
+
+function renderPollCard(poll, isOpen) {
+  const options = allPollOptions.filter(o => o.poll_id === poll.id);
+  const votes = allPollVotes.filter(v => v.poll_id === poll.id);
+  const totalVotes = votes.length;
+  const myVote = votes.find(v => v.voter_id === currentUser?.id);
+  const audienceLabel = { officers: 'Officers Only', members: 'Members & Officers', all: 'Everyone' }[poll.audience] || poll.audience;
+
+  const body = isOpen && !isOfficer() && !myVote
+    ? options.map(o => `<button class="poll-option-btn" onclick="castVote('${poll.id}','${o.id}')">${esc(o.option_text)}</button>`).join('')
+    : options.map(o => {
+        const count = votes.filter(v => v.option_id === o.id).length;
+        const pct = totalVotes ? Math.round((count/totalVotes)*100) : 0;
+        const mine = myVote?.option_id === o.id;
+        return `
+          <div class="poll-result-row">
+            <div class="poll-result-label"><span>${esc(o.option_text)}${mine ? ' <span style="color:var(--red-bright);">(your vote)</span>' : ''}</span><span>${pct}% (${count})</span></div>
+            <div class="poll-bar-track"><div class="poll-bar-fill" style="width:${pct}%;"></div></div>
+          </div>`;
+      }).join('') + (isOpen && !isOfficer() ? `<button class="btn" style="margin-top:0.6rem;" onclick="revoteMode('${poll.id}')">Change vote</button>` : '');
+
+  const officerBreakdown = isOfficer() && votes.length ? `
+    <div class="poll-voters">
+      ${votes.map(v => {
+        const opt = options.find(o => o.id === v.option_id);
+        return `${esc(v.voter_name)} → ${esc(opt?.option_text||'?')} · ${fmtDate(v.created_at)}`;
+      }).join('<br>')}
+    </div>` : '';
+
+  const officerActions = isOfficer() ? `
+    <div class="poll-actions">
+      ${isOpen ? `<button class="btn" onclick="closePoll('${poll.id}')">Close Poll</button>` : ''}
+      <button class="btn" onclick="deletePoll('${poll.id}')">Delete Poll</button>
+    </div>` : '';
+
+  return `
+    <div class="poll-card ${isOpen?'open':''}">
+      <div class="poll-q">${esc(poll.question)}</div>
+      <div class="label poll-meta">${audienceLabel} · ${totalVotes} vote${totalVotes!==1?'s':''} · ${isOpen ? 'Open' : 'Closed ' + fmtDate(poll.closed_at)}</div>
+      <div id="poll-body-${poll.id}">${body}</div>
+      ${officerBreakdown}
+      ${officerActions}
+    </div>`;
+}
+
+function revoteMode(pollId) {
+  const options = allPollOptions.filter(o => o.poll_id === pollId);
+  document.getElementById(`poll-body-${pollId}`).innerHTML =
+    options.map(o => `<button class="poll-option-btn" onclick="castVote('${pollId}','${o.id}')">${esc(o.option_text)}</button>`).join('');
+}
+
+async function castVote(pollId, optionId) {
+  const { error } = await sb.from('poll_votes').upsert({
+    poll_id: pollId, option_id: optionId, voter_id: currentUser.id, voter_name: currentProfile.username,
+  }, { onConflict: 'poll_id,voter_id' });
+  if (error) { toast(error.message, 'error'); return; }
+  toast('Vote recorded.', 'success');
+  await loadPolls();
+}
+
+async function closePoll(id) {
+  const poll = allPolls.find(p => p.id === id);
+  if (!confirm('Close this poll? No more votes will be accepted.')) return;
+  const { error } = await sb.from('polls').update({ status: 'closed', closed_at: new Date().toISOString() }).eq('id', id);
+  if (error) { toast(error.message, 'error'); return; }
+  if (poll) logActivity(`Closed poll "${poll.question}"`);
+  toast('Poll closed.', 'success');
+  await loadPolls();
+}
+
+async function deletePoll(id) {
+  const poll = allPolls.find(p => p.id === id);
+  if (!confirm(`Delete this poll entirely, including all votes? This can't be undone.`)) return;
+  const { error } = await sb.from('polls').delete().eq('id', id);
+  if (error) { toast(error.message, 'error'); return; }
+  if (poll) logActivity(`Deleted poll "${poll.question}"`);
+  toast('Poll deleted.', 'success');
+  await loadPolls();
+}
+
+function downloadPollsCSV() {
+  const rows = allPollVotes.map(v => {
+    const poll = allPolls.find(p => p.id === v.poll_id);
+    const opt = allPollOptions.find(o => o.id === v.option_id);
+    return [poll?.question || '', opt?.option_text || '', v.voter_name || '', v.created_at || ''];
+  });
+  downloadCSV('delusions-polls.csv', ['Poll', 'Option', 'Voter', 'Voted At'], rows);
+}
+
+// ---------- OFFICER: CREATE POLL FORM ----------
+let pollOptionCount = 0;
+
+function renderPollForm() {
+  document.getElementById('officer-poll-form').style.display = 'block';
+  document.getElementById('officer-poll-form').innerHTML = `
+    <h3 style="margin-bottom:1rem;cursor:pointer;font-size:0.95rem;color:var(--white);" onclick="toggleCollapse('poll-form-body','poll-form-toggle')">
+      <span id="poll-form-toggle" class="collapse-icon">+</span> Create Poll
+    </h3>
+    <div id="poll-form-body" style="display:none;margin-bottom:1.5rem;">
+      <div class="card">
+        <label class="form-label">Question</label>
+        <input type="text" id="poll-question" placeholder="e.g. Which night should we add as a second raid day?" style="margin-bottom:0.8rem;">
+        <label class="form-label">Options</label>
+        <div id="poll-options-wrap"></div>
+        <button class="btn" type="button" onclick="addPollOptionRow()" style="margin-bottom:1rem;">+ Add Option</button>
+        <label class="form-label">Visible to</label>
+        <select id="poll-audience" style="margin-bottom:1rem;">
+          <option value="officers">Officers only</option>
+          <option value="members" selected>Members & Officers</option>
+          <option value="all">Everyone (incl. outsiders)</option>
+        </select>
+        <button class="btn primary" type="button" onclick="submitPoll()">Create Poll</button>
+      </div>
+    </div>
+  `;
+  pollOptionCount = 0;
+  addPollOptionRow(); addPollOptionRow();
+}
+
+function addPollOptionRow() {
+  pollOptionCount++;
+  const wrap = document.getElementById('poll-options-wrap');
+  const row = document.createElement('div');
+  row.className = 'poll-opt-row';
+  row.innerHTML = `<input type="text" placeholder="Option ${pollOptionCount}"><button class="btn" type="button" onclick="this.parentElement.remove()">×</button>`;
+  wrap.appendChild(row);
+}
+
+async function submitPoll() {
+  const question = document.getElementById('poll-question').value.trim();
+  const audience = document.getElementById('poll-audience').value;
+  const optionInputs = [...document.querySelectorAll('#poll-options-wrap input')];
+  const options = optionInputs.map(i => i.value.trim()).filter(Boolean);
+
+  if (!question) { toast('Enter a question.', 'error'); return; }
+  if (options.length < 2) { toast('Add at least 2 options.', 'error'); return; }
+
+  const { data: poll, error } = await sb.from('polls').insert({
+    question, audience, created_by: currentUser.id, created_by_name: currentProfile.username,
+  }).select().single();
+  if (error) { toast(error.message, 'error'); return; }
+
+  const rows = options.map((text, i) => ({ poll_id: poll.id, option_text: text, sort_order: i }));
+  const { error: err2 } = await sb.from('poll_options').insert(rows);
+  if (err2) { toast(err2.message, 'error'); return; }
+
+  logActivity(`Created poll "${question}" (${audience})`);
+  toast('Poll created.', 'success');
+  renderPollForm(); // reset form
+  await loadPolls();
+}
+
 (async () => {
-  const ok = await requireMember();
-  if (!ok) return;
+  if (!isLoggedIn()) { window.location.href = 'login.html'; return; }
   renderNav('ledger');
+
+  const canSeeLootAttendance = isMember() || isOfficer();
   if (isOfficer()) {
-    document.getElementById('tab-attendance').style.display = '';
     renderUploadUI();
     renderAttendanceForm();
-  } else {
-    // Members only ever see Loot — no point showing a tab switcher with one option
-    document.getElementById('tab-row').style.display = 'none';
+    renderPollForm();
   }
+
   await loadLoot();
   await loadAttendance();
-  showTab('loot');
+  const hasVisiblePolls = await loadPolls(); // RLS already scoped this to what the viewer can see
+
+  document.getElementById('tab-loot').style.display = canSeeLootAttendance ? '' : 'none';
+  document.getElementById('tab-attendance').style.display = isOfficer() ? '' : 'none';
+  document.getElementById('tab-polls').style.display = (isOfficer() || hasVisiblePolls) ? '' : 'none';
+
+  const visibleTabs = [];
+  if (canSeeLootAttendance) visibleTabs.push('loot');
+  if (isOfficer()) visibleTabs.push('attendance');
+  if (isOfficer() || hasVisiblePolls) visibleTabs.push('polls');
+
+  if (!visibleTabs.length) { window.location.href = 'dashboard.html'; return; } // outsider, no eligible polls at all
+  document.getElementById('tab-row').style.display = visibleTabs.length > 1 ? '' : 'none';
+  showTab(visibleTabs[0]);
 })();
 </script>
 </body>

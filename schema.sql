@@ -152,6 +152,98 @@ alter table applications add column if not exists warcraftlogs_url text;
 alter table applications add column if not exists why_join text;
 alter table applications add column if not exists officer_note text;  -- visible to the applicant, set when accepting/rejecting
 
+-- ---------- POLLS ----------
+-- Audience controls who can see AND vote: officers | members (officers+members) | all (any logged-in account, outsiders included).
+-- This is enforced at the RLS level, not just hidden in the UI — if the
+-- database won't return a poll to someone, the Polls tab correctly doesn't
+-- even appear for them, current or past.
+create table if not exists polls (
+  id uuid primary key default gen_random_uuid(),
+  question text not null,
+  audience text not null default 'members',  -- officers | members | all
+  status text not null default 'open',       -- open | closed
+  created_by uuid references profiles(id),
+  created_by_name text,
+  created_at timestamptz default now(),
+  closed_at timestamptz
+);
+
+create table if not exists poll_options (
+  id uuid primary key default gen_random_uuid(),
+  poll_id uuid references polls(id) on delete cascade,
+  option_text text not null,
+  sort_order int default 0
+);
+
+create table if not exists poll_votes (
+  id uuid primary key default gen_random_uuid(),
+  poll_id uuid references polls(id) on delete cascade,
+  option_id uuid references poll_options(id) on delete cascade,
+  voter_id uuid references profiles(id),
+  voter_name text,
+  created_at timestamptz default now(),
+  unique(poll_id, voter_id)
+);
+
+alter table polls        enable row level security;
+alter table poll_options enable row level security;
+alter table poll_votes   enable row level security;
+
+drop policy if exists "polls visible by audience" on polls;
+create policy "polls visible by audience" on polls for select using (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+  or (audience = 'members' and exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('member','officer')))
+  or (audience = 'all' and auth.uid() is not null)
+);
+drop policy if exists "officers write polls" on polls;
+create policy "officers write polls" on polls for insert with check (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+);
+drop policy if exists "officers update polls" on polls;
+create policy "officers update polls" on polls for update using (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+);
+drop policy if exists "officers delete polls" on polls;
+create policy "officers delete polls" on polls for delete using (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+);
+
+drop policy if exists "poll_options visible with poll" on poll_options;
+create policy "poll_options visible with poll" on poll_options for select using (
+  exists (select 1 from polls po where po.id = poll_id and (
+    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+    or (po.audience = 'members' and exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('member','officer')))
+    or (po.audience = 'all' and auth.uid() is not null)
+  ))
+);
+drop policy if exists "officers write poll_options" on poll_options;
+create policy "officers write poll_options" on poll_options for insert with check (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+);
+
+drop policy if exists "poll_votes visible with poll" on poll_votes;
+create policy "poll_votes visible with poll" on poll_votes for select using (
+  exists (select 1 from polls po where po.id = poll_id and (
+    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+    or (po.audience = 'members' and exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('member','officer')))
+    or (po.audience = 'all' and auth.uid() is not null)
+  ))
+);
+drop policy if exists "vote if audience allows" on poll_votes;
+create policy "vote if audience allows" on poll_votes for insert with check (
+  voter_id = auth.uid() and exists (select 1 from polls po where po.id = poll_id and po.status = 'open' and (
+    exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+    or (po.audience = 'members' and exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('member','officer')))
+    or (po.audience = 'all' and auth.uid() is not null)
+  ))
+);
+drop policy if exists "voter update own vote" on poll_votes;
+create policy "voter update own vote" on poll_votes for update using (voter_id = auth.uid());
+drop policy if exists "officers delete poll_votes" on poll_votes;
+create policy "officers delete poll_votes" on poll_votes for delete using (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+);
+
 -- ---------- ACTIVITY LOG ----------
 -- Audit trail for officer actions — who deleted/approved/edited what.
 create table if not exists activity_log (
