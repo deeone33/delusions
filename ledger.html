@@ -7,10 +7,10 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=37">
+<link rel="stylesheet" href="style.css?v=38">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-<script>var whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
-<script src="https://wow.zamimg.com/widgets/power.js"></script>
+<script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
+<script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
 <style>
   .page-wide{max-width:920px;margin:0 auto;padding:0 2rem 5rem;}
   .ledger-toolbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.8rem;margin-bottom:1.5rem;}
@@ -220,8 +220,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=37"></script>
-<script src="editor.js?v=37"></script>
+<script src="app.js?v=38"></script>
+<script src="editor.js?v=38"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -353,7 +353,7 @@ function renderLoot() {
             ${items.map(r => `
               <tr>
                 <td>${esc(r.raid_title || '—')}</td>
-                <td class="item-name">${r.item_link ? `<a href="${esc(r.item_link)}" target="_blank" rel="noopener" style="color:inherit;">${esc(r.item_name)}</a>` : esc(r.item_name || '—')}</td>
+                <td class="item-name">${r.item_link ? `<a href="${esc(r.item_link)}" target="_blank" rel="noopener" style="color:inherit;" data-wowhead="domain=tbc">${esc(r.item_name)}</a>` : esc(r.item_name || '—')}</td>
                 <td>${esc(r.response || '—')}</td>
                 <td>${playerLink(r.winner_name, r.class_name)}</td>
                 ${isOfficer() ? `<td><button class="row-delete" title="Remove this item" onclick="deleteLootItem('${r.id}')">${TRASH_ICON}</button></td>` : ''}
@@ -802,7 +802,7 @@ function openPlayerModal(name) {
       <h4>Loot History (${lootItems.length})</h4>
       ${lootItems.length ? lootItems.map(l => `
         <div class="modal-row">
-          <span class="item-name">${l.item_link ? `<a href="${esc(l.item_link)}" target="_blank" rel="noopener" style="color:inherit;">${esc(l.item_name)}</a>` : esc(l.item_name)}</span>
+          <span class="item-name">${l.item_link ? `<a href="${esc(l.item_link)}" target="_blank" rel="noopener" style="color:inherit;" data-wowhead="domain=tbc">${esc(l.item_name)}</a>` : esc(l.item_name)}</span>
           <span style="display:flex;align-items:center;gap:0.6rem;">
             ${l.awarded_at ? new Date(l.awarded_at).toLocaleDateString() : ''}
             ${officer ? `<button class="row-delete" title="Remove this item" onclick="deleteLootItem('${l.id}')">${TRASH_ICON}</button>` : ''}
@@ -1210,7 +1210,7 @@ function renderWishlistRows() {
 }
 
 function renderWishlistItemDisplay(it) {
-  if (it.item_link) return `<a href="${esc(it.item_link)}" target="_blank" rel="noopener">${esc(it.item_text)}</a>`;
+  if (it.item_link) return `<a href="${esc(it.item_link)}" target="_blank" rel="noopener" data-wowhead="domain=tbc">${esc(it.item_text)}</a>`;
   return esc(it.item_text) || '<span style="color:var(--dim)">(empty)</span>';
 }
 
@@ -1219,8 +1219,21 @@ function detectWowheadLink(text) {
   return match ? match[0] : null;
 }
 
+let wowheadRefreshFallbackUsed = false;
 function refreshWowheadTooltips() {
-  if (window.$WowheadPower && typeof window.$WowheadPower.refreshLinks === 'function') window.$WowheadPower.refreshLinks();
+  if (window.$WowheadPower && typeof window.$WowheadPower.refreshLinks === 'function') { window.$WowheadPower.refreshLinks(); return; }
+  if (window.WH && window.WH.Tooltips && typeof window.WH.Tooltips.refreshLinks === 'function') { window.WH.Tooltips.refreshLinks(); return; }
+  // Unknown/renamed API — force a full re-scan by reloading the script itself.
+  // Debounced slightly since this can fire often during normal use.
+  clearTimeout(window._whRefreshTimer);
+  window._whRefreshTimer = setTimeout(() => {
+    const old = document.getElementById('wh-tooltips-script');
+    if (old) old.remove();
+    const s = document.createElement('script');
+    s.id = 'wh-tooltips-script';
+    s.src = 'https://wow.zamimg.com/js/tooltips.js';
+    document.body.appendChild(s);
+  }, 150);
 }
 
 async function addWishlistItem() {
