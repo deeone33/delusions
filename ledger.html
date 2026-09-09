@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=45">
+<link rel="stylesheet" href="style.css?v=46">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
@@ -245,8 +245,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=45"></script>
-<script src="editor.js?v=45"></script>
+<script src="app.js?v=46"></script>
+<script src="editor.js?v=46"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -964,6 +964,9 @@ function showCharacterOverview(profileId, characterName) {
 }
 
 async function showWishlistHistoryModal(wishlistId) {
+  document.getElementById('player-modal-content').innerHTML = `<div style="color:var(--dim);">Loading…</div>`;
+  document.getElementById('player-modal').style.display = 'flex';
+  try {
   const { data: history } = await sb.from('wishlist_history').select('*').eq('wishlist_id', wishlistId).order('created_at', { ascending: false }).limit(2);
   const { data: wl } = await sb.from('wishlists').select('*, profiles(username)').eq('id', wishlistId).single();
   const className = getCharClass(wl?.character_name);
@@ -1023,6 +1026,10 @@ async function showWishlistHistoryModal(wishlistId) {
   openModalPlayer = null;
   document.getElementById('player-modal').style.display = 'flex';
   refreshWowheadTooltips();
+  } catch (e) {
+    console.error('showWishlistHistoryModal failed:', e);
+    document.getElementById('player-modal-content').innerHTML = `<div style="color:var(--dim);">Something went wrong loading this. Try again, or let the developer know if it keeps happening.</div>`;
+  }
 }
 
 function openPollOptionVoters(pollId, optionId) {

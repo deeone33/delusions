@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=45">
+<link rel="stylesheet" href="style.css?v=46">
 <script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
 <style>
@@ -84,7 +84,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=45"></script>
+<script src="app.js?v=46"></script>
 <script>
 let members = [];
 let charactersByProfile = {};
@@ -294,13 +294,18 @@ async function showActivityDetail(refType, refId) {
   el.innerHTML = `<div style="color:var(--dim);">Loading…</div>`;
   document.getElementById('detail-modal').style.display = 'flex';
 
-  if (refType === 'wishlist') await renderWishlistDetail(refId, el);
-  else if (refType === 'feedback') await renderFeedbackDetail(refId, el);
-  else if (refType === 'poll') await renderPollDetail(refId, el);
-  else if (refType === 'message') await renderMessageDetail(refId, el);
-  else if (refType === 'application') await renderApplicationDetail(refId, el);
-  else { el.innerHTML = `<div style="color:var(--dim);">No further detail available for this entry.</div>`; return; }
-  refreshWowheadTooltips();
+  try {
+    if (refType === 'wishlist') await renderWishlistDetail(refId, el);
+    else if (refType === 'feedback') await renderFeedbackDetail(refId, el);
+    else if (refType === 'poll') await renderPollDetail(refId, el);
+    else if (refType === 'message') await renderMessageDetail(refId, el);
+    else if (refType === 'application') await renderApplicationDetail(refId, el);
+    else { el.innerHTML = `<div style="color:var(--dim);">No further detail available for this entry.</div>`; return; }
+    refreshWowheadTooltips();
+  } catch (e) {
+    console.error('showActivityDetail failed:', e);
+    el.innerHTML = `<div style="color:var(--dim);">Something went wrong loading this detail. Try again, or let the developer know if it keeps happening.</div>`;
+  }
 }
 
 function refreshWowheadTooltips() {
@@ -323,8 +328,10 @@ async function renderWishlistDetail(wishlistId, el) {
 
   let className = null;
   if (wl?.character_name) {
-    const { data: charRow } = await sb.from('profile_characters').select('class_name').ilike('character_name', wl.character_name).limit(1).single().catch(() => ({ data: null }));
-    className = charRow?.class_name || null;
+    try {
+      const { data: charRow } = await sb.from('profile_characters').select('class_name').ilike('character_name', wl.character_name).limit(1).single();
+      className = charRow?.class_name || null;
+    } catch (e) { className = null; }
   }
   const header = `
     <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.3rem;">
