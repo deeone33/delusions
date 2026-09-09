@@ -107,8 +107,11 @@ button{font:inherit;}
 .ad{border:1px solid var(--hair);padding:1.2rem 1.3rem;position:relative;}
 .ad h4{font-family:'IBM Plex Mono',monospace;font-size:0.66rem;letter-spacing:0.06em;text-transform:uppercase;color:var(--white);margin-bottom:0.5rem;}
 .ad p{font-size:0.9rem;color:var(--mist);line-height:1.65;}
-.ad .badge{font-family:'IBM Plex Mono',monospace;font-size:0.56rem;letter-spacing:0.1em;text-transform:uppercase;margin-top:0.6rem;display:inline-block;cursor:pointer;}
-.ad-icons{display:flex;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.7rem;}
+.ad .badge{font-family:'IBM Plex Mono',monospace;font-size:0.56rem;letter-spacing:0.1em;text-transform:uppercase;margin-top:0.6rem;display:inline-block;}
+.ad .badge.editable{cursor:pointer;}
+.ad-heading-row{display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;flex-wrap:wrap;}
+.ad-inline-icon{border-radius:3px;display:block;flex-shrink:0;}
+.ad-icon-manage{display:flex;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.6rem;}
 .ad-icon-item{display:inline-flex;align-items:center;gap:0.3rem;position:relative;}
 .ad-icon-item img{border-radius:3px;display:block;}
 .ad-icon-mini{display:inline-flex;align-items:center;gap:0.2rem;}

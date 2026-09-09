@@ -437,25 +437,10 @@ function renderRecruitment() {
     const color = classColor(it.class_key);
     return `
     <div class="ad">
-      ${(icons.length || editMode) ? `
-      <div class="ad-icons">
-        ${icons.map((ic, ii) => `
-          <span class="ad-icon-item">
-            <img src="icons/${esc(ic.cls)}.png" style="width:${ic.size||24}px;height:${ic.size||24}px;opacity:${ic.opacity!=null?ic.opacity:1};" alt="${esc(ic.cls)}" title="${esc(ic.cls)}">
-            ${editMode ? `
-              <span class="ad-icon-mini">
-                <input type="number" min="0.1" max="1" step="0.1" value="${ic.opacity!=null?ic.opacity:1}" title="Opacity (0.1–1)" onchange="updateAdIcon(${i},${ii},'opacity',this.value)">
-                <input type="number" min="12" max="64" step="2" value="${ic.size||24}" title="Size (px)" onchange="updateAdIcon(${i},${ii},'size',this.value)">
-                <button type="button" onclick="removeAdIcon(${i},${ii})" title="Remove icon">&times;</button>
-              </span>` : ''}
-          </span>
-        `).join('')}
-        ${editMode ? `
-          <select class="ad-icon-add" onchange="if(this.value){addAdIcon(${i}, this.value); this.value='';}">
-            <option value="">+ icon</option>
-            ${Object.keys(CLASS_ICONS).map(c => `<option value="${c}">${c.charAt(0).toUpperCase()+c.slice(1)}</option>`).join('')}
-          </select>` : ''}
-      </div>` : ''}
+      <div class="ad-heading-row">
+        ${icons.map(ic => `<img class="ad-inline-icon" src="icons/${esc(ic.cls)}.png" style="width:${ic.size||24}px;height:${ic.size||24}px;opacity:${ic.opacity!=null?ic.opacity:1};" alt="${esc(ic.cls)}" title="${esc(ic.cls)}">`).join('')}
+        <h4 style="${color?`color:${color};`:''}margin-bottom:0;">${esc(adHeadingText(it))}</h4>
+      </div>
       ${editMode ? `
         <div class="ad-class-pick">
           <select onchange="updateAdClass(${i}, this.value)">
@@ -466,10 +451,25 @@ function renderRecruitment() {
             <option value="">— Spec (optional) —</option>
             ${(CLASS_SPECS[it.class_key]||[]).map(s => `<option value="${s}" ${it.spec===s?'selected':''}>${s}</option>`).join('')}
           </select>
+        </div>
+        <div class="ad-icon-manage">
+          ${icons.map((ic, ii) => `
+            <span class="ad-icon-item">
+              <img src="icons/${esc(ic.cls)}.png" style="width:20px;height:20px;opacity:${ic.opacity!=null?ic.opacity:1};" alt="${esc(ic.cls)}">
+              <span class="ad-icon-mini">
+                <input type="number" min="0.1" max="1" step="0.1" value="${ic.opacity!=null?ic.opacity:1}" title="Opacity (0.1–1)" onchange="updateAdIcon(${i},${ii},'opacity',this.value)">
+                <input type="number" min="12" max="64" step="2" value="${ic.size||24}" title="Size (px)" onchange="updateAdIcon(${i},${ii},'size',this.value)">
+                <button type="button" onclick="removeAdIcon(${i},${ii})" title="Remove icon">&times;</button>
+              </span>
+            </span>
+          `).join('')}
+          <select class="ad-icon-add" onchange="if(this.value){addAdIcon(${i}, this.value); this.value='';}">
+            <option value="">+ icon</option>
+            ${Object.keys(CLASS_ICONS).map(c => `<option value="${c}">${c.charAt(0).toUpperCase()+c.slice(1)}</option>`).join('')}
+          </select>
         </div>` : ''}
-      <h4 style="${color?`color:${color};`:''}">${esc(adHeadingText(it))}</h4>
-      <p ${editMode?`contenteditable="true" data-si="recruitment" data-i="${i}" data-f="notes"`:''}>${esc(it.notes)}</p>
-      <span class="badge ${it.priority||'low'}" data-cycle="recruitment" data-i="${i}" title="${editMode?'Click to cycle priority':''}">Priority: ${esc(it.priority||'low')}</span>
+      ${(it.notes || editMode) ? `<p ${editMode?`contenteditable="true" data-si="recruitment" data-i="${i}" data-f="notes"`:''} style="${!it.notes && editMode ? 'color:var(--dim);font-style:italic;' : ''}">${esc(it.notes) || (editMode ? '(click to add a note — blank ones stay hidden for visitors)' : '')}</p>` : ''}
+      <span class="badge ${it.priority||'low'} ${editMode?'editable':''}" ${editMode?`data-cycle="recruitment" data-i="${i}" title="Click to cycle priority"`:''}>Priority: ${esc(it.priority||'low')}</span>
       ${editMode?`<button class="edit-item-del" type="button" data-del="recruitment" data-i="${i}">×</button>`:''}
     </div>
   `;

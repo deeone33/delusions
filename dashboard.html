@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=36">
+<link rel="stylesheet" href="style.css?v=37">
 </head>
 <body>
 <div class="topbar" id="topnav-top"><span>Spineshatter EU · Horde</span><span></span></div>
@@ -27,7 +27,7 @@
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:0.6rem;align-items:end;">
           <div>
             <label class="form-label">Character Name</label>
-            <input type="text" id="new-char-name" placeholder="e.g. Deetardeh">
+            <input type="text" id="new-char-name" placeholder="e.g. Ghostcrawler">
           </div>
           <div>
             <label class="form-label">Class</label>
@@ -78,14 +78,16 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=36"></script>
+<script src="app.js?v=37"></script>
 <script>
 let myCharsCache = [];
 
 async function loadMyCharacters() {
   const { data } = await sb.from('profile_characters').select('*').eq('profile_id', currentUser.id).order('character_name');
   myCharsCache = data || [];
-  document.getElementById('status-characters').textContent = myCharsCache.length ? myCharsCache.map(c => c.character_name).join(', ') : 'None yet';
+  document.getElementById('status-characters').innerHTML = myCharsCache.length
+    ? myCharsCache.map(c => `<span style="color:${classColor(c.class_name) || 'var(--white)'};">${esc(c.character_name)}</span>`).join(', ')
+    : 'None yet';
   populateNewCharClassOptions();
   renderMyCharactersList();
 }

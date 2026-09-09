@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=36">
+<link rel="stylesheet" href="style.css?v=37">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>var whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script src="https://wow.zamimg.com/widgets/power.js"></script>
@@ -120,9 +120,24 @@
 <div class="nav" id="topnav"></div>
 
 <div class="page-wide" style="padding-top:3rem;">
-  <div class="label" style="margin-bottom:0.5rem;">Records</div>
-  <h1 style="font-family:'Newsreader',serif;color:var(--white);font-size:2rem;margin-bottom:0.5rem;" id="page-h1">Loot</h1>
-  <p style="color:var(--mist);margin-bottom:1.5rem;" id="page-sub">Every item awarded, from council to roster — click a name for their full history.</p>
+  <div class="label" data-edit="ledger.recordsLabel" style="margin-bottom:0.5rem;">Records</div>
+
+  <div id="heading-loot">
+    <h1 data-edit="ledger.loot.h1" style="font-family:'Newsreader',serif;color:var(--white);font-size:2rem;margin-bottom:0.5rem;">Loot</h1>
+    <p data-edit="ledger.loot.sub" style="color:var(--mist);margin-bottom:1.5rem;">Every item awarded, from council to roster — click a name for their full history.</p>
+  </div>
+  <div id="heading-attendance" style="display:none;">
+    <h1 data-edit="ledger.attendance.h1" style="font-family:'Newsreader',serif;color:var(--white);font-size:2rem;margin-bottom:0.5rem;">Attendance</h1>
+    <p data-edit="ledger.attendance.sub" style="color:var(--mist);margin-bottom:1.5rem;">Who showed up, raid by raid — exported from the in-game addon.</p>
+  </div>
+  <div id="heading-polls" style="display:none;">
+    <h1 data-edit="ledger.polls.h1" style="font-family:'Newsreader',serif;color:var(--white);font-size:2rem;margin-bottom:0.5rem;">Polls</h1>
+    <p data-edit="ledger.polls.sub" style="color:var(--mist);margin-bottom:1.5rem;">Officer polls — cast your vote below.</p>
+  </div>
+  <div id="heading-wishlist" style="display:none;">
+    <h1 data-edit="ledger.wishlist.h1" style="font-family:'Newsreader',serif;color:var(--white);font-size:2rem;margin-bottom:0.5rem;">Wishlist</h1>
+    <p data-edit="ledger.wishlist.sub" style="color:var(--mist);margin-bottom:1.5rem;">Rank up to 10 items for the current phase — lock it in when you're happy with the order.</p>
+  </div>
 
   <div id="tab-row" style="display:flex;gap:0.6rem;margin-bottom:2rem;border-bottom:1px solid var(--hair);padding-bottom:1rem;">
     <button class="btn" id="tab-loot" onclick="showTab('loot')">Loot</button>
@@ -138,6 +153,7 @@
       <span style="display:flex;align-items:center;gap:1rem;">
         <span class="label" id="loot-count"></span>
         <button class="btn" id="loot-csv-btn" type="button" onclick="downloadLootCSV()" style="display:none;">Download CSV</button>
+        <button class="btn" id="fix-tbc-links-btn" type="button" onclick="fixRetailWowheadLinks()" style="display:none;" title="Rewrites old retail-format Wowhead links (from before the TBC fix) to the correct TBC ones">Fix Old Item Links</button>
       </span>
     </div>
     <div id="loot-body"></div>
@@ -178,8 +194,8 @@
   </div>
 
   <div id="panel-wishlist" style="display:none;">
-    <p data-edit="ledger.wishlist.sub" style="color:var(--mist);margin-bottom:1.5rem;">Rank up to 10 items for the current phase — lock it in when you're happy with the order.</p>
     <div id="wishlist-phase-bar"></div>
+    <h2 data-edit="ledger.wishlist.yourHeading" style="font-family:'Newsreader',serif;color:var(--white);font-size:1.4rem;margin-bottom:0.8rem;">Your Wishlist</h2>
     <div id="your-wishlist" style="margin-bottom:3rem;"></div>
 
     <div id="officer-wishlist-review" style="display:none;">
@@ -187,7 +203,10 @@
         <h2 style="font-family:'Newsreader',serif;color:var(--white);font-size:1.4rem;">Officer Review</h2>
         <button class="btn" id="wishlist-csv-btn" type="button" onclick="downloadWishlistCSV()" style="display:none;">Download CSV</button>
       </div>
-      <input type="text" id="wishlist-search" placeholder="Search by account or character name..." style="max-width:300px;margin-bottom:1rem;" oninput="renderOfficerWishlistReview()">
+      <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:1rem;">
+        <input type="text" id="wishlist-search" placeholder="Search by account or character name..." style="max-width:300px;" oninput="renderOfficerWishlistReview()">
+        <select id="wishlist-phase-select" onchange="switchViewingPhase(this.value)" style="max-width:200px;"></select>
+      </div>
       <div id="wishlist-officer-list"></div>
     </div>
   </div>
@@ -201,8 +220,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=36"></script>
-<script src="editor.js?v=36"></script>
+<script src="app.js?v=37"></script>
+<script src="editor.js?v=37"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -223,6 +242,31 @@ function downloadCSV(filename, headers, rows) {
   a.href = url; a.download = filename;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+async function fixRetailWowheadLinks() {
+  if (!confirm("Rewrite old Wowhead links (from before the TBC fix) to the correct TBC format? This only touches links that are missing '/tbc/' — nothing else changes.")) return;
+  let fixed = 0;
+
+  const { data: lootRows } = await sb.from('loot_log').select('id, item_link').not('item_link', 'is', null);
+  for (const r of (lootRows || [])) {
+    if (r.item_link && r.item_link.includes('wowhead.com/item=')) {
+      const newLink = r.item_link.replace('wowhead.com/item=', 'wowhead.com/tbc/item=');
+      await sb.from('loot_log').update({ item_link: newLink }).eq('id', r.id);
+      fixed++;
+    }
+  }
+  const { data: wlRows } = await sb.from('wishlist_items').select('id, item_link').not('item_link', 'is', null);
+  for (const r of (wlRows || [])) {
+    if (r.item_link && r.item_link.includes('wowhead.com/item=')) {
+      const newLink = r.item_link.replace('wowhead.com/item=', 'wowhead.com/tbc/item=');
+      await sb.from('wishlist_items').update({ item_link: newLink }).eq('id', r.id);
+      fixed++;
+    }
+  }
+  logActivity(`Fixed ${fixed} old retail-format Wowhead links to TBC`);
+  toast(`Fixed ${fixed} links.`, 'success');
+  await loadLoot();
 }
 
 function downloadLootCSV() {
@@ -252,19 +296,11 @@ function showTab(name) {
   document.getElementById('tab-attendance').classList.toggle('primary', name === 'attendance');
   document.getElementById('tab-polls').classList.toggle('primary', name === 'polls');
   document.getElementById('tab-wishlist').classList.toggle('primary', name === 'wishlist');
-  document.getElementById('page-h1').textContent = name === 'attendance' ? 'Attendance' : name === 'polls' ? 'Polls' : name === 'wishlist' ? 'Wishlist' : 'Loot';
-  if (name === 'attendance') {
-    document.getElementById('page-sub').textContent = 'Who showed up, raid by raid — exported from the in-game addon.';
-  } else if (name === 'polls') {
-    document.getElementById('page-sub').textContent = 'Officer polls — cast your vote below.';
-  } else if (name === 'wishlist') {
-    document.getElementById('page-sub').textContent = ''; // Wishlist has its own editable description inside the panel now
-    if (!wishlistInited) { wishlistInited = true; initWishlistTab(); }
-  } else if (isOfficer()) {
-    document.getElementById('page-sub').textContent = 'Every item awarded, from council to roster — click a name for their full history.';
-  } else {
-    document.getElementById('page-sub').textContent = "Every item awarded to the guild — click a name to see what they've received.";
-  }
+  document.getElementById('heading-loot').style.display = name === 'loot' ? '' : 'none';
+  document.getElementById('heading-attendance').style.display = name === 'attendance' ? '' : 'none';
+  document.getElementById('heading-polls').style.display = name === 'polls' ? '' : 'none';
+  document.getElementById('heading-wishlist').style.display = name === 'wishlist' ? '' : 'none';
+  if (name === 'wishlist' && !wishlistInited) { wishlistInited = true; initWishlistTab(); }
 }
 
 async function loadLoot() {
@@ -1044,11 +1080,15 @@ function renderPhaseBar() {
   const el = document.getElementById('wishlist-phase-bar');
   if (isOfficer()) {
     el.innerHTML = `
-      <div class="card" style="margin-bottom:1.5rem;display:flex;gap:0.8rem;align-items:center;flex-wrap:wrap;">
-        <span class="label">Current Phase</span>
-        <input type="text" id="phase-input" value="${esc(currentPhase)}" style="max-width:200px;">
-        <button class="btn" type="button" onclick="savePhase()">Save</button>
-        <span style="font-size:0.8rem;color:var(--dim);">Wishlists are scoped per phase — changing this starts a fresh round for everyone.</span>
+      <h3 style="margin-bottom:0.8rem;cursor:pointer;font-size:0.9rem;color:var(--white);" onclick="toggleCollapse('phase-bar-body','phase-bar-toggle')">
+        <span id="phase-bar-toggle" class="collapse-icon">+</span> Current Phase: <span style="color:var(--red-bright);">${esc(currentPhase)}</span>
+      </h3>
+      <div id="phase-bar-body" style="display:none;margin-bottom:1.5rem;">
+        <div class="card" style="display:flex;gap:0.8rem;align-items:center;flex-wrap:wrap;">
+          <span class="label">Change Phase</span>
+          <input type="text" id="phase-input" value="${esc(currentPhase)}" style="max-width:200px;">
+          <button class="btn" type="button" onclick="savePhase()">Save</button>
+        </div>
       </div>`;
   } else {
     el.innerHTML = `<div class="label" style="margin-bottom:1.5rem;">Current Phase: <span style="color:var(--white);">${esc(currentPhase)}</span></div>`;
@@ -1057,12 +1097,14 @@ function renderPhaseBar() {
 
 async function savePhase() {
   const val = document.getElementById('phase-input').value.trim();
-  if (!val) return;
+  if (!val || val === currentPhase) return;
+  if (!confirm(`Change the current phase from "${currentPhase}" to "${val}"?\n\nThis does NOT delete anything — everyone's existing wishlists for "${currentPhase}" stay exactly as they are, as historical record. But going forward, everyone will be building a fresh wishlist under "${val}" instead. Make sure this is actually what you want before saving.`)) return;
   const { error } = await sb.from('site_content').upsert({ key: 'config.current_phase', text: val, updated_at: new Date().toISOString() });
   if (error) { toast(error.message, 'error'); return; }
-  logActivity(`Set the wishlist phase to "${val}"`);
+  logActivity(`Changed the wishlist phase from "${currentPhase}" to "${val}"`);
   currentPhase = val;
   toast('Phase updated.', 'success');
+  renderPhaseBar();
   await loadMyCharactersAndWishlist();
   if (isOfficer()) await loadOfficerWishlistReview();
 }
@@ -1073,7 +1115,6 @@ async function loadMyCharactersAndWishlist() {
   myCharacters = data || [];
   if (!myCharacters.length) {
     document.getElementById('your-wishlist').innerHTML = `
-      <h2 style="font-family:'Newsreader',serif;color:var(--white);font-size:1.4rem;margin-bottom:0.5rem;">Your Wishlist</h2>
       <div class="card" style="color:var(--mist);">You don't have any characters linked to your account yet — add one from your <a href="dashboard.html" style="color:var(--red-bright);">Dashboard</a> first, then come back here.</div>`;
     return;
   }
@@ -1121,7 +1162,6 @@ function renderMyWishlist() {
   const locked = myWishlist.locked;
   const myChar = myCharacters.find(c => c.character_name === selectedCharacter);
   el.innerHTML = `
-    <h2 style="font-family:'Newsreader',serif;color:var(--white);font-size:1.4rem;margin-bottom:0.8rem;">Your Wishlist</h2>
     ${myCharacters.length > 1 ? renderCharacterPicker() : ''}
     <div class="label" style="margin-bottom:1rem;">
       ${classIcon(myChar?.class_name)} <span style="color:var(--bone);">${esc(selectedCharacter)}</span> ·
@@ -1227,7 +1267,7 @@ function renderWlSuggest(id, results) {
   if (!el) return;
   if (!results.length) { el.style.display = 'none'; return; }
   el.innerHTML = results.map(r => `
-    <div class="wl-suggest-item" onmousedown="selectWlItem('${id}', ${r.id}, '${esc(r.name).replace(/'/g,"\\'")}')">
+    <div class="wl-suggest-item" onmousedown="event.preventDefault(); selectWlItem('${id}', ${r.id}, '${esc(r.name).replace(/'/g,"\\'")}')">
       <img src="https://wow.zamimg.com/images/wow/icons/small/${esc(r.icon)}.jpg" class="wl-suggest-icon" alt="">
       <span class="${r.q==='L' ? 'q-legendary' : 'q-epic'}">${esc(r.name)}</span>
     </div>
@@ -1333,8 +1373,21 @@ async function pingWishlistDiscord(message, mentionRole) {
 }
 
 // ---------- OFFICER REVIEW ----------
+let viewingPhase = null; // null = follow currentPhase; set explicitly when officer picks a past phase
+
 async function loadOfficerWishlistReview() {
-  const { data: wls } = await sb.from('wishlists').select('*, profiles(username)').eq('phase', currentPhase).order('unlock_requested', { ascending: false });
+  if (viewingPhase === null) viewingPhase = currentPhase;
+
+  const { data: allPhaseRows } = await sb.from('wishlists').select('phase').order('phase');
+  const distinctPhases = [...new Set((allPhaseRows || []).map(r => r.phase))];
+  if (!distinctPhases.includes(currentPhase)) distinctPhases.push(currentPhase);
+
+  const phaseSelectEl = document.getElementById('wishlist-phase-select');
+  if (phaseSelectEl) {
+    phaseSelectEl.innerHTML = distinctPhases.map(p => `<option value="${esc(p)}" ${p===viewingPhase?'selected':''}>${esc(p)}${p===currentPhase?' (current)':''}</option>`).join('');
+  }
+
+  const { data: wls } = await sb.from('wishlists').select('*, profiles(username)').eq('phase', viewingPhase).order('unlock_requested', { ascending: false });
   allWishlists = wls || [];
   const ids = allWishlists.map(w => w.id);
   allWishlistItemsMap = {};
@@ -1345,6 +1398,11 @@ async function loadOfficerWishlistReview() {
   }
   document.getElementById('officer-wishlist-review').style.display = 'block';
   renderOfficerWishlistReview();
+}
+
+function switchViewingPhase(phase) {
+  viewingPhase = phase;
+  loadOfficerWishlistReview();
 }
 
 function renderOfficerWishlistReview() {
@@ -1394,6 +1452,7 @@ function renderOfficerWishlistReview() {
               <button class="btn" type="button" onclick="rejectUnlock('${w.id}')">Reject</button>
             ` : ''}
             ${isGM() ? `<button class="btn" type="button" onclick="clearAllReceived('${w.id}')">Clear All Received</button>` : ''}
+            <button class="btn" type="button" onclick="deleteWishlist('${w.id}')" style="margin-left:auto;">Delete This Wishlist</button>
           </div>
         </div>
       </div>`;
@@ -1459,6 +1518,17 @@ async function clearAllReceived(wishlistId) {
   await Promise.all(items.map(it => sb.from('wishlist_items').update({ received: false, received_at: null, received_by: null }).eq('id', it.id)));
   logActivity(`Cleared all Received flags on ${w?.character_name || "a player"}'s wishlist (GM action)`);
   toast('Cleared.', 'success');
+  await loadOfficerWishlistReview();
+}
+
+async function deleteWishlist(wishlistId) {
+  const w = allWishlists.find(x => x.id === wishlistId);
+  const label = w?.character_name || 'this wishlist (no character set — likely an old entry from before per-character wishlists)';
+  if (!confirm(`Delete ${label} entirely, including every item on it? This can't be undone.`)) return;
+  const { error } = await sb.from('wishlists').delete().eq('id', wishlistId);
+  if (error) { toast(error.message, 'error'); return; }
+  logActivity(`Deleted the wishlist for ${w?.character_name || 'an unlinked entry'} (${w?.profiles?.username || ''})`);
+  toast('Deleted.', 'success');
   await loadOfficerWishlistReview();
 }
 
@@ -1537,6 +1607,7 @@ async function autoMatchWishlistOnImport(lootRows) {
 
   if (isOfficer()) {
     document.getElementById('loot-csv-btn').style.display = '';
+    document.getElementById('fix-tbc-links-btn').style.display = '';
     document.getElementById('attendance-csv-btn').style.display = '';
     document.getElementById('polls-csv-btn').style.display = '';
     document.getElementById('wishlist-csv-btn').style.display = '';
