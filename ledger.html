@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=38">
+<link rel="stylesheet" href="style.css?v=39">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
@@ -220,8 +220,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=38"></script>
-<script src="editor.js?v=38"></script>
+<script src="app.js?v=39"></script>
+<script src="editor.js?v=39"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -1192,7 +1192,7 @@ function renderWishlistRows() {
         ${locked
           ? `<span class="wl-item-display">${renderWishlistItemDisplay(it)}</span>`
           : `<div class="wl-input-wrap">
-               <input type="text" class="wl-item-input" value="${esc(it.item_text)}" placeholder="Type an item name..."
+               <input type="text" id="wl-input-${it.id}" class="wl-item-input" value="${esc(it.item_text)}" placeholder="Type an item name..."
                  oninput="onWishlistItemInput('${it.id}', this.value)"
                  onchange="updateWishlistItemText('${it.id}', this.value)"
                  onblur="setTimeout(()=>hideWlSuggest('${it.id}'),150)">
@@ -1294,6 +1294,15 @@ function hideWlSuggest(id) {
 }
 
 async function selectWlItem(id, itemId, itemName) {
+  // Disarm the input's own onchange/onblur FIRST, before touching anything
+  // else. Removing this input from the DOM later (via renderWishlistRows)
+  // while it still holds focus can independently trigger its own blur/change
+  // — completely separate from the click that got us here — and that stale
+  // handler would silently overwrite what we're about to save. This is the
+  // actual fix; preventDefault() on the click alone wasn't enough.
+  const input = document.getElementById(`wl-input-${id}`);
+  if (input) { input.onchange = null; input.onblur = null; }
+
   const link = `https://www.wowhead.com/tbc/item=${itemId}`;
   const { error } = await sb.from('wishlist_items').update({ item_text: itemName, item_link: link }).eq('id', id);
   if (error) { toast(error.message, 'error'); return; }
