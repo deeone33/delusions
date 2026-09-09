@@ -470,6 +470,42 @@ create policy "wishlist_items gm delete" on wishlist_items for delete using (
   exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'gm')
 );
 
+-- ---------- PLAYER MESSAGES ----------
+-- Direct officer-to-player messages, shown on the recipient's dashboard.
+create table if not exists player_messages (
+  id uuid primary key default gen_random_uuid(),
+  from_officer_id uuid references profiles(id),
+  from_officer_name text,
+  to_profile_id uuid references profiles(id) on delete cascade,
+  to_username text,
+  message text not null,
+  status text not null default 'sent',  -- sent | seen | cleared
+  created_at timestamptz default now(),
+  seen_at timestamptz,
+  cleared_at timestamptz
+);
+alter table player_messages enable row level security;
+
+drop policy if exists "player_messages select own or officer" on player_messages;
+create policy "player_messages select own or officer" on player_messages for select using (
+  to_profile_id = auth.uid()
+  or exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
+);
+drop policy if exists "player_messages officer insert" on player_messages;
+create policy "player_messages officer insert" on player_messages for insert with check (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
+);
+-- Recipient can only move their own message forward (sent -> seen -> cleared),
+-- never edit its content or reassign it to someone else.
+drop policy if exists "player_messages recipient update status" on player_messages;
+create policy "player_messages recipient update status" on player_messages for update using (
+  to_profile_id = auth.uid()
+);
+drop policy if exists "player_messages officer delete" on player_messages;
+create policy "player_messages officer delete" on player_messages for delete using (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
+);
+
 -- ---------- ACTIVITY LOG ----------
 -- Audit trail for officer actions — who deleted/approved/edited what.
 create table if not exists activity_log (

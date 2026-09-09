@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=40">
+<link rel="stylesheet" href="style.css?v=41">
 <style>
   .char-chip-wrap{display:flex;flex-wrap:wrap;gap:0.3rem;align-items:center;max-width:260px;}
   .char-chip{
@@ -47,6 +47,28 @@
   </div>
 
   <div style="margin-top:2.5rem;">
+    <h2 style="margin-bottom:1rem;cursor:pointer;" onclick="toggleCollapse('messages-body','messages-toggle')">
+      <span id="messages-toggle" class="collapse-icon">+</span> Player Messages
+    </h2>
+    <div id="messages-body" style="display:none;">
+      <div class="card" style="margin-bottom:1rem;">
+        <div style="display:grid;grid-template-columns:1fr 2fr auto;gap:0.6rem;align-items:end;">
+          <div>
+            <label class="form-label">To</label>
+            <select id="msg-to"></select>
+          </div>
+          <div>
+            <label class="form-label">Message</label>
+            <input type="text" id="msg-text" placeholder="Keep it short — this shows on their dashboard">
+          </div>
+          <button class="btn primary" type="button" onclick="sendPlayerMessage()">Send</button>
+        </div>
+      </div>
+      <div id="messages-list"></div>
+    </div>
+  </div>
+
+  <div style="margin-top:2.5rem;">
     <h2 style="margin-bottom:1rem;cursor:pointer;" onclick="toggleCollapse('activity-body','activity-toggle')">
       <span id="activity-toggle" class="collapse-icon">+</span> Activity Log
     </h2>
@@ -60,7 +82,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=40"></script>
+<script src="app.js?v=41"></script>
 <script>
 let members = [];
 let charactersByProfile = {};
@@ -201,6 +223,57 @@ async function setRole(id, role) {
 }
 
 // ---------- ACTIVITY LOG ----------
+// ---------- PLAYER MESSAGES ----------
+function populateMessageRecipients() {
+  const sel = document.getElementById('msg-to');
+  sel.innerHTML = members.map(p => `<option value="${p.id}">${esc(p.username)}</option>`).join('');
+}
+
+async function sendPlayerMessage() {
+  const toId = document.getElementById('msg-to').value;
+  const text = document.getElementById('msg-text').value.trim();
+  if (!toId || !text) { toast('Pick a recipient and write a message.', 'error'); return; }
+  const toProfile = members.find(m => m.id === toId);
+  const { error } = await sb.from('player_messages').insert({
+    from_officer_id: currentUser.id, from_officer_name: currentProfile.username,
+    to_profile_id: toId, to_username: toProfile?.username || '', message: text,
+  });
+  if (error) { toast(error.message, 'error'); return; }
+  logActivity(`Sent a dashboard message to ${toProfile?.username || 'a player'}`);
+  toast('Sent.', 'success');
+  document.getElementById('msg-text').value = '';
+  await loadPlayerMessages();
+}
+
+async function loadPlayerMessages() {
+  const { data } = await sb.from('player_messages').select('*').order('created_at', { ascending: false }).limit(50);
+  const el = document.getElementById('messages-list');
+  if (!data || !data.length) { el.innerHTML = `<div class="card" style="text-align:center;color:var(--dim);">No messages sent yet.</div>`; return; }
+  const statusLabel = { sent: 'Sent', seen: 'Seen', cleared: 'Cleared' };
+  const statusColor = { sent: 'var(--warn)', seen: 'var(--mist)', cleared: 'var(--dim)' };
+  el.innerHTML = data.map(m => `
+    <div class="activity-row">
+      <span>
+        <span class="who">${esc(m.to_username)}</span> — ${esc(m.message)}
+        <span style="color:${statusColor[m.status]||'var(--dim)'};font-size:0.75rem;margin-left:0.5rem;">(${statusLabel[m.status]||m.status})</span>
+      </span>
+      <span style="display:flex;align-items:center;gap:0.7rem;">
+        <span class="label">${fmtDate(m.created_at)}</span>
+        <button onclick="deletePlayerMessage('${m.id}')" title="Delete this message" style="background:none;border:1px solid var(--hair);border-radius:3px;color:var(--dim);width:1.4rem;height:1.4rem;cursor:pointer;font-size:0.8rem;line-height:1;">&times;</button>
+      </span>
+    </div>
+  `).join('');
+}
+
+async function deletePlayerMessage(id) {
+  if (!confirm('Delete this message?')) return;
+  const { error } = await sb.from('player_messages').delete().eq('id', id);
+  if (error) { toast(error.message, 'error'); return; }
+  logActivity('Deleted a player message');
+  toast('Deleted.', 'success');
+  await loadPlayerMessages();
+}
+
 async function loadActivity() {
   document.getElementById('activity-clear-wrap').style.display = isGM() ? '' : 'none';
   const { data, error } = await sb.from('activity_log').select('*').order('created_at', { ascending: false }).limit(50);
@@ -248,6 +321,8 @@ async function clearActivityLog() {
   if (!ok) return;
   renderNav('officers');
   await load();
+  populateMessageRecipients();
+  await loadPlayerMessages();
   await loadActivity();
 })();
 </script>

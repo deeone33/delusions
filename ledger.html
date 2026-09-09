@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=40">
+<link rel="stylesheet" href="style.css?v=41">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
@@ -211,6 +211,15 @@
         <h2 style="font-family:'Newsreader',serif;color:var(--white);font-size:1.4rem;">Officer Review</h2>
         <button class="btn" id="wishlist-csv-btn" type="button" onclick="downloadWishlistCSV()" style="display:none;">Download CSV</button>
       </div>
+
+      <h3 style="margin-bottom:0.8rem;cursor:pointer;font-size:0.95rem;color:var(--white);" onclick="toggleCollapse('hot-items-body','hot-items-toggle')">
+        <span id="hot-items-toggle" class="collapse-icon">+</span> Hot Items
+      </h3>
+      <div id="hot-items-body" style="display:none;margin-bottom:2rem;">
+        <input type="text" id="hot-items-search" placeholder="Search by item name..." style="max-width:300px;margin-bottom:0.9rem;" oninput="renderHotItems()">
+        <div id="hot-items-list"></div>
+      </div>
+
       <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:1rem;">
         <input type="text" id="wishlist-search" placeholder="Search by account or character name..." style="max-width:300px;" oninput="renderOfficerWishlistReview()">
         <select id="wishlist-phase-select" onchange="switchViewingPhase(this.value)" style="max-width:200px;"></select>
@@ -228,8 +237,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=40"></script>
-<script src="editor.js?v=40"></script>
+<script src="app.js?v=41"></script>
+<script src="editor.js?v=41"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -1453,12 +1462,63 @@ async function loadOfficerWishlistReview() {
     Object.values(allWishlistItemsMap).forEach(arr => arr.sort((a,b) => a.sort_order - b.sort_order));
   }
   document.getElementById('officer-wishlist-review').style.display = 'block';
+  renderHotItems();
   renderOfficerWishlistReview();
 }
 
 function switchViewingPhase(phase) {
   viewingPhase = phase;
   loadOfficerWishlistReview();
+}
+
+// Aggregates item demand across everyone's current wishlists for the phase
+// being viewed — who wants what, and at what priority rank.
+function buildHotItemsMap() {
+  const map = {};
+  allWishlists.forEach(w => {
+    const items = allWishlistItemsMap[w.id] || [];
+    items.forEach((it, i) => {
+      if (!it.item_text) return;
+      const key = normalizeItemName(it.item_text);
+      if (!map[key]) map[key] = { displayText: it.item_text, itemLink: it.item_link, entries: [] };
+      if (it.item_link && !map[key].itemLink) map[key].itemLink = it.item_link;
+      map[key].entries.push({ player: w.profiles?.username || 'Unknown', character: w.character_name || '?', rank: i + 1 });
+    });
+  });
+  return map;
+}
+
+function renderHotItems() {
+  const search = (document.getElementById('hot-items-search')?.value || '').trim().toLowerCase();
+  const map = buildHotItemsMap();
+  let entries = Object.values(map).sort((a, b) => b.entries.length - a.entries.length);
+  if (search) entries = entries.filter(e => e.displayText.toLowerCase().includes(search));
+
+  document.getElementById('hot-items-list').innerHTML = entries.map((item, idx) => {
+    const bodyId = `hot-item-body-${idx}`;
+    const toggleId = `hot-item-toggle-${idx}`;
+    const display = item.itemLink
+      ? `<a href="${esc(item.itemLink)}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:inherit;">${esc(item.displayText)}</a>`
+      : esc(item.displayText);
+    return `
+      <div class="raid-group">
+        <div class="raid-group-header" onclick="toggleCollapse('${bodyId}','${toggleId}')">
+          <span class="expand-icon" id="${toggleId}">+</span>
+          <span class="raid-group-title">${display}</span>
+          <span class="label">${item.entries.length} player${item.entries.length!==1?'s':''} want this</span>
+        </div>
+        <div id="${bodyId}" style="display:none;padding:0.8rem 1.1rem;border-top:1px solid var(--hair);">
+          ${item.entries.sort((a,b)=>a.rank-b.rank).map(e => `
+            <div style="display:flex;justify-content:space-between;padding:0.3rem 0;font-size:0.85rem;color:var(--mist);border-bottom:1px solid var(--hair2);">
+              <span>${esc(e.player)} — ${esc(e.character)}</span>
+              <span class="label">Rank ${e.rank}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>`;
+  }).join('') || `<div class="card" style="text-align:center;color:var(--dim);">${search ? 'No matches.' : 'No items wishlisted yet for this phase.'}</div>`;
+
+  refreshWowheadTooltips();
 }
 
 function renderOfficerWishlistReview() {

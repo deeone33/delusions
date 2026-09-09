@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=40">
+<link rel="stylesheet" href="style.css?v=41">
 </head>
 <body>
 <div class="topbar" id="topnav-top"><span>Spineshatter EU · Horde</span><span></span></div>
@@ -53,6 +53,7 @@
     <div>
       <h2 style="margin-bottom:1rem;">Your Status</h2>
       <div class="card" id="status-card"></div>
+      <div id="my-messages-wrap" style="margin-top:1rem;"></div>
     </div>
   </div>
 
@@ -78,7 +79,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=40"></script>
+<script src="app.js?v=41"></script>
 <script>
 let myCharsCache = [];
 
@@ -146,6 +147,52 @@ async function removeMyCharacter(id, name) {
   await loadMyCharacters();
 }
 
+async function loadMyMessages() {
+  const { data } = await sb.from('player_messages').select('*').eq('to_profile_id', currentUser.id).neq('status', 'cleared').order('created_at', { ascending: false });
+  const el = document.getElementById('my-messages-wrap');
+  if (!data || !data.length) { el.innerHTML = ''; return; }
+  el.innerHTML = data.map(m => `
+    <div class="card ${m.status==='sent'?'card-warn':''}" style="margin-bottom:0.7rem;">
+      <div style="display:flex;justify-content:space-between;gap:1rem;margin-bottom:0.5rem;">
+        <span class="label">From ${esc(m.from_officer_name)}</span>
+        <span class="label">${fmtDate(m.created_at)}</span>
+      </div>
+      <p style="margin-bottom:0.8rem;color:var(--white);">${esc(m.message)}</p>
+      <div style="display:flex;gap:0.6rem;">
+        ${m.status==='sent' ? `<button class="btn" type="button" onclick="markMessageSeen('${m.id}')">Mark Seen</button>` : ''}
+        <button class="btn" type="button" onclick="clearMyMessage('${m.id}')">Clear</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function markMessageSeen(id) {
+  const { error } = await sb.from('player_messages').update({ status: 'seen', seen_at: new Date().toISOString() }).eq('id', id);
+  if (error) { toast(error.message, 'error'); return; }
+  await loadMyMessages();
+}
+
+async function clearMyMessage(id) {
+  const { error } = await sb.from('player_messages').update({ status: 'cleared', cleared_at: new Date().toISOString() }).eq('id', id);
+  if (error) { toast(error.message, 'error'); return; }
+  toast('Cleared.', 'success');
+  await loadMyMessages();
+  if (typeof loadMemberNavBadges === 'function') loadMemberNavBadges();
+}
+
+async function checkWishlistReminder() {
+  let phase = null;
+  try { const r = await sb.from('site_content').select('*').eq('key','config.current_phase').single(); phase = r.data?.text; } catch (e) { phase = null; }
+  if (!phase) return;
+  const { count } = await sb.from('wishlists').select('*', {count:'exact',head:true}).eq('profile_id', currentUser.id).eq('phase', phase);
+  if (count) return;
+  document.getElementById('app-status').innerHTML += `
+    <div class="card card-warn" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;margin-top:1rem;">
+      <div><div class="label" style="color:var(--warn);">No Wishlist Yet</div><div style="color:var(--white)">You haven't set up a wishlist for ${esc(phase)}</div></div>
+      <a href="ledger.html?tab=wishlist" class="btn primary">Set It Up →</a>
+    </div>`;
+}
+
 (async () => {
   await loadSession();
   if (!isLoggedIn()) { window.location.href = 'login.html'; return; }
@@ -164,6 +211,8 @@ async function removeMyCharacter(id, name) {
   if (isMember() || isOfficer()) {
     document.getElementById('my-characters-section').style.display = 'block';
     await loadMyCharacters();
+    await loadMyMessages();
+    await checkWishlistReminder();
   } else {
     document.getElementById('status-characters').textContent = '—';
   }

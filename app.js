@@ -78,9 +78,10 @@ function renderNav(active) {
 
   let user = '';
   if (currentProfile) {
-    user = `<a href="dashboard.html" class="nav-user-link">
+    user = `<a href="dashboard.html" class="nav-user-link" id="navlink-account">
               <span class="pill ${isGM() ? 'gm' : isOfficer() ? 'officer' : isMember() ? 'member' : 'outsider'}">${esc(currentProfile.rank || currentProfile.role)}</span>
               <span style="color:var(--bone);font-family:'IBM Plex Mono',monospace;font-size:0.62rem;">${esc(currentProfile.username)}</span>
+              <span class="nav-badge" id="navbadge-account" style="display:none;"></span>
             </a>
             <button class="btn" onclick="doLogout()">Logout</button>`;
   } else {
@@ -90,6 +91,7 @@ function renderNav(active) {
   el.innerHTML = `${navLinks}<div class="divider"></div><div class="nav-ctas">${user}</div>`;
 
   if (isOfficer()) loadNavBadges();
+  else if (isMember()) loadMemberNavBadges();
 }
 
 // Runs after the nav is already visible, so a couple of extra queries never
@@ -101,6 +103,20 @@ async function loadNavBadges() {
   setNavBadge('feedback', fbCount);
   const { count: wlCount } = await sb.from('wishlists').select('*', {count:'exact',head:true}).eq('unlock_requested', true);
   setNavBadge('ledger', wlCount); // surfaces on the Ledger tab itself, since Wishlist lives inside it
+}
+
+async function loadMemberNavBadges() {
+  // Unseen messages from officers
+  const { count: msgCount } = await sb.from('player_messages').select('*', {count:'exact',head:true}).eq('to_profile_id', currentUser.id).eq('status', 'sent');
+  setNavBadge('account', msgCount);
+
+  // Missing wishlist for the current phase — nudges toward the Ledger
+  let phase = null;
+  try { const r = await sb.from('site_content').select('*').eq('key','config.current_phase').single(); phase = r.data?.text; } catch (e) { phase = null; }
+  if (phase) {
+    const { count: wlCount } = await sb.from('wishlists').select('*', {count:'exact',head:true}).eq('profile_id', currentUser.id).eq('phase', phase);
+    if (!wlCount) setNavBadge('ledger', 1);
+  }
 }
 function setNavBadge(id, count) {
   const el = document.getElementById(`navbadge-${id}`);
