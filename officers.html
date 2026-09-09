@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=49">
+<link rel="stylesheet" href="style.css?v=50">
 <script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
 <style>
@@ -84,7 +84,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=49"></script>
+<script src="app.js?v=50"></script>
 <script>
 let members = [];
 let charactersByProfile = {};
@@ -443,7 +443,7 @@ async function loadActivity() {
   const el = document.getElementById('activity-list');
   if (error) { el.innerHTML = `<div style="color:var(--dim);">Couldn't load activity log.</div>`; return; }
 
-  const lastSeen = currentProfile.last_activity_view_at ? new Date(currentProfile.last_activity_view_at).getTime() : 0;
+  const lastSeen = activityViewSnapshot ? new Date(activityViewSnapshot).getTime() : 0;
   const unreadCount = (data || []).filter(a => new Date(a.created_at).getTime() > lastSeen).length;
   document.getElementById('activity-unread-count').innerHTML = unreadCount > 0 ? ` <span style="color:var(--red-bright);">(${unreadCount})</span>` : '';
 
@@ -481,10 +481,14 @@ function toggleActivityLog() {
 }
 
 async function markActivityLogSeen() {
+  // Deliberately does NOT call loadActivity() here. The list already
+  // rendered its dots/count using the OLD last_activity_view_at at page
+  // load — updating that value now (for next time) and then immediately
+  // re-rendering with it would erase the dots before you ever saw them.
+  // We just update the DB in the background; this session's view stays as-is.
   const now = new Date().toISOString();
   await sb.from('profiles').update({ last_activity_view_at: now }).eq('id', currentUser.id);
   currentProfile.last_activity_view_at = now;
-  await loadActivity(); // re-render so the dots/count clear immediately
 }
 
 async function clearActivityLog() {
@@ -498,6 +502,8 @@ async function clearActivityLog() {
   await loadActivity();
 }
 
+let activityViewSnapshot = null;
+
 (async () => {
   const ok = await requireOfficer();
   if (!ok) return;
@@ -505,6 +511,7 @@ async function clearActivityLog() {
   await load();
   populateMessageRecipients();
   await loadPlayerMessages();
+  activityViewSnapshot = currentProfile.last_activity_view_at; // freeze before anything can update it
   await loadActivity();
 })();
 </script>
