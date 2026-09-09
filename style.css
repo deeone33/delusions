@@ -108,7 +108,17 @@ button{font:inherit;}
 .ad h4{font-family:'IBM Plex Mono',monospace;font-size:0.66rem;letter-spacing:0.06em;text-transform:uppercase;color:var(--white);margin-bottom:0.5rem;}
 .ad p{font-size:0.9rem;color:var(--mist);line-height:1.65;}
 .ad .badge{font-family:'IBM Plex Mono',monospace;font-size:0.56rem;letter-spacing:0.1em;text-transform:uppercase;margin-top:0.6rem;display:inline-block;cursor:pointer;}
-.ad .badge.high{color:var(--warn);} .ad .badge.medium{color:var(--mist);} .ad .badge.low{color:var(--dim);}
+.ad-icons{display:flex;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.7rem;}
+.ad-icon-item{display:inline-flex;align-items:center;gap:0.3rem;position:relative;}
+.ad-icon-item img{border-radius:3px;display:block;}
+.ad-icon-mini{display:inline-flex;align-items:center;gap:0.2rem;}
+.ad-icon-mini input{width:2.6rem;font-size:0.62rem;padding:0.15rem 0.25rem;}
+.ad-icon-mini button{background:none;border:1px solid var(--hair);border-radius:3px;color:var(--dim);width:1.2rem;height:1.2rem;cursor:pointer;font-size:0.7rem;line-height:1;padding:0;}
+.ad-icon-mini button:hover{color:var(--red-bright);border-color:var(--red-bright);}
+.ad-icon-add{font-size:0.65rem;padding:0.2rem 0.4rem;background:var(--deep);border:1px dashed var(--hair);color:var(--dim);}
+.ad-class-pick{display:flex;gap:0.5rem;margin-bottom:0.6rem;flex-wrap:wrap;}
+.ad-class-pick select{font-size:0.7rem;padding:0.25rem 0.4rem;}
+.ad .badge.high{color:var(--red-bright);} .ad .badge.medium{color:var(--warn);} .ad .badge.normal{color:var(--mist);} .ad .badge.low{color:var(--dim);}
 
 /* ---------- staff box / officers ---------- */
 .staffbox{max-width:980px;margin:3.4rem auto 0;padding:1.6rem 2.5rem;border-top:1px solid var(--hair);border-bottom:1px solid var(--hair);text-align:center;}

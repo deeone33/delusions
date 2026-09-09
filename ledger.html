@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=35">
+<link rel="stylesheet" href="style.css?v=36">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>var whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script src="https://wow.zamimg.com/widgets/power.js"></script>
@@ -94,17 +94,29 @@
   }
   .wl-item-slot{flex:1;min-width:0;}
   .wl-item-input{width:100%;}
+  .wl-input-wrap{position:relative;}
+  .wl-suggest{
+    position:absolute;top:calc(100% + 2px);left:0;right:0;z-index:20;
+    background:var(--surface);border:1px solid var(--hair);max-height:220px;overflow-y:auto;
+  }
+  .wl-suggest-item{display:flex;align-items:center;gap:0.5rem;padding:0.4rem 0.6rem;cursor:pointer;font-size:0.85rem;}
+  .wl-suggest-item:hover{background:var(--deep);}
+  .wl-suggest-icon{width:20px;height:20px;border-radius:3px;flex-shrink:0;}
+  .q-epic{color:#a335ee;}
+  .q-legendary{color:#ff8000;}
   .wl-item-display{color:var(--bone);font-size:0.9rem;}
   .wl-item-display a{color:inherit;}
   .wl-note{font-size:0.78rem;color:var(--dim);margin-top:0.3rem;font-style:italic;}
   .wl-officer-row{display:flex;align-items:center;gap:0.6rem;padding:0.5rem 0;border-bottom:1px solid var(--hair2);flex-wrap:wrap;}
   .wl-note-input{flex:1;min-width:160px;font-size:0.8rem;padding:0.35rem 0.5rem;}
+  .wl-snapshot-note{font-size:0.8rem;color:var(--dim);background:var(--deep);border:1px solid var(--hair);padding:0.6rem 0.8rem;margin-bottom:0.9rem;}
+  .wl-snapshot-note strong{color:var(--bone);}
   .poll-opt-row input{flex:1;}
 </style>
 </head>
 <body>
 
-<div class="topbar" id="topnav-top"><span>Spineshatter EU · Horde</span><span></span></div>
+<div class="topbar" id="topnav-top"><span>Spineshatter EU · Horde</span><span id="edit-toggle-wrap"></span></div>
 <div class="nav" id="topnav"></div>
 
 <div class="page-wide" style="padding-top:3rem;">
@@ -166,6 +178,7 @@
   </div>
 
   <div id="panel-wishlist" style="display:none;">
+    <p data-edit="ledger.wishlist.sub" style="color:var(--mist);margin-bottom:1.5rem;">Rank up to 10 items for the current phase — lock it in when you're happy with the order.</p>
     <div id="wishlist-phase-bar"></div>
     <div id="your-wishlist" style="margin-bottom:3rem;"></div>
 
@@ -174,7 +187,7 @@
         <h2 style="font-family:'Newsreader',serif;color:var(--white);font-size:1.4rem;">Officer Review</h2>
         <button class="btn" id="wishlist-csv-btn" type="button" onclick="downloadWishlistCSV()" style="display:none;">Download CSV</button>
       </div>
-      <input type="text" id="wishlist-search" placeholder="Search by player..." style="max-width:300px;margin-bottom:1rem;" oninput="renderOfficerWishlistReview()">
+      <input type="text" id="wishlist-search" placeholder="Search by account or character name..." style="max-width:300px;margin-bottom:1rem;" oninput="renderOfficerWishlistReview()">
       <div id="wishlist-officer-list"></div>
     </div>
   </div>
@@ -188,7 +201,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=35"></script>
+<script src="app.js?v=36"></script>
+<script src="editor.js?v=36"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -244,7 +258,7 @@ function showTab(name) {
   } else if (name === 'polls') {
     document.getElementById('page-sub').textContent = 'Officer polls — cast your vote below.';
   } else if (name === 'wishlist') {
-    document.getElementById('page-sub').textContent = 'Rank up to 10 items for the current phase — lock it in when you\'re happy with the order.';
+    document.getElementById('page-sub').textContent = ''; // Wishlist has its own editable description inside the panel now
     if (!wishlistInited) { wishlistInited = true; initWishlistTab(); }
   } else if (isOfficer()) {
     document.getElementById('page-sub').textContent = 'Every item awarded, from council to roster — click a name for their full history.';
@@ -313,6 +327,7 @@ function renderLoot() {
         </table>` : ''}
       </div>`;
   }).join('') || `<div class="card" style="text-align:center;color:var(--dim);">No loot logged yet.</div>`;
+  refreshWowheadTooltips();
 }
 
 function toggleLootGroup(dateKey) {
@@ -458,7 +473,7 @@ async function confirmImport() {
       awarded_at: mapping.awarded_at ? parseDate(row[mapping.awarded_at]) : null,
       raid_title: mapping.raid_title ? row[mapping.raid_title] : null,
       response: mapping.response ? row[mapping.response] : null,
-      item_link: mapping.item_link ? row[mapping.item_link] : (itemId ? `https://www.wowhead.com/item=${itemId}` : null),
+      item_link: mapping.item_link ? row[mapping.item_link] : (itemId ? `https://www.wowhead.com/tbc/item=${itemId}` : null),
       raw: row,
       uploaded_by: currentUser.id,
     };
@@ -751,7 +766,7 @@ function openPlayerModal(name) {
       <h4>Loot History (${lootItems.length})</h4>
       ${lootItems.length ? lootItems.map(l => `
         <div class="modal-row">
-          <span class="item-name">${esc(l.item_name)}</span>
+          <span class="item-name">${l.item_link ? `<a href="${esc(l.item_link)}" target="_blank" rel="noopener" style="color:inherit;">${esc(l.item_name)}</a>` : esc(l.item_name)}</span>
           <span style="display:flex;align-items:center;gap:0.6rem;">
             ${l.awarded_at ? new Date(l.awarded_at).toLocaleDateString() : ''}
             ${officer ? `<button class="row-delete" title="Remove this item" onclick="deleteLootItem('${l.id}')">${TRASH_ICON}</button>` : ''}
@@ -760,6 +775,7 @@ function openPlayerModal(name) {
     </div>
   `;
   document.getElementById('player-modal').style.display = 'flex';
+  refreshWowheadTooltips();
 }
 
 function refreshOpenModal() {
@@ -1005,6 +1021,8 @@ let wishlistInited = false;
 let currentPhase = '';
 let myWishlist = null;
 let myWishlistItems = [];
+let myCharacters = [];
+let selectedCharacter = null;
 let allWishlists = [];
 let allWishlistItemsMap = {};
 let wlDragId = null;
@@ -1012,7 +1030,7 @@ let wlDragId = null;
 async function initWishlistTab() {
   await loadCurrentPhase();
   renderPhaseBar();
-  if (isMember() || isOfficer()) await loadMyWishlist();
+  if (isMember() || isOfficer()) await loadMyCharactersAndWishlist();
   if (isOfficer()) await loadOfficerWishlistReview();
 }
 
@@ -1045,19 +1063,50 @@ async function savePhase() {
   logActivity(`Set the wishlist phase to "${val}"`);
   currentPhase = val;
   toast('Phase updated.', 'success');
-  await loadMyWishlist();
+  await loadMyCharactersAndWishlist();
   if (isOfficer()) await loadOfficerWishlistReview();
 }
 
-// ---------- PLAYER'S OWN WISHLIST ----------
+// ---------- PLAYER'S OWN WISHLIST (per character) ----------
+async function loadMyCharactersAndWishlist() {
+  const { data } = await sb.from('profile_characters').select('*').eq('profile_id', currentUser.id).order('character_name');
+  myCharacters = data || [];
+  if (!myCharacters.length) {
+    document.getElementById('your-wishlist').innerHTML = `
+      <h2 style="font-family:'Newsreader',serif;color:var(--white);font-size:1.4rem;margin-bottom:0.5rem;">Your Wishlist</h2>
+      <div class="card" style="color:var(--mist);">You don't have any characters linked to your account yet — add one from your <a href="dashboard.html" style="color:var(--red-bright);">Dashboard</a> first, then come back here.</div>`;
+    return;
+  }
+  if (!selectedCharacter || !myCharacters.find(c => c.character_name === selectedCharacter)) {
+    selectedCharacter = myCharacters[0].character_name;
+  }
+  await loadMyWishlist();
+}
+
+function renderCharacterPicker() {
+  return `
+    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1.2rem;">
+      ${myCharacters.map(c => `
+        <button class="btn ${c.character_name===selectedCharacter?'primary':''}" type="button" onclick="switchWishlistCharacter('${esc(c.character_name).replace(/'/g,"\\'")}')">
+          ${classIcon(c.class_name)} ${esc(c.character_name)}
+        </button>
+      `).join('')}
+    </div>`;
+}
+
+async function switchWishlistCharacter(name) {
+  selectedCharacter = name;
+  await loadMyWishlist();
+}
+
 async function loadMyWishlist() {
   let wl = null;
   try {
-    const r = await sb.from('wishlists').select('*').eq('profile_id', currentUser.id).eq('phase', currentPhase).single();
+    const r = await sb.from('wishlists').select('*').eq('profile_id', currentUser.id).eq('phase', currentPhase).eq('character_name', selectedCharacter).single();
     wl = r.data;
   } catch (e) { wl = null; }
   if (!wl) {
-    const { data: created, error } = await sb.from('wishlists').insert({ profile_id: currentUser.id, phase: currentPhase }).select().single();
+    const { data: created, error } = await sb.from('wishlists').insert({ profile_id: currentUser.id, phase: currentPhase, character_name: selectedCharacter }).select().single();
     if (error) { toast(error.message, 'error'); return; }
     wl = created;
   }
@@ -1070,9 +1119,12 @@ async function loadMyWishlist() {
 function renderMyWishlist() {
   const el = document.getElementById('your-wishlist');
   const locked = myWishlist.locked;
+  const myChar = myCharacters.find(c => c.character_name === selectedCharacter);
   el.innerHTML = `
-    <h2 style="font-family:'Newsreader',serif;color:var(--white);font-size:1.4rem;margin-bottom:0.3rem;">Your Wishlist</h2>
+    <h2 style="font-family:'Newsreader',serif;color:var(--white);font-size:1.4rem;margin-bottom:0.8rem;">Your Wishlist</h2>
+    ${myCharacters.length > 1 ? renderCharacterPicker() : ''}
     <div class="label" style="margin-bottom:1rem;">
+      ${classIcon(myChar?.class_name)} <span style="color:var(--bone);">${esc(selectedCharacter)}</span> ·
       ${locked ? `Locked ${fmtDate(myWishlist.locked_at)}` : `${myWishlistItems.length} / 10 items — unlocked, drag to reorder`}
       ${myWishlist.unlock_requested ? ' · <span style="color:var(--warn);">Unlock requested, awaiting an officer</span>' : ''}
     </div>
@@ -1085,6 +1137,7 @@ function renderMyWishlist() {
     </div>
   `;
   renderWishlistRows();
+  refreshWowheadTooltips();
 }
 
 function renderWishlistRows() {
@@ -1098,7 +1151,13 @@ function renderWishlistRows() {
       <span class="wl-item-slot">
         ${locked
           ? `<span class="wl-item-display">${renderWishlistItemDisplay(it)}</span>`
-          : `<input type="text" class="wl-item-input" value="${esc(it.item_text)}" placeholder="Item name, or paste a wowhead.com item link" onchange="updateWishlistItemText('${it.id}', this.value)">`
+          : `<div class="wl-input-wrap">
+               <input type="text" class="wl-item-input" value="${esc(it.item_text)}" placeholder="Type an item name..."
+                 oninput="onWishlistItemInput('${it.id}', this.value)"
+                 onchange="updateWishlistItemText('${it.id}', this.value)"
+                 onblur="setTimeout(()=>hideWlSuggest('${it.id}'),150)">
+               <div class="wl-suggest" id="wl-suggest-${it.id}" style="display:none;"></div>
+             </div>`
         }
         ${it.officer_note ? `<div class="wl-note">Officer note: ${esc(it.officer_note)}</div>` : ''}
       </span>
@@ -1130,6 +1189,66 @@ async function addWishlistItem() {
   if (error) { toast(error.message, 'error'); return; }
   myWishlistItems.push(data);
   renderMyWishlist();
+}
+
+// ---------- ITEM AUTOCOMPLETE ----------
+// Self-hosted, static dataset (TBC-relevant Epic/Legendary gear from the
+// open-source nexus-devs/wow-classic-items project, trimmed down) — no
+// external API, so nothing here can go down or start rate-limiting later.
+let tbcItemsData = [];
+let tbcItemsLoaded = false;
+let wlSearchDebounce = null;
+
+async function loadTbcItems() {
+  if (tbcItemsLoaded) return;
+  try {
+    const res = await fetch('tbc-items.json');
+    tbcItemsData = await res.json();
+    tbcItemsLoaded = true;
+  } catch (e) { console.warn('Could not load item database:', e); }
+}
+
+function searchTbcItems(query) {
+  if (!query || query.length < 2) return [];
+  const q = query.toLowerCase();
+  return tbcItemsData.filter(it => it.name.toLowerCase().includes(q)).slice(0, 8);
+}
+
+function onWishlistItemInput(id, value) {
+  clearTimeout(wlSearchDebounce);
+  wlSearchDebounce = setTimeout(async () => {
+    await loadTbcItems();
+    renderWlSuggest(id, searchTbcItems(value));
+  }, 200);
+}
+
+function renderWlSuggest(id, results) {
+  const el = document.getElementById(`wl-suggest-${id}`);
+  if (!el) return;
+  if (!results.length) { el.style.display = 'none'; return; }
+  el.innerHTML = results.map(r => `
+    <div class="wl-suggest-item" onmousedown="selectWlItem('${id}', ${r.id}, '${esc(r.name).replace(/'/g,"\\'")}')">
+      <img src="https://wow.zamimg.com/images/wow/icons/small/${esc(r.icon)}.jpg" class="wl-suggest-icon" alt="">
+      <span class="${r.q==='L' ? 'q-legendary' : 'q-epic'}">${esc(r.name)}</span>
+    </div>
+  `).join('');
+  el.style.display = 'block';
+}
+
+function hideWlSuggest(id) {
+  const el = document.getElementById(`wl-suggest-${id}`);
+  if (el) el.style.display = 'none';
+}
+
+async function selectWlItem(id, itemId, itemName) {
+  const link = `https://www.wowhead.com/tbc/item=${itemId}`;
+  const { error } = await sb.from('wishlist_items').update({ item_text: itemName, item_link: link }).eq('id', id);
+  if (error) { toast(error.message, 'error'); return; }
+  const item = myWishlistItems.find(i => i.id === id);
+  if (item) { item.item_text = itemName; item.item_link = link; }
+  hideWlSuggest(id);
+  renderWishlistRows();
+  refreshWowheadTooltips();
 }
 
 async function updateWishlistItemText(id, value) {
@@ -1170,7 +1289,7 @@ async function markItemReceived(id) {
   const { error } = await sb.from('wishlist_items').update({ received: true, received_at: new Date().toISOString(), received_by: currentProfile.username }).eq('id', id);
   if (error) { toast(error.message, 'error'); return; }
   if (item) { item.received = true; item.received_by = currentProfile.username; }
-  logActivity(`Marked "${item?.item_text || 'an item'}" as received on their own wishlist`);
+  logActivity(`Marked "${item?.item_text || 'an item'}" as received on ${selectedCharacter}'s wishlist`);
   toast('Marked received.', 'success');
   renderWishlistRows();
 }
@@ -1178,11 +1297,12 @@ async function markItemReceived(id) {
 async function lockMyWishlist() {
   if (!confirm("Lock your wishlist? You won't be able to edit it yourself afterward — only request an unlock from an officer.")) return;
   const now = new Date().toISOString();
-  const { error } = await sb.from('wishlists').update({ locked: true, locked_at: now }).eq('id', myWishlist.id);
+  const snapshot = myWishlistItems.map(it => it.item_text);
+  const { error } = await sb.from('wishlists').update({ locked: true, locked_at: now, locked_snapshot: snapshot }).eq('id', myWishlist.id);
   if (error) { toast(error.message, 'error'); return; }
-  myWishlist.locked = true; myWishlist.locked_at = now;
-  logActivity(`Locked their wishlist for ${currentPhase}`);
-  pingWishlistDiscord(`🔒 **${currentProfile.username}** locked their wishlist for ${currentPhase}.`);
+  myWishlist.locked = true; myWishlist.locked_at = now; myWishlist.locked_snapshot = snapshot;
+  logActivity(`Locked ${selectedCharacter}'s wishlist for ${currentPhase}`);
+  pingWishlistDiscord(`🔒 **${currentProfile.username}** locked **${selectedCharacter}**'s wishlist for ${currentPhase}.`);
   toast('Wishlist locked.', 'success');
   renderMyWishlist();
   if (isOfficer()) await loadOfficerWishlistReview();
@@ -1193,8 +1313,8 @@ async function requestUnlock() {
   const { error } = await sb.from('wishlists').update({ unlock_requested: true, unlock_requested_at: now }).eq('id', myWishlist.id);
   if (error) { toast(error.message, 'error'); return; }
   myWishlist.unlock_requested = true; myWishlist.unlock_requested_at = now;
-  logActivity(`Requested an unlock for their wishlist (${currentPhase})`);
-  pingWishlistDiscord(`🔓 **${currentProfile.username}** requested an unlock for their wishlist (${currentPhase}).`, true);
+  logActivity(`Requested an unlock for ${selectedCharacter}'s wishlist (${currentPhase})`);
+  pingWishlistDiscord(`🔓 **${currentProfile.username}** requested an unlock for **${selectedCharacter}**'s wishlist (${currentPhase}).`, true);
   toast('Unlock requested.', 'success');
   renderMyWishlist();
   if (isOfficer()) await loadOfficerWishlistReview();
@@ -1230,32 +1350,42 @@ async function loadOfficerWishlistReview() {
 function renderOfficerWishlistReview() {
   const search = (document.getElementById('wishlist-search')?.value || '').trim().toLowerCase();
   let rows = allWishlists;
-  if (search) rows = rows.filter(w => (w.profiles?.username || '').toLowerCase().includes(search));
+  if (search) rows = rows.filter(w =>
+    (w.profiles?.username || '').toLowerCase().includes(search)
+    || (w.character_name || '').toLowerCase().includes(search)
+  );
 
   document.getElementById('wishlist-officer-list').innerHTML = rows.map(w => {
     const items = allWishlistItemsMap[w.id] || [];
     const bodyId = `wl-officer-body-${w.id}`;
     const toggleId = `wl-officer-toggle-${w.id}`;
+    const currentTexts = items.map(it => it.item_text);
+    const changed = w.locked && w.locked_snapshot && JSON.stringify(w.locked_snapshot) !== JSON.stringify(currentTexts);
     return `
       <div class="raid-group">
         <div class="raid-group-header" onclick="toggleCollapse('${bodyId}','${toggleId}')">
           <span class="expand-icon" id="${toggleId}">+</span>
-          <span class="raid-group-title">${esc(w.profiles?.username || 'Unknown')}</span>
+          <span class="raid-group-title">${esc(w.profiles?.username || 'Unknown')} — ${esc(w.character_name || '?')}</span>
           <span class="label">
             ${w.locked ? 'Locked ' + fmtDate(w.locked_at) : 'Unlocked'}
             ${w.unlock_requested ? ' · <span style="color:var(--warn);">Unlock requested</span>' : ''}
+            ${changed ? ' · <span style="color:var(--red-bright);">Changed since lock</span>' : ''}
           </span>
         </div>
         <div id="${bodyId}" style="display:none;padding:1rem 1.1rem;border-top:1px solid var(--hair);">
+          ${changed ? `
+            <div class="wl-snapshot-note">
+              <strong>At last lock:</strong> ${w.locked_snapshot.length ? w.locked_snapshot.map((t,i) => `${i+1}. ${esc(t)}`).join(' · ') : '(empty list)'}
+            </div>` : ''}
           ${items.map((it, i) => `
             <div class="wl-officer-row">
               <span class="wl-rank">${i+1}</span>
               <span class="wl-item-slot">${renderWishlistItemDisplay(it)}</span>
               ${it.received
-                ? `<span class="pill accepted">Received${it.received_by ? ' — ' + esc(it.received_by) : ''}</span>`
-                : `<button class="btn btn-sm" type="button" onclick="officerMarkReceived('${it.id}')">Mark Received</button>`}
-              ${isGM() && it.received ? `<button class="btn btn-sm" type="button" onclick="gmUnmarkReceived('${it.id}')">Unmark</button>` : ''}
-              <input type="text" class="wl-note-input" placeholder="Officer note..." value="${esc(it.officer_note || '')}" onchange="saveOfficerNote('${it.id}', this.value)">
+                ? `<span class="pill accepted">Received${it.received_by ? ' — ' + esc(it.received_by) : ''}</span>
+                   <button class="btn btn-sm" type="button" onclick="officerUnmarkReceived('${it.id}','${esc(w.character_name).replace(/'/g,"\\'")}')">Unmark</button>`
+                : `<button class="btn btn-sm" type="button" onclick="officerMarkReceived('${it.id}','${esc(w.character_name).replace(/'/g,"\\'")}')">Mark Received</button>`}
+              <input type="text" class="wl-note-input" placeholder="Officer note..." value="${esc(it.officer_note || '')}" onchange="saveOfficerNote('${it.id}', this.value, '${esc(w.character_name).replace(/'/g,"\\'")}')">
             </div>
           `).join('') || '<div style="color:var(--dim);">No items yet.</div>'}
           <div style="display:flex;gap:0.6rem;margin-top:1rem;flex-wrap:wrap;">
@@ -1272,57 +1402,62 @@ function renderOfficerWishlistReview() {
   refreshWowheadTooltips();
 }
 
-async function officerMarkReceived(id) {
-  let itemText = 'an item';
-  Object.values(allWishlistItemsMap).forEach(arr => { const f = arr.find(i => i.id === id); if (f) itemText = f.item_text; });
+async function officerMarkReceived(id, charName) {
+  let itemText = 'an item', rank = '';
+  Object.values(allWishlistItemsMap).forEach(arr => { const idx = arr.findIndex(i => i.id === id); if (idx > -1) { itemText = arr[idx].item_text; rank = idx + 1; } });
   const { error } = await sb.from('wishlist_items').update({ received: true, received_at: new Date().toISOString(), received_by: currentProfile.username }).eq('id', id);
   if (error) { toast(error.message, 'error'); return; }
-  logActivity(`Marked "${itemText}" as received on a player's wishlist`);
+  logActivity(`Marked ${charName}'s item ${rank}. ${itemText} as received`);
   toast('Marked received.', 'success');
   await loadOfficerWishlistReview();
 }
 
-async function gmUnmarkReceived(id) {
+async function officerUnmarkReceived(id, charName) {
   if (!confirm('Unmark this item as received?')) return;
-  let itemText = 'an item';
-  Object.values(allWishlistItemsMap).forEach(arr => { const f = arr.find(i => i.id === id); if (f) itemText = f.item_text; });
+  let itemText = 'an item', rank = '';
+  Object.values(allWishlistItemsMap).forEach(arr => { const idx = arr.findIndex(i => i.id === id); if (idx > -1) { itemText = arr[idx].item_text; rank = idx + 1; } });
   const { error } = await sb.from('wishlist_items').update({ received: false, received_at: null, received_by: null }).eq('id', id);
   if (error) { toast(error.message, 'error'); return; }
-  logActivity(`Unmarked "${itemText}" as received (GM action)`);
+  logActivity(`Marked ${charName}'s item ${rank}. ${itemText} as unreceived`);
   toast('Unmarked.', 'success');
   await loadOfficerWishlistReview();
 }
 
-async function saveOfficerNote(id, note) {
+async function saveOfficerNote(id, note, charName) {
   const { error } = await sb.from('wishlist_items').update({ officer_note: note }).eq('id', id);
   if (error) { toast(error.message, 'error'); return; }
-  logActivity('Left a note on a wishlist item');
+  logActivity(`Left a note on ${charName}'s wishlist item`);
   toast('Note saved.', 'success');
 }
 
 async function approveUnlock(wishlistId) {
+  const w = allWishlists.find(x => x.id === wishlistId);
   const { error } = await sb.from('wishlists').update({ locked: false, unlock_requested: false }).eq('id', wishlistId);
   if (error) { toast(error.message, 'error'); return; }
-  logActivity('Approved an unlock request for a wishlist');
+  logActivity(`Unlocked ${w?.character_name || "a player"}'s wishlist`);
+  pingWishlistDiscord(`✅ **${currentProfile.username}** unlocked **${w?.character_name || 'a'}**'s wishlist (${w?.profiles?.username || ''}).`);
   toast('Unlock approved.', 'success');
   await loadOfficerWishlistReview();
   if (myWishlist?.id === wishlistId) await loadMyWishlist();
 }
 
 async function rejectUnlock(wishlistId) {
+  const w = allWishlists.find(x => x.id === wishlistId);
   const { error } = await sb.from('wishlists').update({ unlock_requested: false }).eq('id', wishlistId);
   if (error) { toast(error.message, 'error'); return; }
-  logActivity('Rejected an unlock request for a wishlist');
+  logActivity(`Rejected the unlock request for ${w?.character_name || "a player"}'s wishlist`);
+  pingWishlistDiscord(`❌ **${currentProfile.username}** rejected the unlock request for **${w?.character_name || 'a'}**'s wishlist (${w?.profiles?.username || ''}).`);
   toast('Unlock rejected.', 'success');
   await loadOfficerWishlistReview();
   if (myWishlist?.id === wishlistId) await loadMyWishlist();
 }
 
 async function clearAllReceived(wishlistId) {
-  if (!confirm("Clear ALL Received flags on this player's wishlist? This only resets Received status — items and notes stay as they are.")) return;
+  const w = allWishlists.find(x => x.id === wishlistId);
+  if (!confirm("Clear ALL Received flags on this character's wishlist? This only resets Received status — items and notes stay as they are.")) return;
   const items = allWishlistItemsMap[wishlistId] || [];
   await Promise.all(items.map(it => sb.from('wishlist_items').update({ received: false, received_at: null, received_by: null }).eq('id', it.id)));
-  logActivity("Cleared all Received flags on a player's wishlist (GM action)");
+  logActivity(`Cleared all Received flags on ${w?.character_name || "a player"}'s wishlist (GM action)`);
   toast('Cleared.', 'success');
   await loadOfficerWishlistReview();
 }
@@ -1348,7 +1483,7 @@ async function autoMatchWishlistOnImport(lootRows) {
 
     let wl = null;
     try {
-      const r = await sb.from('wishlists').select('*').eq('profile_id', identity.profileId).eq('phase', currentPhase).single();
+      const r = await sb.from('wishlists').select('*').eq('profile_id', identity.profileId).eq('phase', currentPhase).eq('character_name', row.winner_name).single();
       wl = r.data;
     } catch (e) { continue; }
     if (!wl) continue;
@@ -1360,8 +1495,9 @@ async function autoMatchWishlistOnImport(lootRows) {
       return n && (n.includes(target) || target.includes(n));
     });
     if (match) {
+      const rank = items.findIndex(it => it.id === match.id) + 1;
       await sb.from('wishlist_items').update({ received: true, received_at: row.awarded_at || new Date().toISOString(), received_by: 'auto' }).eq('id', match.id);
-      logActivity(`Auto-marked "${match.item_text}" as received for ${row.winner_name} (matched from loot import)`);
+      logActivity(`Marked ${row.winner_name}'s item ${rank}. ${match.item_text} as received (auto-matched from loot import)`);
     }
   }
 }
@@ -1371,6 +1507,17 @@ async function autoMatchWishlistOnImport(lootRows) {
   if (!isLoggedIn()) { window.location.href = 'login.html'; return; }
   renderNav('ledger');
   await loadCurrentPhase(); // needed for wishlist auto-matching even if this tab is never opened
+
+  // Lightweight reuse of the homepage's officer text-editing system — just
+  // the plain [data-edit] text binding, not the repeating-section machinery
+  // (Chronicle/Wanted etc) since this page doesn't use those.
+  await loadEditableContent();
+  applyContentOverrides();
+  const toggleWrap = document.getElementById('edit-toggle-wrap');
+  if (toggleWrap && isOfficer()) {
+    toggleWrap.innerHTML = `<label class="edit-toggle"><input type="checkbox" id="edit-toggle-cb"> Edit Mode</label>`;
+    document.getElementById('edit-toggle-cb').onchange = (e) => setEditMode(e.target.checked);
+  }
 
   const canSeeLootAttendance = isMember() || isOfficer();
   if (isOfficer()) {
@@ -1403,7 +1550,8 @@ async function autoMatchWishlistOnImport(lootRows) {
 
   if (!visibleTabs.length) { window.location.href = 'dashboard.html'; return; } // outsider, no eligible polls at all
   document.getElementById('tab-row').style.display = visibleTabs.length > 1 ? '' : 'none';
-  showTab(visibleTabs[0]);
+  const requestedTab = new URLSearchParams(window.location.search).get('tab');
+  showTab(visibleTabs.includes(requestedTab) ? requestedTab : visibleTabs[0]);
 })();
 </script>
 </body>

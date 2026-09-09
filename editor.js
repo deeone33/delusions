@@ -421,25 +421,65 @@ function renderChronicle() {
   toggleAddBtn('chronicle-add', wrap, editMode, () => { items.unshift({date:fmtDate(new Date()),title:'New dispatch',body:'Write the news here.'}); saveSection('chronicle',{data:items}); renderChronicle(); }, '+ Add dispatch');
 }
 
+function adHeadingText(it) {
+  if (!it.class_key) return it.class_name || 'New Role'; // old freeform entries still display fine
+  const clsDisplay = it.class_key.charAt(0).toUpperCase() + it.class_key.slice(1);
+  return it.spec ? `${it.spec} ${clsDisplay}` : clsDisplay;
+}
+
 function renderRecruitment() {
   const wrap = document.getElementById('recruitment-wrap');
   if (!wrap) return;
   const row = sectionsCache['recruitment'] || {};
   const items = row.data || [];
-  wrap.innerHTML = items.map((it, i) => `
+  wrap.innerHTML = items.map((it, i) => {
+    const icons = it.icons || [];
+    const color = classColor(it.class_key);
+    return `
     <div class="ad">
-      <h4 ${editMode?`contenteditable="true" data-si="recruitment" data-i="${i}" data-f="class_name"`:''}>${esc(it.class_name)}</h4>
+      ${(icons.length || editMode) ? `
+      <div class="ad-icons">
+        ${icons.map((ic, ii) => `
+          <span class="ad-icon-item">
+            <img src="icons/${esc(ic.cls)}.png" style="width:${ic.size||24}px;height:${ic.size||24}px;opacity:${ic.opacity!=null?ic.opacity:1};" alt="${esc(ic.cls)}" title="${esc(ic.cls)}">
+            ${editMode ? `
+              <span class="ad-icon-mini">
+                <input type="number" min="0.1" max="1" step="0.1" value="${ic.opacity!=null?ic.opacity:1}" title="Opacity (0.1–1)" onchange="updateAdIcon(${i},${ii},'opacity',this.value)">
+                <input type="number" min="12" max="64" step="2" value="${ic.size||24}" title="Size (px)" onchange="updateAdIcon(${i},${ii},'size',this.value)">
+                <button type="button" onclick="removeAdIcon(${i},${ii})" title="Remove icon">&times;</button>
+              </span>` : ''}
+          </span>
+        `).join('')}
+        ${editMode ? `
+          <select class="ad-icon-add" onchange="if(this.value){addAdIcon(${i}, this.value); this.value='';}">
+            <option value="">+ icon</option>
+            ${Object.keys(CLASS_ICONS).map(c => `<option value="${c}">${c.charAt(0).toUpperCase()+c.slice(1)}</option>`).join('')}
+          </select>` : ''}
+      </div>` : ''}
+      ${editMode ? `
+        <div class="ad-class-pick">
+          <select onchange="updateAdClass(${i}, this.value)">
+            <option value="">— Class —</option>
+            ${Object.keys(CLASS_ICONS).map(c => `<option value="${c}" ${it.class_key===c?'selected':''}>${c.charAt(0).toUpperCase()+c.slice(1)}</option>`).join('')}
+          </select>
+          <select onchange="updateAdSpec(${i}, this.value)">
+            <option value="">— Spec (optional) —</option>
+            ${(CLASS_SPECS[it.class_key]||[]).map(s => `<option value="${s}" ${it.spec===s?'selected':''}>${s}</option>`).join('')}
+          </select>
+        </div>` : ''}
+      <h4 style="${color?`color:${color};`:''}">${esc(adHeadingText(it))}</h4>
       <p ${editMode?`contenteditable="true" data-si="recruitment" data-i="${i}" data-f="notes"`:''}>${esc(it.notes)}</p>
-      <span class="badge ${it.priority}" data-cycle="recruitment" data-i="${i}" title="${editMode?'Click to cycle priority':''}">Priority: ${esc(it.priority)}</span>
+      <span class="badge ${it.priority||'low'}" data-cycle="recruitment" data-i="${i}" title="${editMode?'Click to cycle priority':''}">Priority: ${esc(it.priority||'low')}</span>
       ${editMode?`<button class="edit-item-del" type="button" data-del="recruitment" data-i="${i}">×</button>`:''}
     </div>
-  `).join('');
+  `;
+  }).join('');
   wireSectionEditing('recruitment', items);
   if (editMode) {
     wrap.querySelectorAll('[data-cycle="recruitment"]').forEach(badge => {
       badge.style.cursor = 'pointer';
       badge.onclick = () => {
-        const order = ['high','medium','low'];
+        const order = ['low','normal','medium','high'];
         const i = parseInt(badge.getAttribute('data-i'));
         const cur = items[i].priority || 'low';
         items[i].priority = order[(order.indexOf(cur)+1) % order.length];
@@ -448,7 +488,48 @@ function renderRecruitment() {
       };
     });
   }
-  toggleAddBtn('recruitment-add', wrap, editMode, () => { items.push({class_name:'New Role',notes:'Describe what you need.',priority:'low'}); saveSection('recruitment',{data:items}); renderRecruitment(); }, '+ Add opening');
+  toggleAddBtn('recruitment-add', wrap, editMode, () => { items.push({class_name:'New Role',notes:'Describe what you need.',priority:'low',icons:[]}); saveSection('recruitment',{data:items}); renderRecruitment(); }, '+ Add opening');
+}
+
+function updateAdClass(i, val) {
+  const row = sectionsCache['recruitment'] || {};
+  const items = row.data || [];
+  items[i].class_key = val;
+  items[i].spec = ''; // reset spec when class changes, old spec likely doesn't apply
+  saveSection('recruitment', { data: items });
+  renderRecruitment();
+}
+function updateAdSpec(i, val) {
+  const row = sectionsCache['recruitment'] || {};
+  const items = row.data || [];
+  items[i].spec = val;
+  saveSection('recruitment', { data: items });
+  renderRecruitment();
+}
+function addAdIcon(i, cls) {
+  const row = sectionsCache['recruitment'] || {};
+  const items = row.data || [];
+  if (!items[i].icons) items[i].icons = [];
+  items[i].icons.push({ cls, opacity: 1, size: 24 });
+  saveSection('recruitment', { data: items });
+  renderRecruitment();
+}
+function removeAdIcon(i, ii) {
+  const row = sectionsCache['recruitment'] || {};
+  const items = row.data || [];
+  items[i].icons.splice(ii, 1);
+  saveSection('recruitment', { data: items });
+  renderRecruitment();
+}
+function updateAdIcon(i, ii, field, val) {
+  const row = sectionsCache['recruitment'] || {};
+  const items = row.data || [];
+  items[i].icons[ii][field] = parseFloat(val);
+  saveSection('recruitment', { data: items });
+  // no full re-render needed for a slider tweak — just live-update the image directly
+  const wrap = document.getElementById('recruitment-wrap');
+  const img = wrap?.querySelectorAll('.ad')[i]?.querySelectorAll('.ad-icon-item img')[ii];
+  if (img) { if (field==='opacity') img.style.opacity = val; if (field==='size') { img.style.width = val+'px'; img.style.height = val+'px'; } }
 }
 
 function renderOfficersDisplay() {

@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=35">
+<link rel="stylesheet" href="style.css?v=36">
 </head>
 <body>
 <div class="topbar" id="topnav-top"><span>Spineshatter EU · Horde</span><span></span></div>
@@ -17,6 +17,33 @@
   <div class="label" style="margin-bottom:0.4rem;" id="hall-label">Member Hall</div>
   <h1 id="welcome">Welcome</h1>
   <div id="app-status" style="margin-bottom:2rem;"></div>
+  <div id="my-characters-section" style="display:none;margin-bottom:2.5rem;">
+    <h2 style="margin-bottom:0.8rem;cursor:pointer;" onclick="toggleCollapse('my-characters-body','my-characters-toggle')">
+      <span id="my-characters-toggle" class="collapse-icon">+</span> My Characters
+    </h2>
+    <div id="my-characters-body" style="display:none;">
+      <div class="card">
+        <div id="my-characters-list" style="margin-bottom:1rem;"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:0.6rem;align-items:end;">
+          <div>
+            <label class="form-label">Character Name</label>
+            <input type="text" id="new-char-name" placeholder="e.g. Deetardeh">
+          </div>
+          <div>
+            <label class="form-label">Class</label>
+            <select id="new-char-class" onchange="updateNewCharSpecOptions()">
+              <option value="">Choose...</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Spec</label>
+            <select id="new-char-spec"><option value="">Pick a class first</option></select>
+          </div>
+          <button class="btn primary" type="button" onclick="addMyCharacter()">Add</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div class="grid-2">
     <div>
@@ -51,8 +78,72 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=35"></script>
+<script src="app.js?v=36"></script>
 <script>
+let myCharsCache = [];
+
+async function loadMyCharacters() {
+  const { data } = await sb.from('profile_characters').select('*').eq('profile_id', currentUser.id).order('character_name');
+  myCharsCache = data || [];
+  document.getElementById('status-characters').textContent = myCharsCache.length ? myCharsCache.map(c => c.character_name).join(', ') : 'None yet';
+  populateNewCharClassOptions();
+  renderMyCharactersList();
+}
+
+function populateNewCharClassOptions() {
+  const sel = document.getElementById('new-char-class');
+  if (sel.options.length > 1) return; // already populated
+  sel.innerHTML = `<option value="">Choose...</option>` + Object.keys(CLASS_ICONS).map(c => `<option value="${c}">${c.charAt(0).toUpperCase()+c.slice(1)}</option>`).join('');
+}
+
+function updateNewCharSpecOptions() {
+  const classVal = document.getElementById('new-char-class').value;
+  const specSelect = document.getElementById('new-char-spec');
+  const specs = CLASS_SPECS[classVal] || [];
+  specSelect.innerHTML = specs.length
+    ? `<option value="">Choose spec...</option>` + specs.map(s => `<option value="${s}">${s}</option>`).join('')
+    : `<option value="">Pick a class first</option>`;
+}
+
+function renderMyCharactersList() {
+  const el = document.getElementById('my-characters-list');
+  if (!myCharsCache.length) { el.innerHTML = `<div style="color:var(--dim);">No characters linked yet — add one below.</div>`; return; }
+  el.innerHTML = myCharsCache.map(c => {
+    const color = classColor(c.class_name);
+    return `
+    <div style="display:flex;align-items:center;gap:0.6rem;padding:0.5rem 0;border-bottom:1px solid var(--hair2);">
+      ${classIcon(c.class_name)}
+      <span style="color:${color||'var(--bone)'};font-weight:500;">${esc(c.character_name)}</span>
+      <span class="label">${c.spec ? esc(c.spec) + ' ' : ''}${c.class_name ? c.class_name.charAt(0).toUpperCase()+c.class_name.slice(1) : ''}</span>
+      <button class="btn btn-sm" type="button" style="margin-left:auto;" onclick="removeMyCharacter('${c.id}','${esc(c.character_name).replace(/'/g,"\\'")}')">Remove</button>
+    </div>`;
+  }).join('');
+}
+
+async function addMyCharacter() {
+  const name = document.getElementById('new-char-name').value.trim();
+  const cls = document.getElementById('new-char-class').value;
+  const spec = document.getElementById('new-char-spec').value;
+  if (!name) { toast('Enter a character name.', 'error'); return; }
+  const { error } = await sb.from('profile_characters').insert({ profile_id: currentUser.id, character_name: name, class_name: cls || null, spec: spec || null });
+  if (error) { toast(error.message, 'error'); return; }
+  logActivity(`Added their own character "${name}"`);
+  toast(`Added ${name}.`, 'success');
+  document.getElementById('new-char-name').value = '';
+  document.getElementById('new-char-class').value = '';
+  updateNewCharSpecOptions();
+  await loadMyCharacters();
+}
+
+async function removeMyCharacter(id, name) {
+  if (!confirm(`Remove ${name} from your account? Any wishlist tied to this character stays as historical record, just no longer editable.`)) return;
+  const { error } = await sb.from('profile_characters').delete().eq('id', id);
+  if (error) { toast(error.message, 'error'); return; }
+  logActivity(`Removed their own character "${name}"`);
+  toast(`Removed ${name}.`, 'success');
+  await loadMyCharacters();
+}
+
 (async () => {
   await loadSession();
   if (!isLoggedIn()) { window.location.href = 'login.html'; return; }
@@ -64,8 +155,16 @@
 
   document.getElementById('status-card').innerHTML = `
     <div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid var(--hair);"><span>Role</span><span class="pill ${currentProfile.role}">${esc(currentProfile.role)}</span></div>
-    <div style="display:flex;justify-content:space-between;padding:0.4rem 0;"><span>Rank</span><span style="color:var(--white)">${esc(currentProfile.rank || '—')}</span></div>
+    <div style="display:flex;justify-content:space-between;padding:0.4rem 0;border-bottom:1px solid var(--hair);"><span>Rank</span><span style="color:var(--white)">${esc(currentProfile.rank || '—')}</span></div>
+    <div style="display:flex;justify-content:space-between;padding:0.4rem 0;gap:1rem;"><span>Characters</span><span id="status-characters" style="color:var(--white);text-align:right;">Loading…</span></div>
   `;
+
+  if (isMember() || isOfficer()) {
+    document.getElementById('my-characters-section').style.display = 'block';
+    await loadMyCharacters();
+  } else {
+    document.getElementById('status-characters').textContent = '—';
+  }
 
   const links = [{ href: 'index.html', label: 'Home' }];
   if (isOfficer()) {
@@ -81,7 +180,7 @@
   }
   if (!isMember() && !isOfficer()) links.push({ href: 'apply.html', label: 'Apply to Trial' });
   if (isMember()) links.push({ href: 'feedback.html', label: 'Give Feedback' });
-  if (isMember()) links.push({ href: 'ledger.html', label: 'Your Wishlist' });
+  if (isMember()) links.push({ href: 'ledger.html?tab=wishlist', label: 'Your Wishlist' });
   if (isOfficer()) {
     links.push({ href: 'applications.html', label: 'Review Applications' });
     links.push({ href: 'officers.html', label: 'Manage Officers' });

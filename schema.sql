@@ -26,6 +26,7 @@ create table if not exists profile_characters (
   created_at timestamptz default now()
 );
 alter table profile_characters add column if not exists class_name text;
+alter table profile_characters add column if not exists spec text;
 -- One-time migration: carry over anything already set in the old single
 -- character_name field so existing officer work isn't lost.
 insert into profile_characters (profile_id, character_name)
@@ -46,6 +47,22 @@ create policy "officers write profile_characters" on profile_characters for inse
 drop policy if exists "officers delete profile_characters" on profile_characters;
 create policy "officers delete profile_characters" on profile_characters for delete using (
   exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
+);
+-- Self-service: any member can add/remove characters on their OWN account
+-- without needing an officer, matching how they'd add an alt themselves.
+drop policy if exists "own character insert" on profile_characters;
+create policy "own character insert" on profile_characters for insert with check (
+  profile_id = auth.uid()
+);
+drop policy if exists "own character delete" on profile_characters;
+create policy "own character delete" on profile_characters for delete using (
+  profile_id = auth.uid()
+);
+drop policy if exists "own character update" on profile_characters;
+create policy "own character update" on profile_characters for update using (
+  profile_id = auth.uid()
+) with check (
+  profile_id = auth.uid()
 );
 
 -- Auto-create a profile row whenever someone signs in for the first time
@@ -305,6 +322,19 @@ create table if not exists wishlists (
   updated_at timestamptz default now(),
   unique(profile_id, phase)
 );
+-- Wishlists are per-character now (an account can have several, one per
+-- linked alt), not one shared list for the whole account.
+alter table wishlists add column if not exists character_name text;
+-- Snapshot of item names captured at the moment a list is locked, so
+-- officers can compare "what it was when I approved the unlock" against
+-- "what it is now" without a full version-history system.
+alter table wishlists add column if not exists locked_snapshot jsonb;
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'wishlists_profile_phase_char_key') then
+    alter table wishlists drop constraint if exists wishlists_profile_id_phase_key;
+    alter table wishlists add constraint wishlists_profile_phase_char_key unique (profile_id, phase, character_name);
+  end if;
+end $$;
 
 create table if not exists wishlist_items (
   id uuid primary key default gen_random_uuid(),
@@ -390,19 +420,16 @@ create policy "wishlist_items player mark received" on wishlist_items for update
 );
 -- Officer (not GM): full edit while an item is still unreceived (covers
 -- adding notes, marking it received).
+-- Officers can now fully manage any item (including un-receiving) — widened
+-- from the earlier officer/GM split at the person's explicit request.
+-- GM's remaining exclusive power is the bulk "Clear All Received" action,
+-- which is just several of these same per-item updates fired at once from
+-- the UI — there's nothing left to distinguish at the RLS level here.
 drop policy if exists "wishlist_items officer edit unreceived" on wishlist_items;
-create policy "wishlist_items officer edit unreceived" on wishlist_items for update using (
-  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
-  and received = false
-);
--- Officer (not GM): once received, can still edit notes, but the WITH
--- CHECK forces received to stay true — they cannot un-receive it. Only GM can.
 drop policy if exists "wishlist_items officer edit received notes only" on wishlist_items;
-create policy "wishlist_items officer edit received notes only" on wishlist_items for update using (
+drop policy if exists "wishlist_items officer manage" on wishlist_items;
+create policy "wishlist_items officer manage" on wishlist_items for update using (
   exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
-  and received = true
-) with check (
-  received = true
 );
 -- GM: unrestricted — can un-receive, bulk-clear, edit anything.
 drop policy if exists "wishlist_items gm manage" on wishlist_items;
