@@ -158,7 +158,7 @@ const CLASS_SPECS = {
   shaman: ['Elemental','Enhancement','Restoration'],
   mage: ['Arcane','Fire','Frost'],
   warlock: ['Affliction','Demonology','Destruction'],
-  druid: ['Balance','Feral Combat','Restoration'],
+  druid: ['Balance','Feral','Restoration'],
 };
 function classColor(className) { return CLASS_COLORS[(className||'').toLowerCase()] || null; }
 function classIcon(className) {

@@ -212,6 +212,25 @@ body.edit-mode [data-box]{outline:1px dashed rgba(197,55,55,0.25);outline-offset
 }
 .cls-name-row{display:inline-flex;align-items:center;gap:0.4rem;}
 .cls-icon{width:18px;height:18px;border-radius:3px;display:block;flex-shrink:0;}
+
+.modal-backdrop{position:fixed;inset:0;background:rgba(6,5,5,0.85);z-index:100;display:flex;align-items:center;justify-content:center;padding:1.5rem;}
+.modal-card{background:var(--deep);border:1px solid var(--hair);max-width:520px;width:100%;max-height:85vh;overflow-y:auto;padding:1.8rem;position:relative;}
+.modal-close{position:absolute;top:1rem;right:1rem;background:none;border:none;color:var(--dim);font-size:1.4rem;cursor:pointer;line-height:1;}
+.modal-close:hover{color:var(--white);}
+.modal-section{margin-top:1.4rem;padding-top:1.2rem;border-top:1px solid var(--hair);}
+.modal-section h4{font-family:'IBM Plex Mono',monospace;font-size:0.6rem;letter-spacing:0.15em;color:var(--dim);text-transform:uppercase;margin-bottom:0.7rem;}
+.modal-row{display:flex;justify-content:space-between;font-size:0.85rem;padding:0.35rem 0;border-bottom:1px solid var(--hair2);color:var(--mist);}
+.modal-row:last-child{border-bottom:none;}
+.modal-pct{font-family:'Newsreader',serif;font-size:2.2rem;color:var(--white);}
+.wl-history-row{display:grid;grid-template-columns:1.5rem 1fr 1fr;gap:0.6rem;padding:0.4rem 0;border-bottom:1px solid var(--hair2);font-size:0.85rem;}
+.wl-history-header{font-family:'IBM Plex Mono',monospace;font-size:0.6rem;letter-spacing:0.1em;color:var(--dim);text-transform:uppercase;border-bottom:1px solid var(--hair);}
+.wl-history-rank{color:var(--dim);font-family:'IBM Plex Mono',monospace;font-size:0.7rem;}
+.wl-history-cell{color:var(--mist);}
+.wl-history-cell.diff{color:var(--red-bright);font-weight:600;}
+.roster-compact{display:flex;flex-wrap:wrap;gap:0.3rem 0.7rem;}
+.roster-compact .cls-icon{width:13px;height:13px;}
+.roster-compact .cls-name-row{gap:0.3rem;}
+.roster-compact .player-link{font-size:0.8rem;font-weight:400;}
 .edit-ph-btn{
   font-family:'IBM Plex Mono',monospace;font-size:0.6rem;letter-spacing:0.06em;
   color:var(--red-bright);background:none;border:none;cursor:pointer;

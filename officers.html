@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=41">
+<link rel="stylesheet" href="style.css?v=42">
 <style>
   .char-chip-wrap{display:flex;flex-wrap:wrap;gap:0.3rem;align-items:center;max-width:260px;}
   .char-chip{
@@ -54,8 +54,8 @@
       <div class="card" style="margin-bottom:1rem;">
         <div style="display:grid;grid-template-columns:1fr 2fr auto;gap:0.6rem;align-items:end;">
           <div>
-            <label class="form-label">To</label>
-            <select id="msg-to"></select>
+            <label class="form-label">To (ctrl/cmd-click for multiple)</label>
+            <select id="msg-to" multiple size="4" style="height:auto;"></select>
           </div>
           <div>
             <label class="form-label">Message</label>
@@ -82,7 +82,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=41"></script>
+<script src="app.js?v=42"></script>
 <script>
 let members = [];
 let charactersByProfile = {};
@@ -230,17 +230,24 @@ function populateMessageRecipients() {
 }
 
 async function sendPlayerMessage() {
-  const toId = document.getElementById('msg-to').value;
+  const selected = [...document.getElementById('msg-to').selectedOptions].map(o => o.value);
   const text = document.getElementById('msg-text').value.trim();
-  if (!toId || !text) { toast('Pick a recipient and write a message.', 'error'); return; }
-  const toProfile = members.find(m => m.id === toId);
-  const { error } = await sb.from('player_messages').insert({
-    from_officer_id: currentUser.id, from_officer_name: currentProfile.username,
-    to_profile_id: toId, to_username: toProfile?.username || '', message: text,
+  if (!selected.length || !text) { toast('Pick at least one recipient and write a message.', 'error'); return; }
+
+  const rows = selected.map(toId => {
+    const toProfile = members.find(m => m.id === toId);
+    return {
+      from_officer_id: currentUser.id, from_officer_name: currentProfile.username,
+      to_profile_id: toId, to_username: toProfile?.username || '', message: text,
+    };
   });
+  const { data: inserted, error } = await sb.from('player_messages').insert(rows).select();
   if (error) { toast(error.message, 'error'); return; }
-  logActivity(`Sent a dashboard message to ${toProfile?.username || 'a player'}`);
-  toast('Sent.', 'success');
+
+  const names = selected.map(id => members.find(m => m.id === id)?.username || 'a player').join(', ');
+  // Log one line per recipient so each is individually clickable for detail, but keep the toast/summary singular
+  (inserted || []).forEach(m => logActivity(`Sent a dashboard message to ${m.to_username || 'a player'}`, { type: 'message', id: m.id }));
+  toast(`Sent to ${names}.`, 'success');
   document.getElementById('msg-text').value = '';
   await loadPlayerMessages();
 }
@@ -274,6 +281,105 @@ async function deletePlayerMessage(id) {
   await loadPlayerMessages();
 }
 
+// ---------- ACTIVITY DETAIL MODAL ----------
+// Universal "click a log entry, see everything about it" system. New
+// action types just need a case added here — the log-rendering side
+// already makes anything with ref_type/ref_id clickable automatically.
+function closeDetailModal() { document.getElementById('detail-modal').style.display = 'none'; }
+
+async function showActivityDetail(refType, refId) {
+  const el = document.getElementById('detail-modal-content');
+  el.innerHTML = `<div style="color:var(--dim);">Loading…</div>`;
+  document.getElementById('detail-modal').style.display = 'flex';
+
+  if (refType === 'wishlist') return renderWishlistDetail(refId, el);
+  if (refType === 'feedback') return renderFeedbackDetail(refId, el);
+  if (refType === 'poll') return renderPollDetail(refId, el);
+  if (refType === 'message') return renderMessageDetail(refId, el);
+  if (refType === 'application') return renderApplicationDetail(refId, el);
+  el.innerHTML = `<div style="color:var(--dim);">No further detail available for this entry.</div>`;
+}
+
+async function renderWishlistDetail(wishlistId, el) {
+  const { data: history } = await sb.from('wishlist_history').select('*').eq('wishlist_id', wishlistId).order('created_at', { ascending: false }).limit(2);
+  const { data: wl } = await sb.from('wishlists').select('*, profiles(username)').eq('id', wishlistId).single();
+  const title = `${esc(wl?.character_name || 'Wishlist')} <span class="label">(${esc(wl?.profiles?.username || '')})</span>`;
+
+  if (!history || history.length < 2) {
+    el.innerHTML = `
+      <div style="font-family:'Newsreader',serif;font-size:1.3rem;color:var(--white);margin-bottom:0.5rem;">${title}</div>
+      <div style="color:var(--dim);">Not enough history yet to compare — needs at least two recorded snapshots (a lock, then an approved unlock, then another lock).</div>`;
+    return;
+  }
+  const [after, before] = history;
+  const beforeItems = before.items_snapshot || [];
+  const afterItems = after.items_snapshot || [];
+  const maxLen = Math.max(beforeItems.length, afterItems.length);
+  let rows = '';
+  for (let i = 0; i < maxLen; i++) {
+    const b = beforeItems[i] || '', a = afterItems[i] || '';
+    const diff = b !== a;
+    rows += `<div class="wl-history-row"><span class="wl-history-rank">${i+1}</span><span class="wl-history-cell${diff?' diff':''}">${esc(b)||'<span style="color:var(--dim)">—</span>'}</span><span class="wl-history-cell${diff?' diff':''}">${esc(a)||'<span style="color:var(--dim)">—</span>'}</span></div>`;
+  }
+  el.innerHTML = `
+    <div style="font-family:'Newsreader',serif;font-size:1.3rem;color:var(--white);margin-bottom:0.3rem;">${title}</div>
+    <div class="label" style="margin-bottom:1rem;">${before.event==='locked'?'Locked':'Unlocked'} ${fmtDate(before.created_at)} → ${after.event==='locked'?'Locked':'Unlocked'} ${fmtDate(after.created_at)}</div>
+    <div class="wl-history-row wl-history-header"><span class="wl-history-rank"></span><span class="wl-history-cell">Before</span><span class="wl-history-cell">After</span></div>
+    ${rows}
+    <div style="font-size:0.78rem;color:var(--dim);margin-top:1rem;">Highlighted rows changed between these two snapshots.</div>`;
+}
+
+async function renderFeedbackDetail(id, el) {
+  const { data: fb } = await sb.from('feedback').select('*').eq('id', id).single();
+  if (!fb) { el.innerHTML = `<div style="color:var(--dim);">This feedback was later removed — nothing left to show.</div>`; return; }
+  el.innerHTML = `
+    <div style="font-family:'Newsreader',serif;font-size:1.3rem;color:var(--white);margin-bottom:0.3rem;">Feedback from ${esc(fb.username)}</div>
+    <div class="label" style="margin-bottom:1rem;">${fmtDate(fb.created_at)} · Status: ${esc(fb.status)}</div>
+    <p style="color:var(--bone);">${esc(fb.message)}</p>`;
+}
+
+async function renderPollDetail(id, el) {
+  const { data: poll } = await sb.from('polls').select('*').eq('id', id).single();
+  if (!poll) { el.innerHTML = `<div style="color:var(--dim);">This poll was later deleted — nothing left to show.</div>`; return; }
+  const { data: options } = await sb.from('poll_options').select('*').eq('poll_id', id).order('sort_order');
+  const { data: votes } = await sb.from('poll_votes').select('*').eq('poll_id', id);
+  const total = (votes || []).length;
+  const rows = (options || []).map(o => {
+    const count = (votes || []).filter(v => v.option_id === o.id).length;
+    const pct = total ? Math.round((count/total)*100) : 0;
+    return `<div class="modal-row"><span>${esc(o.option_text)}</span><span>${pct}% (${count})</span></div>`;
+  }).join('');
+  el.innerHTML = `
+    <div style="font-family:'Newsreader',serif;font-size:1.3rem;color:var(--white);margin-bottom:0.3rem;">${esc(poll.question)}</div>
+    <div class="label" style="margin-bottom:1rem;">${esc(poll.audience)} · ${poll.status} · ${total} vote${total!==1?'s':''} · Created ${fmtDate(poll.created_at)}</div>
+    ${rows || '<div style="color:var(--dim);">No options.</div>'}`;
+}
+
+async function renderMessageDetail(id, el) {
+  const { data: m } = await sb.from('player_messages').select('*').eq('id', id).single();
+  if (!m) { el.innerHTML = `<div style="color:var(--dim);">This message was later deleted — nothing left to show.</div>`; return; }
+  const statusLabel = { sent: 'Sent, not yet seen', seen: 'Seen', cleared: 'Seen and cleared' };
+  el.innerHTML = `
+    <div style="font-family:'Newsreader',serif;font-size:1.3rem;color:var(--white);margin-bottom:0.3rem;">To ${esc(m.to_username)}</div>
+    <div class="label" style="margin-bottom:1rem;">From ${esc(m.from_officer_name)} · Sent ${fmtDate(m.created_at)}</div>
+    <p style="color:var(--bone);margin-bottom:1rem;">${esc(m.message)}</p>
+    <div class="modal-row"><span>Status</span><span>${statusLabel[m.status]||m.status}</span></div>
+    ${m.seen_at ? `<div class="modal-row"><span>Seen</span><span>${fmtDate(m.seen_at)}</span></div>` : ''}
+    ${m.cleared_at ? `<div class="modal-row"><span>Cleared</span><span>${fmtDate(m.cleared_at)}</span></div>` : ''}`;
+}
+
+async function renderApplicationDetail(id, el) {
+  const { data: app } = await sb.from('applications').select('*').eq('id', id).single();
+  if (!app) { el.innerHTML = `<div style="color:var(--dim);">This application was later removed — nothing left to show.</div>`; return; }
+  el.innerHTML = `
+    <div style="font-family:'Newsreader',serif;font-size:1.3rem;color:var(--white);margin-bottom:0.3rem;">${esc(app.applicant_name)}</div>
+    <div class="label" style="margin-bottom:1rem;">${esc(app.class_spec)} · Status: ${esc(app.status)} · Applied ${fmtDate(app.submitted_at)}</div>
+    ${app.warcraftlogs_url ? `<div style="margin-bottom:0.6rem;"><a href="${esc(app.warcraftlogs_url)}" target="_blank" rel="noopener" style="color:var(--red-bright);">Warcraft Logs →</a></div>` : ''}
+    <div class="modal-section"><h4>Experience</h4><p style="color:var(--mist);">${esc(app.experience) || '(nothing provided)'}</p></div>
+    ${app.why_join ? `<div class="modal-section"><h4>Why Delusions</h4><p style="color:var(--mist);">${esc(app.why_join)}</p></div>` : ''}
+    ${app.officer_note ? `<div class="modal-section"><h4>Officer Note</h4><p style="color:var(--mist);">${esc(app.officer_note)}</p></div>` : ''}`;
+}
+
 async function loadActivity() {
   document.getElementById('activity-clear-wrap').style.display = isGM() ? '' : 'none';
   const { data, error } = await sb.from('activity_log').select('*').order('created_at', { ascending: false }).limit(50);
@@ -281,9 +387,9 @@ async function loadActivity() {
   if (error) { el.innerHTML = `<div style="color:var(--dim);">Couldn't load activity log.</div>`; return; }
   if (!data || !data.length) { el.innerHTML = `<div style="color:var(--dim);">Nothing logged yet.</div>`; return; }
   el.innerHTML = data.map(a => {
-    const isWishlistRef = a.ref_type === 'wishlist' && a.ref_id;
-    const actionText = isWishlistRef
-      ? `<a href="ledger.html?tab=wishlist&history=${a.ref_id}" style="color:inherit;text-decoration:underline;text-decoration-style:dotted;" title="Click to see what changed">${esc(a.action)}</a>`
+    const hasRef = a.ref_type && a.ref_id;
+    const actionText = hasRef
+      ? `<a href="javascript:void(0)" onclick="showActivityDetail('${a.ref_type}','${a.ref_id}')" style="color:inherit;text-decoration:underline;text-decoration-style:dotted;" title="Click for more detail">${esc(a.action)}</a>`
       : esc(a.action);
     return `
     <div class="activity-row">
@@ -326,5 +432,12 @@ async function clearActivityLog() {
   await loadActivity();
 })();
 </script>
+<div class="modal-backdrop" id="detail-modal" style="display:none;" onclick="if(event.target===this) closeDetailModal()">
+  <div class="modal-card">
+    <button class="modal-close" onclick="closeDetailModal()">×</button>
+    <div id="detail-modal-content"></div>
+  </div>
+</div>
+
 </body>
 </html>
