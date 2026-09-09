@@ -7,7 +7,17 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=47">
+<link rel="stylesheet" href="style.css?v=48">
+<style>
+  th.sortable{cursor:pointer;user-select:none;}
+  th.sortable:hover{color:var(--white);}
+  th.sortable .sort-arrow{color:var(--red-bright);margin-left:0.3rem;font-size:0.7rem;}
+  .roster-char-toggle{cursor:pointer;color:var(--dim);font-family:'IBM Plex Mono',monospace;font-size:0.7rem;}
+  .roster-char-toggle:hover{color:var(--red-bright);}
+  .online-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:0.4rem;}
+  .online-dot.on{background:#8fae6f;}
+  .online-dot.off{background:var(--dim);}
+</style>
 </head>
 <body>
 <div class="topbar" id="topnav-top"><span>Spineshatter EU · Horde</span><span></span></div>
@@ -16,36 +26,135 @@
 <div class="page">
   <div class="label" style="margin-bottom:0.4rem;">Membership</div>
   <h1 style="margin-bottom:2rem;">Roster</h1>
-  <div class="card" style="padding:0;overflow:hidden;">
+  <div class="card" style="padding:0;overflow-x:auto;">
     <table>
-      <thead><tr><th>Name</th><th>Role</th><th>Rank</th><th>Joined</th></tr></thead>
+      <thead><tr>
+        <th class="sortable" onclick="setSort('name')">Name<span class="sort-arrow" id="arrow-name"></span></th>
+        <th>Characters</th>
+        <th class="sortable" onclick="setSort('role')">Role<span class="sort-arrow" id="arrow-role"></span></th>
+        <th class="sortable" onclick="setSort('rank')">Rank<span class="sort-arrow" id="arrow-rank"></span></th>
+        <th class="sortable" onclick="setSort('joined')">Joined<span class="sort-arrow" id="arrow-joined"></span></th>
+        <th class="sortable" onclick="setSort('attendance')">Attendance<span class="sort-arrow" id="arrow-attendance"></span></th>
+        <th class="sortable" onclick="setSort('online')">Last Seen<span class="sort-arrow" id="arrow-online"></span></th>
+      </tr></thead>
       <tbody id="roster-body"></tbody>
     </table>
   </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=47"></script>
+<script src="app.js?v=48"></script>
 <script>
+let rosterRows = [];
+let charsByProfile = {};
+let expandedRosterChars = new Set();
+let sortCol = 'name';
+let sortDir = 1;
+
+function fmtLastSeen(ts) {
+  if (!ts) return { text: 'Never', online: false };
+  const diffMs = Date.now() - new Date(ts).getTime();
+  const mins = diffMs / 60000;
+  if (mins < 5) return { text: 'Online now', online: true };
+  if (mins < 60) return { text: `${Math.floor(mins)}m ago`, online: false };
+  const hours = mins / 60;
+  if (hours < 24) return { text: `${Math.floor(hours)}h ago`, online: false };
+  const days = hours / 24;
+  return { text: `${Math.floor(days)}d ago`, online: false };
+}
+
+function computeAccountAttendance(characterNames, joinedAt, allNights, allAttendees) {
+  const namesLower = new Set(characterNames.map(n => n.toLowerCase()));
+  let eligibleNights = allNights;
+  if (joinedAt) {
+    const jt = new Date(joinedAt).getTime();
+    eligibleNights = allNights.filter(n => n.raid_date && new Date(n.raid_date).getTime() >= jt);
+  }
+  const attendedIds = new Set(allAttendees.filter(a => namesLower.has((a.character_name||'').toLowerCase())).map(a => a.raid_night_id));
+  const attended = eligibleNights.filter(n => attendedIds.has(n.id)).length;
+  const total = eligibleNights.length;
+  return { attended, total, pct: total ? Math.round((attended/total)*100) : 0 };
+}
+
+async function loadRoster() {
+  const { data: profiles, error } = await sb.from('profiles').select('*').in('role', ['member','officer','gm']);
+  if (error) { toast(error.message, 'error'); return; }
+
+  const { data: chars } = await sb.from('profile_characters').select('*');
+  charsByProfile = {};
+  (chars || []).forEach(c => { (charsByProfile[c.profile_id] ||= []).push(c); });
+
+  const { data: nights } = await sb.from('raid_nights').select('*');
+  const { data: attendees } = await sb.from('raid_attendees').select('*');
+
+  rosterRows = (profiles || []).map(p => {
+    const myChars = charsByProfile[p.id] || [];
+    const names = myChars.map(c => c.character_name);
+    const att = computeAccountAttendance(names, p.joined_at, nights || [], attendees || []);
+    return { profile: p, characters: myChars, attendance: att };
+  });
+
+  renderRoster();
+}
+
+function setSort(col) {
+  if (sortCol === col) sortDir *= -1;
+  else { sortCol = col; sortDir = 1; }
+  renderRoster();
+}
+
+function renderRoster() {
+  document.querySelectorAll('.sort-arrow').forEach(el => el.textContent = '');
+  const arrowEl = document.getElementById(`arrow-${sortCol}`);
+  if (arrowEl) arrowEl.textContent = sortDir === 1 ? '▲' : '▼';
+
+  const roleOrder = { gm: 0, officer: 1, member: 2 };
+  const sorted = [...rosterRows].sort((a, b) => {
+    let av, bv;
+    if (sortCol === 'name') { av = a.profile.username.toLowerCase(); bv = b.profile.username.toLowerCase(); }
+    else if (sortCol === 'role') { av = roleOrder[a.profile.role] ?? 9; bv = roleOrder[b.profile.role] ?? 9; }
+    else if (sortCol === 'rank') { av = (a.profile.rank||'').toLowerCase(); bv = (b.profile.rank||'').toLowerCase(); }
+    else if (sortCol === 'joined') { av = a.profile.joined_at || ''; bv = b.profile.joined_at || ''; }
+    else if (sortCol === 'attendance') { av = a.attendance.pct; bv = b.attendance.pct; }
+    else if (sortCol === 'online') { av = a.profile.last_seen_at || ''; bv = b.profile.last_seen_at || ''; }
+    if (av < bv) return -1 * sortDir;
+    if (av > bv) return 1 * sortDir;
+    return 0;
+  });
+
+  document.getElementById('roster-body').innerHTML = sorted.map(row => {
+    const p = row.profile;
+    const expanded = expandedRosterChars.has(p.id);
+    const chars = row.characters;
+    const seen = fmtLastSeen(p.last_seen_at);
+    return `
+    <tr>
+      <td style="color:var(--white)">${esc(p.username)}</td>
+      <td>
+        ${chars.length ? `<span class="roster-char-toggle" onclick="toggleRosterChars('${p.id}')">${expanded?'−':'+'} ${chars.length} character${chars.length!==1?'s':''}</span>` : '<span class="label">None linked</span>'}
+        ${expanded ? `<div style="display:flex;flex-wrap:wrap;gap:0.4rem 0.8rem;margin-top:0.5rem;">
+          ${chars.map(c => `<span class="cls-name-row">${classIcon(c.class_name)}<span style="${classColor(c.class_name)?`color:${classColor(c.class_name)};`:'color:var(--bone);'}font-size:0.85rem;">${esc(c.character_name)}</span></span>`).join('')}
+        </div>` : ''}
+      </td>
+      <td><span class="pill ${p.role}">${esc(p.role)}</span></td>
+      <td>${esc(p.rank || '—')}</td>
+      <td>${p.joined_at ? fmtDate(p.joined_at) : '—'}</td>
+      <td>${row.attendance.total ? `${row.attendance.pct}% (${row.attendance.attended}/${row.attendance.total})` : '—'}</td>
+      <td><span class="online-dot ${seen.online?'on':'off'}"></span>${seen.text}</td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="7" style="text-align:center;color:var(--dim);">No members yet.</td></tr>`;
+}
+
+function toggleRosterChars(profileId) {
+  if (expandedRosterChars.has(profileId)) expandedRosterChars.delete(profileId); else expandedRosterChars.add(profileId);
+  renderRoster();
+}
+
 (async () => {
   const ok = await requireOfficer();
   if (!ok) return;
   renderNav('roster');
-
-  const { data, error } = await sb.from('profiles').select('*').in('role', ['member','officer','gm']);
-  if (error) { toast(error.message, 'error'); return; }
-
-  const roleOrder = { gm: 0, officer: 1, member: 2 };
-  const sorted = (data || []).sort((a, b) => (roleOrder[a.role] ?? 9) - (roleOrder[b.role] ?? 9));
-
-  document.getElementById('roster-body').innerHTML = sorted.map(p => `
-    <tr>
-      <td style="color:var(--white)">${esc(p.username)}</td>
-      <td><span class="pill ${p.role}">${esc(p.role)}</span></td>
-      <td>${esc(p.rank || '—')}</td>
-      <td>${fmtDate(p.created_at)}</td>
-    </tr>
-  `).join('') || `<tr><td colspan="4" style="text-align:center;color:var(--dim);">No members yet.</td></tr>`;
+  await loadRoster();
 })();
 </script>
 </body>

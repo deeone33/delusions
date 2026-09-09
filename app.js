@@ -17,7 +17,19 @@ async function loadSession() {
   currentUser = user;
   const { data } = await sb.from('profiles').select('*').eq('id', user.id).single();
   currentProfile = data;
+  updateLastSeen();
   return data;
+}
+
+// Fire-and-forget, on every page load and every 2 minutes while a tab
+// stays open — this is what Roster's online/last-seen column reads.
+function updateLastSeen() {
+  if (!currentUser) return;
+  sb.from('profiles').update({ last_seen_at: new Date().toISOString() }).eq('id', currentUser.id).then(() => {});
+  clearInterval(window._lastSeenHeartbeat);
+  window._lastSeenHeartbeat = setInterval(() => {
+    if (currentUser) sb.from('profiles').update({ last_seen_at: new Date().toISOString() }).eq('id', currentUser.id).then(() => {});
+  }, 120000);
 }
 
 const isGM       = () => currentProfile?.role === 'gm';
@@ -59,6 +71,7 @@ function renderNav(active) {
   if (!el) return;
 
   const links = [{ href: 'index.html', id: 'home', label: 'Home' }];
+  links.push({ href: 'streams.html', id: 'streams', label: 'Streams' });
   if (isOfficer()) {
     links.push({ href: 'roster.html', id: 'roster', label: 'Roster' });
     links.push({ href: 'ledger.html', id: 'ledger', label: 'Ledger' });

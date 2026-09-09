@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=47">
+<link rel="stylesheet" href="style.css?v=48">
 </head>
 <body>
 <div class="topbar" id="topnav-top"><span>Spineshatter EU · Horde</span><span></span></div>
@@ -45,6 +45,47 @@
     </div>
   </div>
 
+  <div id="my-stream-section" style="display:none;margin-bottom:2.5rem;">
+    <h2 style="margin-bottom:0.8rem;cursor:pointer;" onclick="toggleCollapse('my-stream-body','my-stream-toggle')">
+      <span id="my-stream-toggle" class="collapse-icon">+</span> My Stream
+    </h2>
+    <div id="my-stream-body" style="display:none;">
+      <div class="card">
+        <div id="my-stream-status" style="margin-bottom:1rem;"></div>
+        <div class="form-group">
+          <label class="form-label">Twitch URL (required — only Twitch is supported)</label>
+          <input type="text" id="stream-url" placeholder="https://twitch.tv/yourchannel">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Title (required)</label>
+          <input type="text" id="stream-title" placeholder="What are you up to?">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.8rem;margin-bottom:1rem;">
+          <div>
+            <label class="form-label">Class (optional)</label>
+            <select id="stream-class"><option value="">— None —</option></select>
+          </div>
+          <div>
+            <label class="form-label">Content (optional)</label>
+            <select id="stream-content">
+              <option value="">— None —</option>
+              <option value="pvp-arena">PvP - Arenas</option>
+              <option value="pvp-world">PvP - World / Battlegrounds</option>
+              <option value="pve-5">PvE - 5 Man</option>
+              <option value="pve-10">PvE - 10 Man</option>
+              <option value="pve-25">PvE - 25 Man</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex;gap:0.6rem;flex-wrap:wrap;">
+          <button class="btn" type="button" onclick="saveMyStream()">Save Info</button>
+          <button class="btn primary" type="button" onclick="goLive()">Go Live</button>
+          <button class="btn" type="button" onclick="goOffline()">Go Offline</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="grid-2">
     <div>
       <h2 style="margin-bottom:1rem;">Quick Access</h2>
@@ -69,7 +110,9 @@
         <input type="text" id="feedback-webhook-input" placeholder="https://discord.com/api/webhooks/..." style="margin-bottom:0.8rem;">
         <label class="form-label">Discord webhook URL for wishlists (pings when locked or unlock requested)</label>
         <input type="text" id="wishlist-webhook-input" placeholder="https://discord.com/api/webhooks/..." style="margin-bottom:0.8rem;">
-        <label class="form-label">Discord role to @ping (optional, used for all three above)</label>
+        <label class="form-label">Discord webhook URL for #streams (pings when someone goes live)</label>
+        <input type="text" id="streams-webhook-input" placeholder="https://discord.com/api/webhooks/..." style="margin-bottom:0.8rem;">
+        <label class="form-label">Discord role to @ping (optional, used for all above)</label>
         <input type="text" id="role-input" placeholder="e.g. 123456789012345678" style="margin-bottom:0.8rem;">
         <div style="font-size:0.8rem;color:var(--dim);margin-bottom:0.8rem;">Create a webhook in Discord for each notification you want: Server Settings → Integrations → Webhooks → New Webhook, pick the channel, copy each URL into its field above. For the role ping: enable Developer Mode (User Settings → Advanced), then right-click your Officer role in Server Settings → Roles → Copy Role ID. Leave any field blank to skip that notification. Note: these URLs are visible to anyone who views the page source, so use low-stakes channels.</div>
         <button class="btn primary" id="webhook-save" type="button">Save Settings</button>
@@ -79,7 +122,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=47"></script>
+<script src="app.js?v=48"></script>
 <script>
 let myCharsCache = [];
 
@@ -193,6 +236,111 @@ async function checkWishlistReminder() {
     </div>`;
 }
 
+// ---------- MY STREAM ----------
+let myStream = null;
+
+function populateStreamClassOptions() {
+  const sel = document.getElementById('stream-class');
+  if (sel.options.length > 1) return;
+  sel.innerHTML = `<option value="">— None —</option>` + Object.keys(CLASS_ICONS).map(c => `<option value="${c}">${c.charAt(0).toUpperCase()+c.slice(1)}</option>`).join('');
+}
+
+async function loadMyStream() {
+  populateStreamClassOptions();
+  let data = null;
+  try {
+    const r = await sb.from('streams').select('*').eq('profile_id', currentUser.id).single();
+    data = r.data;
+  } catch (e) { data = null; }
+  myStream = data || null;
+  if (myStream) {
+    document.getElementById('stream-url').value = myStream.url || '';
+    document.getElementById('stream-title').value = myStream.title || '';
+    document.getElementById('stream-class').value = myStream.class_name || '';
+    document.getElementById('stream-content').value = myStream.content_type || '';
+  }
+  renderMyStreamStatus();
+}
+
+function renderMyStreamStatus() {
+  const el = document.getElementById('my-stream-status');
+  if (!myStream) { el.innerHTML = `<div class="label">Not set up yet — fill in the form below.</div>`; return; }
+  if (myStream.status === 'live') {
+    el.innerHTML = `<div class="card card-warn" style="padding:0.8rem 1rem;"><span style="color:var(--red-bright);font-weight:600;">● LIVE</span> since ${fmtDate(myStream.went_live_at)}</div>`;
+  } else {
+    el.innerHTML = `<div class="label">Currently offline.</div>`;
+  }
+}
+
+function isValidTwitchUrl(url) {
+  return /twitch\.tv\/[a-zA-Z0-9_]+/i.test(url || '');
+}
+
+async function saveMyStream() {
+  const url = document.getElementById('stream-url').value.trim();
+  const title = document.getElementById('stream-title').value.trim();
+  const className = document.getElementById('stream-class').value;
+  const contentType = document.getElementById('stream-content').value;
+  if (!url || !title) { toast('URL and title are required.', 'error'); return; }
+  if (!isValidTwitchUrl(url)) { toast('Only Twitch links are supported (twitch.tv/yourchannel).', 'error'); return; }
+
+  const payload = { profile_id: currentUser.id, username: currentProfile.username, url, title, class_name: className || null, content_type: contentType || null, updated_at: new Date().toISOString() };
+  const { data, error } = await sb.from('streams').upsert(payload, { onConflict: 'profile_id' }).select().single();
+  if (error) { toast(error.message, 'error'); return; }
+  myStream = data;
+  toast('Saved.', 'success');
+  renderMyStreamStatus();
+}
+
+async function goLive() {
+  if (!document.getElementById('stream-url').value.trim() || !document.getElementById('stream-title').value.trim()) {
+    toast('Fill in and save your stream info first.', 'error'); return;
+  }
+  await saveMyStream();
+  const now = new Date().toISOString();
+  const { error } = await sb.from('streams').update({ status: 'live', went_live_at: now }).eq('profile_id', currentUser.id);
+  if (error) { toast(error.message, 'error'); return; }
+  myStream = { ...myStream, status: 'live', went_live_at: now };
+  renderMyStreamStatus();
+  toast('You are live!', 'success');
+
+  // Derive character name from the selected class, matching one of this
+  // account's linked characters — falls back to the account name if no
+  // class was picked or nothing matches.
+  const className = document.getElementById('stream-class').value;
+  let displayName = currentProfile.username;
+  if (className) {
+    const { data: matches } = await sb.from('profile_characters').select('character_name').eq('profile_id', currentUser.id).ilike('class_name', className);
+    if (matches && matches.length) displayName = matches[0].character_name;
+  }
+  const contentLabel = { 'pvp-arena':'PvP - Arenas','pvp-world':'PvP - World / Battlegrounds','pve-5':'PvE - 5 Man','pve-10':'PvE - 10 Man','pve-25':'PvE - 25 Man' }[document.getElementById('stream-content').value] || '';
+  const url = document.getElementById('stream-url').value.trim();
+  const title = document.getElementById('stream-title').value.trim();
+  const parts = [`🔴${displayName} is now LIVE`, url];
+  if (contentLabel) parts.push(contentLabel);
+  parts.push(title);
+  pingStreamsDiscord(parts.join(' │ '));
+  logActivity(`Went live on stream: ${title}`);
+}
+
+async function goOffline() {
+  const { error } = await sb.from('streams').update({ status: 'offline' }).eq('profile_id', currentUser.id);
+  if (error) { toast(error.message, 'error'); return; }
+  myStream = { ...myStream, status: 'offline' };
+  renderMyStreamStatus();
+  toast('Marked offline.', 'success');
+}
+
+async function pingStreamsDiscord(message) {
+  let cfg = null;
+  try { const r = await sb.from('site_content').select('*').eq('key','config.discord_streams_webhook_url').single(); cfg = r.data; } catch (e) { cfg = null; }
+  if (!cfg?.text) return;
+  fetch(cfg.text, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content: message, allowed_mentions: { parse: [] } })
+  }).catch(() => {});
+}
+
 (async () => {
   await loadSession();
   if (!isLoggedIn()) { window.location.href = 'login.html'; return; }
@@ -210,7 +358,9 @@ async function checkWishlistReminder() {
 
   if (isMember() || isOfficer()) {
     document.getElementById('my-characters-section').style.display = 'block';
+    document.getElementById('my-stream-section').style.display = 'block';
     await loadMyCharacters();
+    await loadMyStream();
     await loadMyMessages();
     await checkWishlistReminder();
   } else {
@@ -292,7 +442,7 @@ async function checkWishlistReminder() {
     }
 
     // Officer settings: Discord webhooks + role ping for notifications
-    let cfg = null, cfgRole = null, cfgFeedback = null, cfgWishlist = null;
+    let cfg = null, cfgRole = null, cfgFeedback = null, cfgWishlist = null, cfgStreams = null;
     try {
       const res = await sb.from('site_content').select('*').eq('key','config.discord_webhook_url').single();
       cfg = res.data;
@@ -309,21 +459,28 @@ async function checkWishlistReminder() {
       const res4 = await sb.from('site_content').select('*').eq('key','config.discord_wishlist_webhook_url').single();
       cfgWishlist = res4.data;
     } catch (e) { cfgWishlist = null; }
+    try {
+      const res5 = await sb.from('site_content').select('*').eq('key','config.discord_streams_webhook_url').single();
+      cfgStreams = res5.data;
+    } catch (e) { cfgStreams = null; }
     document.getElementById('officer-settings').style.display = 'block';
     document.getElementById('webhook-input').value = cfg?.text || '';
     document.getElementById('feedback-webhook-input').value = cfgFeedback?.text || '';
     document.getElementById('wishlist-webhook-input').value = cfgWishlist?.text || '';
+    document.getElementById('streams-webhook-input').value = cfgStreams?.text || '';
     document.getElementById('role-input').value = cfgRole?.text || '';
     document.getElementById('webhook-save').onclick = async () => {
       const url = document.getElementById('webhook-input').value.trim();
       const feedbackUrl = document.getElementById('feedback-webhook-input').value.trim();
       const wishlistUrl = document.getElementById('wishlist-webhook-input').value.trim();
+      const streamsUrl = document.getElementById('streams-webhook-input').value.trim();
       const roleId = document.getElementById('role-input').value.trim();
       const r1 = await sb.from('site_content').upsert({ key: 'config.discord_webhook_url', text: url, updated_at: new Date().toISOString() });
       const r2 = await sb.from('site_content').upsert({ key: 'config.discord_role_id', text: roleId, updated_at: new Date().toISOString() });
       const r3 = await sb.from('site_content').upsert({ key: 'config.discord_feedback_webhook_url', text: feedbackUrl, updated_at: new Date().toISOString() });
       const r4 = await sb.from('site_content').upsert({ key: 'config.discord_wishlist_webhook_url', text: wishlistUrl, updated_at: new Date().toISOString() });
-      if (r1.error || r2.error || r3.error || r4.error) toast('Save failed: ' + (r1.error?.message || r2.error?.message || r3.error?.message || r4.error?.message), 'error'); else toast('Saved.', 'success');
+      const r5 = await sb.from('site_content').upsert({ key: 'config.discord_streams_webhook_url', text: streamsUrl, updated_at: new Date().toISOString() });
+      if (r1.error || r2.error || r3.error || r4.error || r5.error) toast('Save failed: ' + (r1.error?.message || r2.error?.message || r3.error?.message || r4.error?.message || r5.error?.message), 'error'); else toast('Saved.', 'success');
     };
   }
 })();

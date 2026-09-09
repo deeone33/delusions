@@ -470,6 +470,41 @@ create policy "wishlist_items gm delete" on wishlist_items for delete using (
   exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'gm')
 );
 
+-- ---------- LAST SEEN (online status for Roster) ----------
+alter table profiles add column if not exists last_seen_at timestamptz;
+-- No new policy needed — the existing "profiles update own" policy
+-- (auth.uid() = id) already covers updating this column.
+
+-- ---------- STREAMS ----------
+-- One row per account — "posting a stream" edits this info, "Go Live" /
+-- "Go Offline" just toggles status on the same row, so nobody re-fills the
+-- form every session. Public SELECT (using true) because the Streams page
+-- is viewable without logging in.
+create table if not exists streams (
+  id uuid primary key default gen_random_uuid(),
+  profile_id uuid references profiles(id) on delete cascade unique,
+  username text,
+  url text not null,
+  title text not null,
+  class_name text,
+  content_type text,
+  status text not null default 'offline',  -- offline | live
+  went_live_at timestamptz,
+  updated_at timestamptz default now()
+);
+alter table streams enable row level security;
+
+drop policy if exists "streams public read" on streams;
+create policy "streams public read" on streams for select using (true);
+drop policy if exists "streams own insert" on streams;
+create policy "streams own insert" on streams for insert with check (profile_id = auth.uid());
+drop policy if exists "streams own update" on streams;
+create policy "streams own update" on streams for update using (profile_id = auth.uid());
+drop policy if exists "streams officer delete" on streams;
+create policy "streams officer delete" on streams for delete using (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
+);
+
 -- ---------- PLAYER MESSAGES ----------
 -- Direct officer-to-player messages, shown on the recipient's dashboard.
 create table if not exists player_messages (

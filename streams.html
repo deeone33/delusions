@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Streams — Delusions</title>
+<link rel="icon" href="logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=48">
+<style>
+  .stream-card{border:1px solid var(--hair);margin-bottom:1rem;}
+  .stream-card-header{display:flex;align-items:center;gap:0.7rem;padding:0.9rem 1.1rem;flex-wrap:wrap;}
+  .stream-live-dot{width:9px;height:9px;border-radius:50%;background:var(--red-bright);flex-shrink:0;box-shadow:0 0 6px var(--red-bright);}
+  .stream-title{color:var(--white);font-weight:500;font-size:0.95rem;}
+  .stream-embed-wrap{padding:0 1.1rem 1.1rem;}
+  .stream-embed-wrap iframe{width:100%;aspect-ratio:16/9;border:none;}
+</style>
+</head>
+<body>
+<div class="topbar" id="topnav-top"><span>Spineshatter EU · Horde</span><span></span></div>
+<div class="nav" id="topnav"></div>
+
+<div class="page">
+  <div class="label" style="margin-bottom:0.4rem;">Live Now</div>
+  <h1 style="margin-bottom:0.5rem;">Streams</h1>
+  <p style="color:var(--mist);margin-bottom:2rem;">Guild members currently streaming — click any card to watch right here.</p>
+  <div id="streams-list">Loading…</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js?v=48"></script>
+<script>
+const CONTENT_TYPE_LABELS = {
+  'pvp-arena': 'PvP - Arenas', 'pvp-world': 'PvP - World / Battlegrounds',
+  'pve-5': 'PvE - 5 Man', 'pve-10': 'PvE - 10 Man', 'pve-25': 'PvE - 25 Man',
+};
+
+function extractTwitchChannel(url) {
+  const match = (url||'').match(/twitch\.tv\/([a-zA-Z0-9_]+)/i);
+  return match ? match[1] : null;
+}
+
+let expandedStreams = new Set();
+
+async function loadStreams() {
+  const { data, error } = await sb.from('streams').select('*').eq('status', 'live').order('went_live_at', { ascending: false });
+  const el = document.getElementById('streams-list');
+  if (error) { el.innerHTML = `<div class="card" style="text-align:center;color:var(--dim);">Couldn't load streams right now.</div>`; return; }
+
+  // Auto-hide anything stale (forgot to go offline) rather than showing it forever.
+  const cutoff = Date.now() - 6 * 60 * 60 * 1000;
+  const live = (data || []).filter(s => s.went_live_at && new Date(s.went_live_at).getTime() > cutoff);
+
+  if (!live.length) { el.innerHTML = `<div class="card" style="text-align:center;color:var(--dim);">Nobody's live right now — check back later.</div>`; return; }
+
+  el.innerHTML = live.map(s => {
+    const channel = extractTwitchChannel(s.url);
+    const expanded = expandedStreams.has(s.id);
+    return `
+    <div class="stream-card">
+      <div class="stream-card-header" style="cursor:pointer;" onclick="toggleStreamEmbed('${s.id}')">
+        <span class="stream-live-dot"></span>
+        ${classIcon(s.class_name)}
+        <span class="stream-title">${esc(s.username)}</span>
+        ${s.content_type ? `<span class="label">${esc(CONTENT_TYPE_LABELS[s.content_type] || s.content_type)}</span>` : ''}
+        <span style="color:var(--mist);flex:1;min-width:150px;">${esc(s.title)}</span>
+        <a href="${esc(s.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="btn btn-sm">Open on Twitch</a>
+      </div>
+      ${expanded && channel ? `
+        <div class="stream-embed-wrap">
+          <iframe src="https://player.twitch.tv/?channel=${encodeURIComponent(channel)}&parent=${encodeURIComponent(window.location.hostname)}&muted=true" allowfullscreen></iframe>
+        </div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function toggleStreamEmbed(id) {
+  if (expandedStreams.has(id)) expandedStreams.delete(id); else expandedStreams.add(id);
+  loadStreams();
+}
+
+(async () => {
+  await loadSession(); // fine if this returns nothing - page works logged out
+  renderNav('streams');
+  await loadStreams();
+  setInterval(loadStreams, 60000); // keep the live list fresh without a manual refresh
+})();
+</script>
+</body>
+</html>
