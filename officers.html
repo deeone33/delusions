@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=48">
+<link rel="stylesheet" href="style.css?v=49">
 <script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
 <style>
@@ -43,7 +43,7 @@
       <input type="text" id="member-search" placeholder="Search by name, character, or class..." style="max-width:340px;" oninput="render()">
     </div>
     <table>
-      <thead><tr><th>Name</th><th>Characters</th><th>Role</th><th>Rank / Title</th><th>Joined</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Name</th><th>Characters</th><th>Role</th><th>Rank</th><th>Joined</th><th>Actions</th></tr></thead>
       <tbody id="members-body"></tbody>
     </table>
   </div>
@@ -71,8 +71,8 @@
   </div>
 
   <div style="margin-top:2.5rem;">
-    <h2 style="margin-bottom:1rem;cursor:pointer;" onclick="toggleCollapse('activity-body','activity-toggle')">
-      <span id="activity-toggle" class="collapse-icon">+</span> Activity Log
+    <h2 style="margin-bottom:1rem;cursor:pointer;" onclick="toggleActivityLog()">
+      <span id="activity-toggle" class="collapse-icon">+</span> Activity Log<span id="activity-unread-count"></span>
     </h2>
     <div id="activity-body" style="display:none;">
       <div id="activity-clear-wrap" style="display:none;text-align:right;margin-bottom:0.8rem;">
@@ -84,7 +84,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=48"></script>
+<script src="app.js?v=49"></script>
 <script>
 let members = [];
 let charactersByProfile = {};
@@ -108,7 +108,11 @@ async function loadCharacters() {
 
 function actionCellFor(p) {
   if (p.role === 'outsider') return `<button class="btn btn-sm" onclick="setRole('${p.id}','member')">Promote</button>`;
-  if (p.role === 'member' && isGM()) return `<button class="btn btn-sm" onclick="setRole('${p.id}','officer')">Promote</button>`;
+  if (p.role === 'member') {
+    let html = `<button class="btn btn-sm" onclick="setRole('${p.id}','outsider')">Demote</button>`;
+    if (isGM()) html += ` <button class="btn btn-sm" onclick="setRole('${p.id}','officer')">Promote</button>`;
+    return html;
+  }
   if (p.role === 'officer' && isGM()) return `<button class="btn btn-sm" onclick="setRole('${p.id}','member')">Demote</button>`;
   return `<span style="color:var(--dim);">—</span>`;
 }
@@ -137,16 +141,26 @@ function render() {
         </div>
       </td>
       <td><span class="pill ${p.role}">${esc(p.role)}</span></td>
-      <td><input type="text" value="${esc(p.rank||'')}" data-rank="${p.id}" style="width:140px;padding:0.35rem 0.5rem;font-size:0.85rem;"></td>
+      <td><select data-rank="${p.id}" style="width:140px;padding:0.35rem 0.5rem;font-size:0.85rem;">
+        <option value="Newcomer" ${p.rank==='Newcomer'?'selected':''}>Newcomer</option>
+        <option value="Social" ${p.rank==='Social'?'selected':''}>Social</option>
+        <option value="Raider" ${p.rank==='Raider'?'selected':''}>Raider</option>
+        ${isGM() ? `<option value="Officer" ${p.rank==='Officer'?'selected':''}>Officer</option>` : ''}
+        ${(!['Newcomer','Social','Raider','Officer'].includes(p.rank) && p.rank) ? `<option value="${esc(p.rank)}" selected>${esc(p.rank)} (legacy)</option>` : ''}
+      </select></td>
       <td><input type="date" value="${p.joined_at ? p.joined_at.slice(0,10) : ''}" data-joined="${p.id}" style="width:145px;padding:0.35rem 0.5rem;font-size:0.82rem;"></td>
       <td style="vertical-align:middle;">${actionCellFor(p)}</td>
     </tr>
   `).join('') || `<tr><td colspan="6" style="text-align:center;color:var(--dim);">${search ? 'No matches.' : 'No accounts yet.'}</td></tr>`;
 
-  document.querySelectorAll('[data-rank]').forEach(input => {
-    input.onblur = async () => {
-      const { error } = await sb.from('profiles').update({ rank: input.value }).eq('id', input.getAttribute('data-rank'));
-      if (error) toast(error.message, 'error'); else toast('Rank updated.', 'success');
+  document.querySelectorAll('[data-rank]').forEach(select => {
+    select.onchange = async () => {
+      const pid = select.getAttribute('data-rank');
+      const who = members.find(m => m.id === pid)?.username || 'an account';
+      const { error } = await sb.from('profiles').update({ rank: select.value }).eq('id', pid);
+      if (error) { toast(error.message, 'error'); return; }
+      logActivity(`Set ${who}'s rank to ${select.value}`);
+      toast('Rank updated.', 'success');
     };
   });
   document.querySelectorAll('[data-joined]').forEach(input => {
@@ -428,15 +442,21 @@ async function loadActivity() {
   const { data, error } = await sb.from('activity_log').select('*').order('created_at', { ascending: false }).limit(50);
   const el = document.getElementById('activity-list');
   if (error) { el.innerHTML = `<div style="color:var(--dim);">Couldn't load activity log.</div>`; return; }
+
+  const lastSeen = currentProfile.last_activity_view_at ? new Date(currentProfile.last_activity_view_at).getTime() : 0;
+  const unreadCount = (data || []).filter(a => new Date(a.created_at).getTime() > lastSeen).length;
+  document.getElementById('activity-unread-count').innerHTML = unreadCount > 0 ? ` <span style="color:var(--red-bright);">(${unreadCount})</span>` : '';
+
   if (!data || !data.length) { el.innerHTML = `<div style="color:var(--dim);">Nothing logged yet.</div>`; return; }
   el.innerHTML = data.map(a => {
+    const isNew = new Date(a.created_at).getTime() > lastSeen;
     const hasRef = a.ref_type && a.ref_id;
     const actionText = hasRef
       ? `<a href="javascript:void(0)" onclick="showActivityDetail('${a.ref_type}','${a.ref_id}')" style="color:inherit;text-decoration:underline;text-decoration-style:dotted;" title="Click for more detail">${esc(a.action)}</a>`
       : esc(a.action);
     return `
     <div class="activity-row">
-      <span><span class="who">${esc(a.officer_name)}</span> — ${actionText}</span>
+      <span>${isNew ? '<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--red-bright);margin-right:0.5rem;" title="New since you last checked"></span>' : ''}<span class="who">${esc(a.officer_name)}</span> — ${actionText}</span>
       <span style="display:flex;align-items:center;gap:0.7rem;">
         <span class="label">${fmtDate(a.created_at)}</span>
         ${isGM() ? `<button onclick="deleteActivityEntry('${a.id}')" title="Remove this entry" style="background:none;border:1px solid var(--hair);border-radius:3px;color:var(--dim);width:1.4rem;height:1.4rem;cursor:pointer;font-size:0.8rem;line-height:1;">&times;</button>` : ''}
@@ -452,6 +472,19 @@ async function deleteActivityEntry(id) {
   if (error) { toast(error.message, 'error'); return; }
   toast('Entry removed.', 'success');
   await loadActivity();
+}
+
+function toggleActivityLog() {
+  const wasOpen = document.getElementById('activity-body').style.display !== 'none';
+  toggleCollapse('activity-body', 'activity-toggle');
+  if (!wasOpen) markActivityLogSeen();
+}
+
+async function markActivityLogSeen() {
+  const now = new Date().toISOString();
+  await sb.from('profiles').update({ last_activity_view_at: now }).eq('id', currentUser.id);
+  currentProfile.last_activity_view_at = now;
+  await loadActivity(); // re-render so the dots/count clear immediately
 }
 
 async function clearActivityLog() {

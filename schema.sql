@@ -69,11 +69,12 @@ create policy "own character update" on profile_characters for update using (
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
-  insert into public.profiles (id, username, avatar_url)
+  insert into public.profiles (id, username, avatar_url, rank)
   values (
     new.id,
     coalesce(new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'name', 'Adventurer'),
-    new.raw_user_meta_data->>'avatar_url'
+    new.raw_user_meta_data->>'avatar_url',
+    'Newcomer'
   )
   on conflict (id) do nothing;
   return new;
@@ -472,6 +473,7 @@ create policy "wishlist_items gm delete" on wishlist_items for delete using (
 
 -- ---------- LAST SEEN (online status for Roster) ----------
 alter table profiles add column if not exists last_seen_at timestamptz;
+alter table profiles add column if not exists last_activity_view_at timestamptz;
 -- No new policy needed — the existing "profiles update own" policy
 -- (auth.uid() = id) already covers updating this column.
 

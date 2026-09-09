@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=48">
+<link rel="stylesheet" href="style.css?v=49">
 </head>
 <body>
 <div class="topbar" id="topnav-top"><span>Spineshatter EU · Horde</span><span></span></div>
@@ -79,8 +79,8 @@
         </div>
         <div style="display:flex;gap:0.6rem;flex-wrap:wrap;">
           <button class="btn" type="button" onclick="saveMyStream()">Save Info</button>
-          <button class="btn primary" type="button" onclick="goLive()">Go Live</button>
-          <button class="btn" type="button" onclick="goOffline()">Go Offline</button>
+          <button class="btn primary" type="button" id="go-live-btn" onclick="goLive()">Go Live</button>
+          <button class="btn" type="button" id="go-offline-btn" style="display:none;" onclick="goOffline()">Go Offline</button>
         </div>
       </div>
     </div>
@@ -122,7 +122,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=48"></script>
+<script src="app.js?v=49"></script>
 <script>
 let myCharsCache = [];
 
@@ -264,8 +264,11 @@ async function loadMyStream() {
 
 function renderMyStreamStatus() {
   const el = document.getElementById('my-stream-status');
+  const isLive = myStream?.status === 'live';
+  document.getElementById('go-live-btn').style.display = isLive ? 'none' : '';
+  document.getElementById('go-offline-btn').style.display = isLive ? '' : 'none';
   if (!myStream) { el.innerHTML = `<div class="label">Not set up yet — fill in the form below.</div>`; return; }
-  if (myStream.status === 'live') {
+  if (isLive) {
     el.innerHTML = `<div class="card card-warn" style="padding:0.8rem 1rem;"><span style="color:var(--red-bright);font-weight:600;">● LIVE</span> since ${fmtDate(myStream.went_live_at)}</div>`;
   } else {
     el.innerHTML = `<div class="label">Currently offline.</div>`;
@@ -293,6 +296,7 @@ async function saveMyStream() {
 }
 
 async function goLive() {
+  if (myStream?.status === 'live') { toast("You're already live.", 'info'); return; }
   if (!document.getElementById('stream-url').value.trim() || !document.getElementById('stream-title').value.trim()) {
     toast('Fill in and save your stream info first.', 'error'); return;
   }
