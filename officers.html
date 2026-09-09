@@ -7,7 +7,9 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=42">
+<link rel="stylesheet" href="style.css?v=45">
+<script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
+<script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
 <style>
   .char-chip-wrap{display:flex;flex-wrap:wrap;gap:0.3rem;align-items:center;max-width:260px;}
   .char-chip{
@@ -82,7 +84,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=42"></script>
+<script src="app.js?v=45"></script>
 <script>
 let members = [];
 let charactersByProfile = {};
@@ -292,38 +294,72 @@ async function showActivityDetail(refType, refId) {
   el.innerHTML = `<div style="color:var(--dim);">Loading…</div>`;
   document.getElementById('detail-modal').style.display = 'flex';
 
-  if (refType === 'wishlist') return renderWishlistDetail(refId, el);
-  if (refType === 'feedback') return renderFeedbackDetail(refId, el);
-  if (refType === 'poll') return renderPollDetail(refId, el);
-  if (refType === 'message') return renderMessageDetail(refId, el);
-  if (refType === 'application') return renderApplicationDetail(refId, el);
-  el.innerHTML = `<div style="color:var(--dim);">No further detail available for this entry.</div>`;
+  if (refType === 'wishlist') await renderWishlistDetail(refId, el);
+  else if (refType === 'feedback') await renderFeedbackDetail(refId, el);
+  else if (refType === 'poll') await renderPollDetail(refId, el);
+  else if (refType === 'message') await renderMessageDetail(refId, el);
+  else if (refType === 'application') await renderApplicationDetail(refId, el);
+  else { el.innerHTML = `<div style="color:var(--dim);">No further detail available for this entry.</div>`; return; }
+  refreshWowheadTooltips();
+}
+
+function refreshWowheadTooltips() {
+  if (window.$WowheadPower && typeof window.$WowheadPower.refreshLinks === 'function') { window.$WowheadPower.refreshLinks(); return; }
+  if (window.WH && window.WH.Tooltips && typeof window.WH.Tooltips.refreshLinks === 'function') { window.WH.Tooltips.refreshLinks(); return; }
+  clearTimeout(window._whRefreshTimer);
+  window._whRefreshTimer = setTimeout(() => {
+    const old = document.getElementById('wh-tooltips-script');
+    if (old) old.remove();
+    const s = document.createElement('script');
+    s.id = 'wh-tooltips-script';
+    s.src = 'https://wow.zamimg.com/js/tooltips.js';
+    document.body.appendChild(s);
+  }, 150);
 }
 
 async function renderWishlistDetail(wishlistId, el) {
   const { data: history } = await sb.from('wishlist_history').select('*').eq('wishlist_id', wishlistId).order('created_at', { ascending: false }).limit(2);
   const { data: wl } = await sb.from('wishlists').select('*, profiles(username)').eq('id', wishlistId).single();
-  const title = `${esc(wl?.character_name || 'Wishlist')} <span class="label">(${esc(wl?.profiles?.username || '')})</span>`;
+
+  let className = null;
+  if (wl?.character_name) {
+    const { data: charRow } = await sb.from('profile_characters').select('class_name').ilike('character_name', wl.character_name).limit(1).single().catch(() => ({ data: null }));
+    className = charRow?.class_name || null;
+  }
+  const header = `
+    <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.3rem;">
+      ${classIcon(className)}
+      <div style="font-family:'Newsreader',serif;font-size:1.3rem;color:${classColor(className)||'var(--white)'};">${esc(wl?.character_name || 'Wishlist')}</div>
+    </div>`;
 
   if (!history || history.length < 2) {
     el.innerHTML = `
-      <div style="font-family:'Newsreader',serif;font-size:1.3rem;color:var(--white);margin-bottom:0.5rem;">${title}</div>
+      ${header}
+      <div class="label" style="margin-bottom:0.8rem;">${esc(wl?.profiles?.username || '')}</div>
       <div style="color:var(--dim);">Not enough history yet to compare — needs at least two recorded snapshots (a lock, then an approved unlock, then another lock).</div>`;
     return;
   }
+
+  const normalize = (entry) => typeof entry === 'string' ? { text: entry, link: null } : (entry || { text: '', link: null });
+  const renderItem = (entry) => {
+    const it = normalize(entry);
+    if (!it.text) return '<span style="color:var(--dim)">—</span>';
+    return it.link ? `<a href="${esc(it.link)}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:inherit;">${esc(it.text)}</a>` : esc(it.text);
+  };
+
   const [after, before] = history;
   const beforeItems = before.items_snapshot || [];
   const afterItems = after.items_snapshot || [];
   const maxLen = Math.max(beforeItems.length, afterItems.length);
   let rows = '';
   for (let i = 0; i < maxLen; i++) {
-    const b = beforeItems[i] || '', a = afterItems[i] || '';
-    const diff = b !== a;
-    rows += `<div class="wl-history-row"><span class="wl-history-rank">${i+1}</span><span class="wl-history-cell${diff?' diff':''}">${esc(b)||'<span style="color:var(--dim)">—</span>'}</span><span class="wl-history-cell${diff?' diff':''}">${esc(a)||'<span style="color:var(--dim)">—</span>'}</span></div>`;
+    const bText = normalize(beforeItems[i]).text, aText = normalize(afterItems[i]).text;
+    const diff = bText !== aText;
+    rows += `<div class="wl-history-row"><span class="wl-history-rank">${i+1}</span><span class="wl-history-cell${diff?' diff':''}">${renderItem(beforeItems[i])}</span><span class="wl-history-cell${diff?' diff':''}">${renderItem(afterItems[i])}</span></div>`;
   }
   el.innerHTML = `
-    <div style="font-family:'Newsreader',serif;font-size:1.3rem;color:var(--white);margin-bottom:0.3rem;">${title}</div>
-    <div class="label" style="margin-bottom:1rem;">${before.event==='locked'?'Locked':'Unlocked'} ${fmtDate(before.created_at)} → ${after.event==='locked'?'Locked':'Unlocked'} ${fmtDate(after.created_at)}</div>
+    ${header}
+    <div class="label" style="margin-bottom:1rem;">${esc(wl?.profiles?.username || '')} · ${before.event==='locked'?'Locked':'Unlocked'} ${fmtDate(before.created_at)} → ${after.event==='locked'?'Locked':'Unlocked'} ${fmtDate(after.created_at)}</div>
     <div class="wl-history-row wl-history-header"><span class="wl-history-rank"></span><span class="wl-history-cell">Before</span><span class="wl-history-cell">After</span></div>
     ${rows}
     <div style="font-size:0.78rem;color:var(--dim);margin-top:1rem;">Highlighted rows changed between these two snapshots.</div>`;

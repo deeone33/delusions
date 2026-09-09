@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=44">
+<link rel="stylesheet" href="style.css?v=45">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
@@ -115,6 +115,8 @@
   .wl-char-icon{width:1.1rem;height:1.1rem;font-size:0.7rem;flex-shrink:0;}
   .wl-char-name{color:var(--bone);font-size:0.85rem;min-width:6rem;}
   .wl-note-input{flex:1;min-width:160px;font-size:0.8rem;padding:0.35rem 0.5rem;}
+  .hot-item-entry{display:flex;align-items:center;gap:0.6rem;padding:0.4rem 0;border-bottom:1px solid var(--hair2);cursor:pointer;}
+  .hot-item-entry:hover{background:var(--deep);}
   .wl-snapshot-note{font-size:0.8rem;color:var(--dim);background:var(--deep);border:1px solid var(--hair);padding:0.6rem 0.8rem;margin-bottom:0.9rem;}
   .wl-history-row{display:grid;grid-template-columns:1.5rem 1fr 1fr;gap:0.6rem;padding:0.4rem 0;border-bottom:1px solid var(--hair2);font-size:0.85rem;}
   .wl-history-header{font-family:'IBM Plex Mono',monospace;font-size:0.6rem;letter-spacing:0.1em;color:var(--dim);text-transform:uppercase;border-bottom:1px solid var(--hair);}
@@ -243,8 +245,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=44"></script>
-<script src="editor.js?v=44"></script>
+<script src="app.js?v=45"></script>
+<script src="editor.js?v=45"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -603,19 +605,25 @@ async function submitRaidNight() {
 
 let charToIdentity = {}; // lowercased character name -> { profileId, joinedAt, allNames }
 
+let charClassMap = {}; // lowercased character name -> class_name, from linked profile_characters
+
 async function loadProfiles() {
-  const { data } = await sb.from('profile_characters').select('character_name, profile_id, profiles(joined_at)');
+  const { data } = await sb.from('profile_characters').select('character_name, profile_id, class_name, profiles(joined_at)');
   const byProfile = {};
+  charClassMap = {};
   (data || []).forEach(row => {
     const pid = row.profile_id;
     if (!byProfile[pid]) byProfile[pid] = { profileId: pid, joinedAt: row.profiles?.joined_at || null, allNames: [] };
     byProfile[pid].allNames.push(row.character_name);
+    if (row.class_name) charClassMap[row.character_name.toLowerCase()] = row.class_name;
   });
   charToIdentity = {};
   Object.values(byProfile).forEach(identity => {
     identity.allNames.forEach(n => { charToIdentity[n.toLowerCase()] = identity; });
   });
 }
+
+function getCharClass(name) { return charClassMap[(name||'').toLowerCase()] || null; }
 
 // Resolves a character name to its full identity (all linked alts + join
 // date) if an officer has linked it to an account, otherwise treats it as
@@ -929,13 +937,46 @@ function renderPollCard(poll, isOpen) {
 // officer can see exactly what changed between "when I approved the
 // unlock" and "what it is now (or was at the next lock)". Reuses the same
 // modal DOM as everything else — only one modal is ever open at a time.
+// Quick "what does this character actually want" overview, opened by
+// clicking a name anywhere in Hot Items — reuses the same modal DOM.
+function showCharacterOverview(profileId, characterName) {
+  const wl = allWishlists.find(w => w.character_name === characterName && (!profileId || w.profile_id === profileId));
+  if (!wl) { toast('Could not find that wishlist.', 'error'); return; }
+  const items = allWishlistItemsMap[wl.id] || [];
+  const className = getCharClass(characterName);
+
+  document.getElementById('player-modal-content').innerHTML = `
+    <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.3rem;">
+      ${classIcon(className)}
+      <div style="font-family:'Newsreader',serif;font-size:1.4rem;color:${classColor(className)||'var(--white)'};">${esc(characterName)}</div>
+    </div>
+    <div class="label" style="margin-bottom:1rem;">${esc(wl.profiles?.username || '')} · ${wl.locked?'Locked':'Unlocked'}${wl.phase ? ' · '+esc(wl.phase) : ''}</div>
+    ${items.length ? items.map((it, i) => `
+      <div class="modal-row">
+        <span>${i+1}. ${renderWishlistItemDisplay(it)}</span>
+        <span>${it.received ? `<span class="pill accepted">Received</span>` : ''}</span>
+      </div>
+    `).join('') : '<div style="color:var(--dim);">No items on this wishlist.</div>'}
+  `;
+  openModalPlayer = null;
+  document.getElementById('player-modal').style.display = 'flex';
+  refreshWowheadTooltips();
+}
+
 async function showWishlistHistoryModal(wishlistId) {
   const { data: history } = await sb.from('wishlist_history').select('*').eq('wishlist_id', wishlistId).order('created_at', { ascending: false }).limit(2);
   const { data: wl } = await sb.from('wishlists').select('*, profiles(username)').eq('id', wishlistId).single();
+  const className = getCharClass(wl?.character_name);
+  const header = `
+    <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.3rem;">
+      ${classIcon(className)}
+      <div style="font-family:'Newsreader',serif;font-size:1.3rem;color:${classColor(className)||'var(--white)'};">${esc(wl?.character_name || 'Wishlist')}</div>
+    </div>`;
 
   if (!history || history.length < 2) {
     document.getElementById('player-modal-content').innerHTML = `
-      <div style="font-family:'Newsreader',serif;font-size:1.3rem;color:var(--white);margin-bottom:0.5rem;">${esc(wl?.character_name || 'Wishlist')} — History</div>
+      ${header}
+      <div class="label" style="margin-bottom:0.8rem;">${esc(wl?.profiles?.username || '')}</div>
       <div style="color:var(--dim);">Not enough history yet to compare — this needs at least two recorded snapshots (e.g. a lock, then an approved unlock, then another lock).</div>
     `;
     openModalPlayer = null;
@@ -943,25 +984,33 @@ async function showWishlistHistoryModal(wishlistId) {
     return;
   }
 
+  // Snapshots are {text, link} objects now, but older ones captured before
+  // this existed are plain strings — normalize either shape the same way.
+  const normalize = (entry) => typeof entry === 'string' ? { text: entry, link: null } : (entry || { text: '', link: null });
+  const renderSnapshotItem = (entry) => {
+    const it = normalize(entry);
+    if (!it.text) return '<span style="color:var(--dim)">—</span>';
+    return it.link ? `<a href="${esc(it.link)}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:inherit;">${esc(it.text)}</a>` : esc(it.text);
+  };
+
   const [after, before] = history; // most recent first
   const beforeItems = before.items_snapshot || [];
   const afterItems = after.items_snapshot || [];
   const maxLen = Math.max(beforeItems.length, afterItems.length);
   let rows = '';
   for (let i = 0; i < maxLen; i++) {
-    const b = beforeItems[i] || '';
-    const a = afterItems[i] || '';
-    const diff = b !== a;
+    const bText = normalize(beforeItems[i]).text, aText = normalize(afterItems[i]).text;
+    const diff = bText !== aText;
     rows += `
       <div class="wl-history-row">
         <span class="wl-history-rank">${i+1}</span>
-        <span class="wl-history-cell${diff?' diff':''}">${esc(b) || '<span style="color:var(--dim)">—</span>'}</span>
-        <span class="wl-history-cell${diff?' diff':''}">${esc(a) || '<span style="color:var(--dim)">—</span>'}</span>
+        <span class="wl-history-cell${diff?' diff':''}">${renderSnapshotItem(beforeItems[i])}</span>
+        <span class="wl-history-cell${diff?' diff':''}">${renderSnapshotItem(afterItems[i])}</span>
       </div>`;
   }
 
   document.getElementById('player-modal-content').innerHTML = `
-    <div style="font-family:'Newsreader',serif;font-size:1.3rem;color:var(--white);margin-bottom:0.3rem;">${esc(wl?.character_name || 'Wishlist')} — What Changed</div>
+    ${header}
     <div class="label" style="margin-bottom:1rem;">${esc(wl?.profiles?.username || '')} · ${before.event === 'locked' ? 'Locked' : 'Unlocked'} ${fmtDate(before.created_at)} → ${after.event === 'locked' ? 'Locked' : 'Unlocked'} ${fmtDate(after.created_at)}</div>
     <div class="wl-history-row wl-history-header">
       <span class="wl-history-rank"></span>
@@ -973,6 +1022,7 @@ async function showWishlistHistoryModal(wishlistId) {
   `;
   openModalPlayer = null;
   document.getElementById('player-modal').style.display = 'flex';
+  refreshWowheadTooltips();
 }
 
 function openPollOptionVoters(pollId, optionId) {
@@ -1413,11 +1463,12 @@ async function markItemReceived(id) {
 async function lockMyWishlist() {
   if (!confirm("Lock your wishlist? You won't be able to edit it yourself afterward — only request an unlock from an officer.")) return;
   const now = new Date().toISOString();
-  const snapshot = myWishlistItems.map(it => it.item_text);
-  const { error } = await sb.from('wishlists').update({ locked: true, locked_at: now, locked_snapshot: snapshot }).eq('id', myWishlist.id);
+  const textSnapshot = myWishlistItems.map(it => it.item_text); // plain text, used for the quick "changed?" check elsewhere
+  const richSnapshot = myWishlistItems.map(it => ({ text: it.item_text, link: it.item_link })); // full detail, for the history modal
+  const { error } = await sb.from('wishlists').update({ locked: true, locked_at: now, locked_snapshot: textSnapshot }).eq('id', myWishlist.id);
   if (error) { toast(error.message, 'error'); return; }
-  myWishlist.locked = true; myWishlist.locked_at = now; myWishlist.locked_snapshot = snapshot;
-  await sb.from('wishlist_history').insert({ wishlist_id: myWishlist.id, event: 'locked', items_snapshot: snapshot });
+  myWishlist.locked = true; myWishlist.locked_at = now; myWishlist.locked_snapshot = textSnapshot;
+  await sb.from('wishlist_history').insert({ wishlist_id: myWishlist.id, event: 'locked', items_snapshot: richSnapshot });
   logActivity(`Locked ${selectedCharacter}'s wishlist for ${currentPhase}`, { type: 'wishlist', id: myWishlist.id });
   pingWishlistDiscord(`🔒 **${currentProfile.username}** locked **${selectedCharacter}**'s wishlist for ${currentPhase}.`);
   toast('Wishlist locked.', 'success');
@@ -1494,7 +1545,13 @@ function buildHotItemsMap() {
       const key = normalizeItemName(it.item_text);
       if (!map[key]) map[key] = { displayText: it.item_text, itemLink: it.item_link, entries: [] };
       if (it.item_link && !map[key].itemLink) map[key].itemLink = it.item_link;
-      map[key].entries.push({ player: w.profiles?.username || 'Unknown', character: w.character_name || '?', rank: i + 1 });
+      map[key].entries.push({
+        player: w.profiles?.username || 'Unknown',
+        character: w.character_name || '?',
+        className: getCharClass(w.character_name),
+        profileId: w.profile_id,
+        rank: i + 1,
+      });
     });
   });
   return map;
@@ -1521,9 +1578,9 @@ function renderHotItems() {
         </div>
         <div id="${bodyId}" style="display:none;padding:0.8rem 1.1rem;border-top:1px solid var(--hair);">
           ${item.entries.sort((a,b)=>a.rank-b.rank).map(e => `
-            <div style="display:flex;justify-content:space-between;padding:0.3rem 0;font-size:0.85rem;color:var(--mist);border-bottom:1px solid var(--hair2);">
-              <span>${esc(e.player)} — ${esc(e.character)}</span>
-              <span class="label">Rank ${e.rank}</span>
+            <div class="hot-item-entry" onclick="showCharacterOverview('${e.profileId||''}','${esc(e.character).replace(/'/g,"\\'")}')">
+              <span class="cls-name-row">${classIcon(e.className)}<span class="player-link" style="${classColor(e.className)?`color:${classColor(e.className)};`:''}">${esc(e.character)}</span></span>
+              <span class="label" style="margin-left:auto;">${esc(e.player)} · Rank ${e.rank}</span>
             </div>
           `).join('')}
         </div>
@@ -1588,7 +1645,7 @@ function renderWishlistCharSubrow(w) {
     <div class="wl-char-subrow">
       <div class="wl-char-subrow-header" onclick="toggleCollapse('${bodyId}','${toggleId}')">
         <span class="expand-icon wl-char-icon" id="${toggleId}">+</span>
-        <span class="wl-char-name">${esc(w.character_name || '?')}</span>
+        <span class="cls-name-row">${classIcon(getCharClass(w.character_name))}<span class="wl-char-name" style="${classColor(getCharClass(w.character_name))?`color:${classColor(getCharClass(w.character_name))};`:''}">${esc(w.character_name || '?')}</span></span>
         <span class="label">
           ${w.locked ? 'Locked ' + fmtDate(w.locked_at) : 'Unlocked'}
           ${w.unlock_requested ? ' · <span style="color:var(--warn);">Unlock requested</span>' : ''}
@@ -1653,7 +1710,7 @@ async function saveOfficerNote(id, note, charName) {
 
 async function approveUnlock(wishlistId) {
   const w = allWishlists.find(x => x.id === wishlistId);
-  const itemsAtApproval = (allWishlistItemsMap[wishlistId] || []).map(it => it.item_text);
+  const itemsAtApproval = (allWishlistItemsMap[wishlistId] || []).map(it => ({ text: it.item_text, link: it.item_link }));
   const { error } = await sb.from('wishlists').update({ locked: false, unlock_requested: false }).eq('id', wishlistId);
   if (error) { toast(error.message, 'error'); return; }
   await sb.from('wishlist_history').insert({ wishlist_id: wishlistId, event: 'unlocked_by_officer', items_snapshot: itemsAtApproval });
