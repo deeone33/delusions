@@ -336,6 +336,33 @@ do $$ begin
   end if;
 end $$;
 
+-- Every lock and every officer-approved unlock gets its own permanent
+-- snapshot row here — this is what lets an officer compare "what it was
+-- when I approved the unlock" against "what it became after they edited
+-- it," without those snapshots overwriting each other over time.
+create table if not exists wishlist_history (
+  id uuid primary key default gen_random_uuid(),
+  wishlist_id uuid references wishlists(id) on delete cascade,
+  event text not null,   -- 'locked' | 'unlocked_by_officer'
+  items_snapshot jsonb not null,
+  created_at timestamptz default now()
+);
+alter table wishlist_history enable row level security;
+drop policy if exists "wishlist_history select own or officer" on wishlist_history;
+create policy "wishlist_history select own or officer" on wishlist_history for select using (
+  exists (select 1 from wishlists w where w.id = wishlist_id and (
+    w.profile_id = auth.uid()
+    or exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
+  ))
+);
+drop policy if exists "wishlist_history insert own or officer" on wishlist_history;
+create policy "wishlist_history insert own or officer" on wishlist_history for insert with check (
+  exists (select 1 from wishlists w where w.id = wishlist_id and (
+    w.profile_id = auth.uid()
+    or exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
+  ))
+);
+
 create table if not exists wishlist_items (
   id uuid primary key default gen_random_uuid(),
   wishlist_id uuid references wishlists(id) on delete cascade,
@@ -452,6 +479,8 @@ create table if not exists activity_log (
   action text not null,
   created_at timestamptz default now()
 );
+alter table activity_log add column if not exists ref_type text;  -- e.g. 'wishlist' — lets an entry link back to specific data
+alter table activity_log add column if not exists ref_id uuid;
 
 alter table activity_log enable row level security;
 drop policy if exists "officers read activity_log" on activity_log;

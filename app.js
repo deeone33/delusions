@@ -162,12 +162,14 @@ function fmtDate(d) {
 // actions (locking a wishlist, marking an item received) need to show up
 // here too now — reading and clearing stay officer/GM-restricted at the
 // database level (see schema.sql), this just controls who can add a line.
-function logActivity(action) {
+function logActivity(action, ref) {
   if (!isLoggedIn()) return;
   sb.from('activity_log').insert({
     officer_id: currentUser?.id,
     officer_name: currentProfile?.username || 'Someone',
     action,
+    ref_type: ref?.type || null,
+    ref_id: ref?.id || null,
   }).then(({ error }) => { if (error) console.warn('activity log failed:', error.message); });
 }
 

@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=39">
+<link rel="stylesheet" href="style.css?v=40">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
@@ -110,6 +110,11 @@
   .wl-officer-row{display:flex;align-items:center;gap:0.6rem;padding:0.5rem 0;border-bottom:1px solid var(--hair2);flex-wrap:wrap;}
   .wl-note-input{flex:1;min-width:160px;font-size:0.8rem;padding:0.35rem 0.5rem;}
   .wl-snapshot-note{font-size:0.8rem;color:var(--dim);background:var(--deep);border:1px solid var(--hair);padding:0.6rem 0.8rem;margin-bottom:0.9rem;}
+  .wl-history-row{display:grid;grid-template-columns:1.5rem 1fr 1fr;gap:0.6rem;padding:0.4rem 0;border-bottom:1px solid var(--hair2);font-size:0.85rem;}
+  .wl-history-header{font-family:'IBM Plex Mono',monospace;font-size:0.6rem;letter-spacing:0.1em;color:var(--dim);text-transform:uppercase;border-bottom:1px solid var(--hair);}
+  .wl-history-rank{color:var(--dim);font-family:'IBM Plex Mono',monospace;font-size:0.7rem;}
+  .wl-history-cell{color:var(--mist);}
+  .wl-history-cell.diff{color:var(--red-bright);font-weight:600;}
   .wl-snapshot-note strong{color:var(--bone);}
   .poll-opt-row input{flex:1;}
 </style>
@@ -139,6 +144,10 @@
     <p data-edit="ledger.wishlist.sub" style="color:var(--mist);margin-bottom:1.5rem;">Rank up to 10 items for the current phase — lock it in when you're happy with the order.</p>
   </div>
 
+  <div id="gm-export-bar" style="display:none;margin-bottom:1.5rem;">
+    <button class="btn" type="button" onclick="fullGmExport()" title="Downloads Loot, Attendance, Polls, and Wishlists as separate CSVs, one after another">Export Everything (CSV)</button>
+  </div>
+
   <div id="tab-row" style="display:flex;gap:0.6rem;margin-bottom:2rem;border-bottom:1px solid var(--hair);padding-bottom:1rem;">
     <button class="btn" id="tab-loot" onclick="showTab('loot')">Loot</button>
     <button class="btn" id="tab-attendance" style="display:none;" onclick="showTab('attendance')">Attendance</button>
@@ -153,7 +162,6 @@
       <span style="display:flex;align-items:center;gap:1rem;">
         <span class="label" id="loot-count"></span>
         <button class="btn" id="loot-csv-btn" type="button" onclick="downloadLootCSV()" style="display:none;">Download CSV</button>
-        <button class="btn" id="fix-tbc-links-btn" type="button" onclick="fixRetailWowheadLinks()" style="display:none;" title="Rewrites old retail-format Wowhead links (from before the TBC fix) to the correct TBC ones">Fix Old Item Links</button>
       </span>
     </div>
     <div id="loot-body"></div>
@@ -220,8 +228,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=39"></script>
-<script src="editor.js?v=39"></script>
+<script src="app.js?v=40"></script>
+<script src="editor.js?v=40"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -242,31 +250,6 @@ function downloadCSV(filename, headers, rows) {
   a.href = url; a.download = filename;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
-}
-
-async function fixRetailWowheadLinks() {
-  if (!confirm("Rewrite old Wowhead links (from before the TBC fix) to the correct TBC format? This only touches links that are missing '/tbc/' — nothing else changes.")) return;
-  let fixed = 0;
-
-  const { data: lootRows } = await sb.from('loot_log').select('id, item_link').not('item_link', 'is', null);
-  for (const r of (lootRows || [])) {
-    if (r.item_link && r.item_link.includes('wowhead.com/item=')) {
-      const newLink = r.item_link.replace('wowhead.com/item=', 'wowhead.com/tbc/item=');
-      await sb.from('loot_log').update({ item_link: newLink }).eq('id', r.id);
-      fixed++;
-    }
-  }
-  const { data: wlRows } = await sb.from('wishlist_items').select('id, item_link').not('item_link', 'is', null);
-  for (const r of (wlRows || [])) {
-    if (r.item_link && r.item_link.includes('wowhead.com/item=')) {
-      const newLink = r.item_link.replace('wowhead.com/item=', 'wowhead.com/tbc/item=');
-      await sb.from('wishlist_items').update({ item_link: newLink }).eq('id', r.id);
-      fixed++;
-    }
-  }
-  logActivity(`Fixed ${fixed} old retail-format Wowhead links to TBC`);
-  toast(`Fixed ${fixed} links.`, 'success');
-  await loadLoot();
 }
 
 function downloadLootCSV() {
@@ -921,6 +904,56 @@ function renderPollCard(poll, isOpen) {
 
 // Reuses the same modal DOM as the player profile popup — only one modal is
 // ever open at a time, so this is just a second thing that can be shown in it.
+// Shows the two most recent snapshots for a wishlist side by side, so an
+// officer can see exactly what changed between "when I approved the
+// unlock" and "what it is now (or was at the next lock)". Reuses the same
+// modal DOM as everything else — only one modal is ever open at a time.
+async function showWishlistHistoryModal(wishlistId) {
+  const { data: history } = await sb.from('wishlist_history').select('*').eq('wishlist_id', wishlistId).order('created_at', { ascending: false }).limit(2);
+  const { data: wl } = await sb.from('wishlists').select('*, profiles(username)').eq('id', wishlistId).single();
+
+  if (!history || history.length < 2) {
+    document.getElementById('player-modal-content').innerHTML = `
+      <div style="font-family:'Newsreader',serif;font-size:1.3rem;color:var(--white);margin-bottom:0.5rem;">${esc(wl?.character_name || 'Wishlist')} — History</div>
+      <div style="color:var(--dim);">Not enough history yet to compare — this needs at least two recorded snapshots (e.g. a lock, then an approved unlock, then another lock).</div>
+    `;
+    openModalPlayer = null;
+    document.getElementById('player-modal').style.display = 'flex';
+    return;
+  }
+
+  const [after, before] = history; // most recent first
+  const beforeItems = before.items_snapshot || [];
+  const afterItems = after.items_snapshot || [];
+  const maxLen = Math.max(beforeItems.length, afterItems.length);
+  let rows = '';
+  for (let i = 0; i < maxLen; i++) {
+    const b = beforeItems[i] || '';
+    const a = afterItems[i] || '';
+    const diff = b !== a;
+    rows += `
+      <div class="wl-history-row">
+        <span class="wl-history-rank">${i+1}</span>
+        <span class="wl-history-cell${diff?' diff':''}">${esc(b) || '<span style="color:var(--dim)">—</span>'}</span>
+        <span class="wl-history-cell${diff?' diff':''}">${esc(a) || '<span style="color:var(--dim)">—</span>'}</span>
+      </div>`;
+  }
+
+  document.getElementById('player-modal-content').innerHTML = `
+    <div style="font-family:'Newsreader',serif;font-size:1.3rem;color:var(--white);margin-bottom:0.3rem;">${esc(wl?.character_name || 'Wishlist')} — What Changed</div>
+    <div class="label" style="margin-bottom:1rem;">${esc(wl?.profiles?.username || '')} · ${before.event === 'locked' ? 'Locked' : 'Unlocked'} ${fmtDate(before.created_at)} → ${after.event === 'locked' ? 'Locked' : 'Unlocked'} ${fmtDate(after.created_at)}</div>
+    <div class="wl-history-row wl-history-header">
+      <span class="wl-history-rank"></span>
+      <span class="wl-history-cell">Before</span>
+      <span class="wl-history-cell">After</span>
+    </div>
+    ${rows}
+    <div style="font-size:0.78rem;color:var(--dim);margin-top:1rem;">Highlighted rows changed between these two snapshots. This compares the two most recent recorded points only.</div>
+  `;
+  openModalPlayer = null;
+  document.getElementById('player-modal').style.display = 'flex';
+}
+
 function openPollOptionVoters(pollId, optionId) {
   const poll = allPolls.find(p => p.id === pollId);
   const opt = allPollOptions.find(o => o.id === optionId);
@@ -1363,7 +1396,8 @@ async function lockMyWishlist() {
   const { error } = await sb.from('wishlists').update({ locked: true, locked_at: now, locked_snapshot: snapshot }).eq('id', myWishlist.id);
   if (error) { toast(error.message, 'error'); return; }
   myWishlist.locked = true; myWishlist.locked_at = now; myWishlist.locked_snapshot = snapshot;
-  logActivity(`Locked ${selectedCharacter}'s wishlist for ${currentPhase}`);
+  await sb.from('wishlist_history').insert({ wishlist_id: myWishlist.id, event: 'locked', items_snapshot: snapshot });
+  logActivity(`Locked ${selectedCharacter}'s wishlist for ${currentPhase}`, { type: 'wishlist', id: myWishlist.id });
   pingWishlistDiscord(`🔒 **${currentProfile.username}** locked **${selectedCharacter}**'s wishlist for ${currentPhase}.`);
   toast('Wishlist locked.', 'success');
   renderMyWishlist();
@@ -1513,9 +1547,11 @@ async function saveOfficerNote(id, note, charName) {
 
 async function approveUnlock(wishlistId) {
   const w = allWishlists.find(x => x.id === wishlistId);
+  const itemsAtApproval = (allWishlistItemsMap[wishlistId] || []).map(it => it.item_text);
   const { error } = await sb.from('wishlists').update({ locked: false, unlock_requested: false }).eq('id', wishlistId);
   if (error) { toast(error.message, 'error'); return; }
-  logActivity(`Unlocked ${w?.character_name || "a player"}'s wishlist`);
+  await sb.from('wishlist_history').insert({ wishlist_id: wishlistId, event: 'unlocked_by_officer', items_snapshot: itemsAtApproval });
+  logActivity(`Unlocked ${w?.character_name || "a player"}'s wishlist`, { type: 'wishlist', id: wishlistId });
   pingWishlistDiscord(`✅ **${currentProfile.username}** unlocked **${w?.character_name || 'a'}**'s wishlist (${w?.profiles?.username || ''}).`);
   toast('Unlock approved.', 'success');
   await loadOfficerWishlistReview();
@@ -1562,6 +1598,41 @@ function downloadWishlistCSV() {
     });
   });
   downloadCSV('delusions-wishlists.csv', ['Player','Phase','Rank','Item','Received','Received By','Officer Note'], rows);
+}
+
+async function fullGmExport() {
+  if (!isGM()) return;
+  toast('Exporting everything — four files will download one after another.', 'info');
+
+  await loadLoot();
+  downloadLootCSV();
+  await new Promise(r => setTimeout(r, 400));
+
+  await loadAttendance();
+  downloadAttendanceCSV();
+  await new Promise(r => setTimeout(r, 400));
+
+  await loadPolls();
+  downloadPollsCSV();
+  await new Promise(r => setTimeout(r, 400));
+
+  // Wishlists: every phase, not just whichever one is currently being viewed.
+  const { data: allWl } = await sb.from('wishlists').select('*, profiles(username)');
+  const wlIds = (allWl || []).map(w => w.id);
+  let allWlItems = [];
+  if (wlIds.length) {
+    const { data: items } = await sb.from('wishlist_items').select('*').in('wishlist_id', wlIds);
+    allWlItems = items || [];
+  }
+  const wlRows = [];
+  (allWl || []).forEach(w => {
+    const items = allWlItems.filter(it => it.wishlist_id === w.id).sort((a,b) => a.sort_order - b.sort_order);
+    items.forEach((it, i) => wlRows.push([w.profiles?.username || '', w.character_name || '', w.phase, i + 1, it.item_text, it.received ? 'Yes' : 'No', it.received_by || '', it.officer_note || '']));
+  });
+  downloadCSV('delusions-all-wishlists.csv', ['Player','Character','Phase','Rank','Item','Received','Received By','Officer Note'], wlRows);
+
+  logActivity('Exported a full data backup (Loot, Attendance, Polls, Wishlists)');
+  toast('Full export complete — check your downloads.', 'success');
 }
 
 // ---------- AUTO-DETECT ON LOOT IMPORT ----------
@@ -1629,7 +1700,7 @@ async function autoMatchWishlistOnImport(lootRows) {
 
   if (isOfficer()) {
     document.getElementById('loot-csv-btn').style.display = '';
-    document.getElementById('fix-tbc-links-btn').style.display = '';
+    if (isGM()) document.getElementById('gm-export-bar').style.display = '';
     document.getElementById('attendance-csv-btn').style.display = '';
     document.getElementById('polls-csv-btn').style.display = '';
     document.getElementById('wishlist-csv-btn').style.display = '';
@@ -1645,6 +1716,9 @@ async function autoMatchWishlistOnImport(lootRows) {
   document.getElementById('tab-row').style.display = visibleTabs.length > 1 ? '' : 'none';
   const requestedTab = new URLSearchParams(window.location.search).get('tab');
   showTab(visibleTabs.includes(requestedTab) ? requestedTab : visibleTabs[0]);
+
+  const historyId = new URLSearchParams(window.location.search).get('history');
+  if (historyId && isOfficer()) showWishlistHistoryModal(historyId);
 })();
 </script>
 </body>

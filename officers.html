@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=39">
+<link rel="stylesheet" href="style.css?v=40">
 <style>
   .char-chip-wrap{display:flex;flex-wrap:wrap;gap:0.3rem;align-items:center;max-width:260px;}
   .char-chip{
@@ -60,7 +60,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=39"></script>
+<script src="app.js?v=40"></script>
 <script>
 let members = [];
 let charactersByProfile = {};
@@ -207,15 +207,21 @@ async function loadActivity() {
   const el = document.getElementById('activity-list');
   if (error) { el.innerHTML = `<div style="color:var(--dim);">Couldn't load activity log.</div>`; return; }
   if (!data || !data.length) { el.innerHTML = `<div style="color:var(--dim);">Nothing logged yet.</div>`; return; }
-  el.innerHTML = data.map(a => `
+  el.innerHTML = data.map(a => {
+    const isWishlistRef = a.ref_type === 'wishlist' && a.ref_id;
+    const actionText = isWishlistRef
+      ? `<a href="ledger.html?tab=wishlist&history=${a.ref_id}" style="color:inherit;text-decoration:underline;text-decoration-style:dotted;" title="Click to see what changed">${esc(a.action)}</a>`
+      : esc(a.action);
+    return `
     <div class="activity-row">
-      <span><span class="who">${esc(a.officer_name)}</span> — ${esc(a.action)}</span>
+      <span><span class="who">${esc(a.officer_name)}</span> — ${actionText}</span>
       <span style="display:flex;align-items:center;gap:0.7rem;">
         <span class="label">${fmtDate(a.created_at)}</span>
         ${isGM() ? `<button onclick="deleteActivityEntry('${a.id}')" title="Remove this entry" style="background:none;border:1px solid var(--hair);border-radius:3px;color:var(--dim);width:1.4rem;height:1.4rem;cursor:pointer;font-size:0.8rem;line-height:1;">&times;</button>` : ''}
       </span>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
 async function deleteActivityEntry(id) {
