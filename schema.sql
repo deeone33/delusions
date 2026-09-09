@@ -288,6 +288,134 @@ create policy "officers delete feedback" on feedback for delete using (
   exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
 );
 
+-- ---------- WISHLISTS ----------
+-- thatsmybis-style ranked item list, one per player per phase. Locking
+-- freezes the list+order for officer review; a locked player can only
+-- *request* an unlock — actually unlocking requires officer/GM action,
+-- enforced below via RLS, not just hidden in the UI.
+create table if not exists wishlists (
+  id uuid primary key default gen_random_uuid(),
+  profile_id uuid references profiles(id) on delete cascade,
+  phase text not null,
+  locked boolean not null default false,
+  locked_at timestamptz,
+  unlock_requested boolean not null default false,
+  unlock_requested_at timestamptz,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  unique(profile_id, phase)
+);
+
+create table if not exists wishlist_items (
+  id uuid primary key default gen_random_uuid(),
+  wishlist_id uuid references wishlists(id) on delete cascade,
+  item_text text not null,
+  item_link text,               -- optional Wowhead item URL, enables the tooltip/quality-color widget
+  sort_order int not null default 0,
+  received boolean not null default false,
+  received_at timestamptz,
+  received_by text,             -- 'auto' (matched from a loot import) or whoever's username marked it
+  officer_note text
+);
+
+alter table wishlists      enable row level security;
+alter table wishlist_items enable row level security;
+
+-- ---- wishlists ----
+drop policy if exists "wishlists select own or officer" on wishlists;
+create policy "wishlists select own or officer" on wishlists for select using (
+  auth.uid() = profile_id
+  or exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
+);
+drop policy if exists "wishlists insert own" on wishlists;
+create policy "wishlists insert own" on wishlists for insert with check (auth.uid() = profile_id);
+
+-- Free editing (including locking itself) while currently unlocked.
+drop policy if exists "wishlists player edit while unlocked" on wishlists;
+create policy "wishlists player edit while unlocked" on wishlists for update using (
+  auth.uid() = profile_id and locked = false
+) with check (
+  auth.uid() = profile_id
+);
+-- Once locked, this is the ONLY policy left available to the player — the
+-- WITH CHECK forces locked to stay true, so they can toggle
+-- unlock_requested but can never flip locked back to false themselves.
+drop policy if exists "wishlists player request unlock" on wishlists;
+create policy "wishlists player request unlock" on wishlists for update using (
+  auth.uid() = profile_id and locked = true
+) with check (
+  auth.uid() = profile_id and locked = true
+);
+drop policy if exists "wishlists officer manage" on wishlists;
+create policy "wishlists officer manage" on wishlists for update using (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
+);
+drop policy if exists "wishlists delete own or officer" on wishlists;
+create policy "wishlists delete own or officer" on wishlists for delete using (
+  (auth.uid() = profile_id and locked = false)
+  or exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
+);
+
+-- ---- wishlist_items ----
+drop policy if exists "wishlist_items select own or officer" on wishlist_items;
+create policy "wishlist_items select own or officer" on wishlist_items for select using (
+  exists (select 1 from wishlists w where w.id = wishlist_id and (
+    w.profile_id = auth.uid()
+    or exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
+  ))
+);
+-- Player: free add/edit/reorder of their own items while the list is unlocked.
+drop policy if exists "wishlist_items player insert while unlocked" on wishlist_items;
+create policy "wishlist_items player insert while unlocked" on wishlist_items for insert with check (
+  exists (select 1 from wishlists w where w.id = wishlist_id and w.profile_id = auth.uid() and w.locked = false)
+);
+drop policy if exists "wishlist_items player update while unlocked" on wishlist_items;
+create policy "wishlist_items player update while unlocked" on wishlist_items for update using (
+  exists (select 1 from wishlists w where w.id = wishlist_id and w.profile_id = auth.uid() and w.locked = false)
+);
+drop policy if exists "wishlist_items player delete while unlocked" on wishlist_items;
+create policy "wishlist_items player delete while unlocked" on wishlist_items for delete using (
+  exists (select 1 from wishlists w where w.id = wishlist_id and w.profile_id = auth.uid() and w.locked = false)
+);
+-- Player: can mark their OWN item received regardless of lock state
+-- (receiving loot doesn't care whether the list is frozen for review), but
+-- this is a one-way door — the WITH CHECK only ever allows the result to be
+-- true, so this policy can't be used to un-receive something.
+drop policy if exists "wishlist_items player mark received" on wishlist_items;
+create policy "wishlist_items player mark received" on wishlist_items for update using (
+  exists (select 1 from wishlists w where w.id = wishlist_id and w.profile_id = auth.uid())
+) with check (
+  exists (select 1 from wishlists w where w.id = wishlist_id and w.profile_id = auth.uid())
+  and received = true
+);
+-- Officer (not GM): full edit while an item is still unreceived (covers
+-- adding notes, marking it received).
+drop policy if exists "wishlist_items officer edit unreceived" on wishlist_items;
+create policy "wishlist_items officer edit unreceived" on wishlist_items for update using (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+  and received = false
+);
+-- Officer (not GM): once received, can still edit notes, but the WITH
+-- CHECK forces received to stay true — they cannot un-receive it. Only GM can.
+drop policy if exists "wishlist_items officer edit received notes only" on wishlist_items;
+create policy "wishlist_items officer edit received notes only" on wishlist_items for update using (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'officer')
+  and received = true
+) with check (
+  received = true
+);
+-- GM: unrestricted — can un-receive, bulk-clear, edit anything.
+drop policy if exists "wishlist_items gm manage" on wishlist_items;
+create policy "wishlist_items gm manage" on wishlist_items for update using (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'gm')
+);
+-- Deleting an item outright (as opposed to a player removing their own
+-- while unlocked, above) is GM-only.
+drop policy if exists "wishlist_items gm delete" on wishlist_items;
+create policy "wishlist_items gm delete" on wishlist_items for delete using (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'gm')
+);
+
 -- ---------- ACTIVITY LOG ----------
 -- Audit trail for officer actions — who deleted/approved/edited what.
 create table if not exists activity_log (
@@ -304,8 +432,13 @@ create policy "officers read activity_log" on activity_log for select using (
   exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
 );
 drop policy if exists "officers write activity_log" on activity_log;
-create policy "officers write activity_log" on activity_log for insert with check (
-  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
+drop policy if exists "authenticated write activity_log" on activity_log;
+-- Widened from officer-only: players now log their own actions too (marking
+-- an item received, locking a wishlist). Reading and clearing stay
+-- restricted (officer-read, gm-clear below) — this only affects who can
+-- ADD a line, not who can see or erase the trail.
+create policy "authenticated write activity_log" on activity_log for insert with check (
+  auth.uid() is not null
 );
 -- Clearing the audit trail is GM-only, deliberately — a corrupt officer
 -- shouldn't be able to erase evidence of their own actions.

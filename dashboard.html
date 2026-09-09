@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@300;400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=34">
+<link rel="stylesheet" href="style.css?v=35">
 </head>
 <body>
 <div class="topbar" id="topnav-top"><span>Spineshatter EU · Horde</span><span></span></div>
@@ -39,9 +39,11 @@
         <input type="text" id="webhook-input" placeholder="https://discord.com/api/webhooks/..." style="margin-bottom:0.8rem;">
         <label class="form-label">Discord webhook URL for #feedback (pings with the full message)</label>
         <input type="text" id="feedback-webhook-input" placeholder="https://discord.com/api/webhooks/..." style="margin-bottom:0.8rem;">
-        <label class="form-label">Discord role to @ping (optional, used for both above)</label>
+        <label class="form-label">Discord webhook URL for wishlists (pings when locked or unlock requested)</label>
+        <input type="text" id="wishlist-webhook-input" placeholder="https://discord.com/api/webhooks/..." style="margin-bottom:0.8rem;">
+        <label class="form-label">Discord role to @ping (optional, used for all three above)</label>
         <input type="text" id="role-input" placeholder="e.g. 123456789012345678" style="margin-bottom:0.8rem;">
-        <div style="font-size:0.8rem;color:var(--dim);margin-bottom:0.8rem;">Create a webhook in Discord for each: Server Settings → Integrations → Webhooks → New Webhook, pick the channel (e.g. your officer channel for applications, #feedback for feedback), copy each URL into its field above. For the role ping: enable Developer Mode (User Settings → Advanced), then right-click your Officer role in Server Settings → Roles → Copy Role ID. Leave any field blank to skip that notification. Note: these URLs are visible to anyone who views the page source, so use low-stakes channels.</div>
+        <div style="font-size:0.8rem;color:var(--dim);margin-bottom:0.8rem;">Create a webhook in Discord for each notification you want: Server Settings → Integrations → Webhooks → New Webhook, pick the channel, copy each URL into its field above. For the role ping: enable Developer Mode (User Settings → Advanced), then right-click your Officer role in Server Settings → Roles → Copy Role ID. Leave any field blank to skip that notification. Note: these URLs are visible to anyone who views the page source, so use low-stakes channels.</div>
         <button class="btn primary" id="webhook-save" type="button">Save Settings</button>
       </div>
     </div>
@@ -49,7 +51,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=34"></script>
+<script src="app.js?v=35"></script>
 <script>
 (async () => {
   await loadSession();
@@ -79,6 +81,7 @@
   }
   if (!isMember() && !isOfficer()) links.push({ href: 'apply.html', label: 'Apply to Trial' });
   if (isMember()) links.push({ href: 'feedback.html', label: 'Give Feedback' });
+  if (isMember()) links.push({ href: 'ledger.html', label: 'Your Wishlist' });
   if (isOfficer()) {
     links.push({ href: 'applications.html', label: 'Review Applications' });
     links.push({ href: 'officers.html', label: 'Manage Officers' });
@@ -129,8 +132,17 @@
         </div>`;
     }
 
+    const { count: wlCount } = await sb.from('wishlists').select('*', {count:'exact',head:true}).eq('unlock_requested', true);
+    if (wlCount > 0) {
+      document.getElementById('app-status').innerHTML += `
+        <div class="card card-warn" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;margin-top:1rem;">
+          <div><div class="label" style="color:var(--warn);">Unlock Requests</div><div style="color:var(--white)">${wlCount} wishlist${wlCount!==1?'s':''} waiting on you</div></div>
+          <a href="ledger.html" class="btn">Review →</a>
+        </div>`;
+    }
+
     // Officer settings: Discord webhooks + role ping for notifications
-    let cfg = null, cfgRole = null, cfgFeedback = null;
+    let cfg = null, cfgRole = null, cfgFeedback = null, cfgWishlist = null;
     try {
       const res = await sb.from('site_content').select('*').eq('key','config.discord_webhook_url').single();
       cfg = res.data;
@@ -143,18 +155,25 @@
       const res3 = await sb.from('site_content').select('*').eq('key','config.discord_feedback_webhook_url').single();
       cfgFeedback = res3.data;
     } catch (e) { cfgFeedback = null; }
+    try {
+      const res4 = await sb.from('site_content').select('*').eq('key','config.discord_wishlist_webhook_url').single();
+      cfgWishlist = res4.data;
+    } catch (e) { cfgWishlist = null; }
     document.getElementById('officer-settings').style.display = 'block';
     document.getElementById('webhook-input').value = cfg?.text || '';
     document.getElementById('feedback-webhook-input').value = cfgFeedback?.text || '';
+    document.getElementById('wishlist-webhook-input').value = cfgWishlist?.text || '';
     document.getElementById('role-input').value = cfgRole?.text || '';
     document.getElementById('webhook-save').onclick = async () => {
       const url = document.getElementById('webhook-input').value.trim();
       const feedbackUrl = document.getElementById('feedback-webhook-input').value.trim();
+      const wishlistUrl = document.getElementById('wishlist-webhook-input').value.trim();
       const roleId = document.getElementById('role-input').value.trim();
       const r1 = await sb.from('site_content').upsert({ key: 'config.discord_webhook_url', text: url, updated_at: new Date().toISOString() });
       const r2 = await sb.from('site_content').upsert({ key: 'config.discord_role_id', text: roleId, updated_at: new Date().toISOString() });
       const r3 = await sb.from('site_content').upsert({ key: 'config.discord_feedback_webhook_url', text: feedbackUrl, updated_at: new Date().toISOString() });
-      if (r1.error || r2.error || r3.error) toast('Save failed: ' + (r1.error?.message || r2.error?.message || r3.error?.message), 'error'); else toast('Saved.', 'success');
+      const r4 = await sb.from('site_content').upsert({ key: 'config.discord_wishlist_webhook_url', text: wishlistUrl, updated_at: new Date().toISOString() });
+      if (r1.error || r2.error || r3.error || r4.error) toast('Save failed: ' + (r1.error?.message || r2.error?.message || r3.error?.message || r4.error?.message), 'error'); else toast('Saved.', 'success');
     };
   }
 })();

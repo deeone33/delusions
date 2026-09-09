@@ -99,6 +99,8 @@ async function loadNavBadges() {
   setNavBadge('applications', appCount);
   const { count: fbCount } = await sb.from('feedback').select('*', {count:'exact',head:true}).eq('status','new');
   setNavBadge('feedback', fbCount);
+  const { count: wlCount } = await sb.from('wishlists').select('*', {count:'exact',head:true}).eq('unlock_requested', true);
+  setNavBadge('ledger', wlCount); // surfaces on the Ledger tab itself, since Wishlist lives inside it
 }
 function setNavBadge(id, count) {
   const el = document.getElementById(`navbadge-${id}`);
@@ -156,11 +158,15 @@ function fmtDate(d) {
 // ---- ACTIVITY LOG ----
 // Fire-and-forget audit trail for officer actions. Never blocks or throws —
 // losing a log entry is fine, losing the actual action it's logging is not.
+// Fire-and-forget audit trail. Used to be officer-only, but player-initiated
+// actions (locking a wishlist, marking an item received) need to show up
+// here too now — reading and clearing stay officer/GM-restricted at the
+// database level (see schema.sql), this just controls who can add a line.
 function logActivity(action) {
-  if (!isOfficer()) return;
+  if (!isLoggedIn()) return;
   sb.from('activity_log').insert({
     officer_id: currentUser?.id,
-    officer_name: currentProfile?.username || 'An officer',
+    officer_name: currentProfile?.username || 'Someone',
     action,
   }).then(({ error }) => { if (error) console.warn('activity log failed:', error.message); });
 }
