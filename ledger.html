@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=43">
+<link rel="stylesheet" href="style.css?v=44">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
@@ -243,8 +243,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=43"></script>
-<script src="editor.js?v=43"></script>
+<script src="app.js?v=44"></script>
+<script src="editor.js?v=44"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -665,16 +665,16 @@ function renderAttendance() {
     const roster = allAttendees.filter(a => a.raid_night_id === last.id);
     const expanded = expandedNights && expandedNights.has('last-raid-card');
     lastCard.innerHTML = `
-      <div class="card card-accent" style="margin-bottom:2rem;">
-        <div class="raid-group-header" style="padding:0;cursor:pointer;" onclick="toggleLastRaidCard()">
+      <div class="raid-group card-accent" style="margin-bottom:1.2rem;">
+        <div class="raid-group-header" onclick="toggleLastRaidCard()">
           <span class="expand-icon" id="last-raid-toggle">${expanded?'−':'+'}</span>
-          <div style="color:var(--white);font-weight:600;font-size:1rem;">${esc(last.title)}</div>
-          <span class="label" style="margin-left:auto;display:flex;align-items:center;gap:0.7rem;">
+          <span class="raid-group-title">${esc(last.title)}</span>
+          <span class="label">
             ${last.raid_date ? new Date(last.raid_date).toLocaleDateString() : ''} · ${roster.length} raiders
             ${isOfficer() ? `<button class="row-delete" title="Remove this raid" onclick="event.stopPropagation(); deleteRaidNight('${last.id}')">${TRASH_ICON}</button>` : ''}
           </span>
         </div>
-        <div id="last-raid-body" style="display:${expanded?'':'none'};margin-top:0.8rem;">
+        <div id="last-raid-body" style="display:${expanded?'':'none'};padding:0.8rem 1.1rem;border-top:1px solid var(--hair);">
           <div class="roster-compact">
             ${roster.map(a => playerLink(a.character_name, a.class_name)).join('')}
           </div>
