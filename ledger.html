@@ -7,9 +7,9 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=84">
+<link rel="stylesheet" href="style.css?v=85">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-<script>const whTooltips = {colorLinks: true, iconizeLinks: false, renameLinks: false};</script>
+<script>const whTooltips = {colorLinks: false, iconizeLinks: false, renameLinks: false};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
 <style>
   .page-wide{max-width:920px;margin:0 auto;padding:0 2rem 5rem;}
@@ -335,8 +335,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=84"></script>
-<script src="editor.js?v=84"></script>
+<script src="app.js?v=85"></script>
+<script src="editor.js?v=85"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -1238,7 +1238,7 @@ async function showPlayerProfile(characterName, presetBoss) {
 
   let gearHtml = '<div style="color:var(--dim);">No gear data for this raid.</div>';
   if (gearRow) {
-    gearHtml = `<div style="display:grid;grid-template-columns:44px 1fr 70px 60px;gap:0.5rem;align-items:center;">` + GEARCHECK_SLOTS.map(slot => {
+    gearHtml = `<div style="display:grid;grid-template-columns:44px 130px 60px auto;gap:0.5rem;align-items:center;">` + GEARCHECK_SLOTS.map(slot => {
       const combined = combineSlotStatus(gearRow, slot);
       const e = combined.enchant;
       if (!e) return '';
@@ -1250,12 +1250,13 @@ async function showPlayerProfile(characterName, presetBoss) {
       // on any external script's behavior) with the real name + effect.
       let enchantBit;
       if (!e.enchantId) {
-        enchantBit = `<span style="color:${STATUS_COLOR.missing};">No Enchant</span>`;
+        enchantBit = `<span style="color:${STATUS_COLOR.missing};">Enchant</span>`;
       } else if (e.enchantName) {
-        const popupHtml = `<div style="color:${STATUS_COLOR[e.status]};font-weight:600;margin-bottom:0.2rem;">${esc(e.enchantName)}</div>${e.enchantDesc ? `<div style="color:#ccc;">${esc(e.enchantDesc)}</div>` : ''}`;
-        enchantBit = `<span style="color:${STATUS_COLOR[e.status]};cursor:help;text-decoration:underline dotted;" onmouseenter='showInfoPopup(event, ${jsAttr(popupHtml)})' onmouseleave='hideInfoPopup()'>Enchanted</span>`;
+        const fallbackDesc = describeEnchantFromName(e.enchantName);
+        const popupHtml = `<div style="color:${STATUS_COLOR[e.status]};font-weight:600;margin-bottom:0.2rem;">${esc(e.enchantName)}</div>${(e.enchantDesc || fallbackDesc) ? `<div style="color:#ccc;">${esc(e.enchantDesc || fallbackDesc)}</div>` : ''}`;
+        enchantBit = `<span style="color:${STATUS_COLOR[e.status]};cursor:help;text-decoration:underline dotted;" onmouseenter='showInfoPopup(event, ${jsAttr(popupHtml)})' onmouseleave='hideInfoPopup()'>Enchant</span>`;
       } else {
-        enchantBit = `<span style="color:${STATUS_COLOR.good};">Enchanted</span>`;
+        enchantBit = `<span style="color:${STATUS_COLOR.good};">Enchant</span>`;
       }
 
       // Gems: plain circle characters, color-coded by quality. Real
@@ -1360,7 +1361,7 @@ function showGearCheckDetail(characterName, slot) {
             const label = esc(e.enchantName); // color alone carries good/suboptimal, no "(outdated)" text
             return spellId
               ? `<a href="https://www.wowhead.com/tbc/spell=${spellId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${STATUS_COLOR[e.status]};">${label}</a>`
-              : `<span style="color:${STATUS_COLOR[e.status]};cursor:help;text-decoration:underline dotted;" onmouseenter='showInfoPopup(event, ${jsAttr(e.enchantDesc || e.enchantName)})' onmouseleave='hideInfoPopup()'>${label}</span>`;
+              : `<span style="color:${STATUS_COLOR[e.status]};cursor:help;text-decoration:underline dotted;" onmouseenter='showInfoPopup(event, ${jsAttr(e.enchantDesc || describeEnchantFromName(e.enchantName) || e.enchantName)})' onmouseleave='hideInfoPopup()'>${label}</span>`;
           })()
         : `<span style="color:${STATUS_COLOR.good};">Enchanted</span>`)
     : `<span style="color:${STATUS_COLOR.missing};">No enchant</span>`;
@@ -2323,6 +2324,19 @@ const ENCHANT_NAME_TO_SPELL_SYNC = {
   "Enchant 2H Weapon - Major Agility": 27977, "Enchant Ring - Healing Power": 27926, "Enchant Ring - Spellpower": 27924,
   "Enchant Ring - Stats": 27927, "Enchant Ring - Striking": 27920,
 };
+// Fallback description for enchants with no decoded desc field (the
+// BAD_ENCHANTS_SYNC outdated list never had one) - parses the shorthand
+// name itself, e.g. "Bracers - 7 Str" -> "+7 Strength". MUST be global
+// scope, called from showPlayerProfile and showGearCheckDetail.
+const STAT_ABBREV_SYNC = { Str:'Strength', Sta:'Stamina', Agi:'Agility', Int:'Intellect', Spi:'Spirit',
+  HP:'Health', Mana:'Mana', Def:'Defense', FR:'Fire Resistance', Res:'Resistance' };
+function describeEnchantFromName(name) {
+  const m = name.match(/(\d+)\s*([A-Za-z]+)$/);
+  if (!m) return '';
+  const [, num, abbrev] = m;
+  const full = STAT_ABBREV_SYNC[abbrev] || abbrev;
+  return `+${num} ${full}`;
+}
 const WEAPON_OIL_STAT_SYNC = { 25:'spellDamage',2625:'spellDamage',2626:'spellDamage',2676:'spellDamage',2678:'spellDamage',2685:'spellDamage',
   26:'spellHealing',2623:'spellHealing',2624:'spellHealing',2629:'spellHealing',2677:'spellHealing' };
 // General effect category per type - exact per-tier numbers aren't
