@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=74">
+<link rel="stylesheet" href="style.css?v=75">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
@@ -335,8 +335,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=74"></script>
-<script src="editor.js?v=74"></script>
+<script src="app.js?v=75"></script>
+<script src="editor.js?v=75"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -1213,7 +1213,7 @@ function renderGearCheck() {
 
   let html = `<table class="dense-check-table"><tr><th class="name-col">Player</th>${GEARCHECK_SLOTS.map(s => `<th>${s}</th>`).join('')}</tr>`;
   rows.forEach(r => {
-    html += `<tr><td><span class="cls-name-row" style="cursor:pointer;" onclick='showPlayerProfile(${jsAttr(r.character_name)})' title="Click for full profile">${classIcon(r.class_name)}<span style="${classColor(r.class_name) ? `color:${classColor(r.class_name)};` : ''}">${esc(r.character_name)}</span></span></td>`;
+    html += `<tr><td><span class="cls-name-row" style="cursor:pointer;" onclick='showPlayerProfile(${jsAttr(r.character_name)})' title="Click for full profile">${roleIcon(r.detected_role)}${classIcon(r.class_name)}<span style="${classColor(r.class_name) ? `color:${classColor(r.class_name)};` : ''}">${esc(r.character_name)}</span></span></td>`;
     GEARCHECK_SLOTS.forEach(slot => {
       const combined = combineSlotStatus(r, slot);
       html += `<td style="cursor:pointer;" onclick='showGearCheckDetail(${jsAttr(r.character_name)}, ${jsAttr(slot)})' title="Click for detail"><span style="color:${STATUS_COLOR[combined.status]};font-weight:600;">${STATUS_SYMBOL[combined.status]}</span></td>`;
@@ -1248,12 +1248,16 @@ async function showPlayerProfile(characterName, presetBoss) {
             ? `<span style="color:${STATUS_COLOR[e.status]};font-size:0.75rem;" title="${esc(e.enchantDesc || e.enchantName)}">${esc(e.enchantName)}${e.status === 'suboptimal' ? ' (outdated)' : ''}</span>`
             : `<span style="color:${STATUS_COLOR.good};font-size:0.75rem;">enchanted</span>`)
         : `<span style="color:${STATUS_COLOR.missing};font-size:0.75rem;">no enchant</span>`;
-      // Gems collapsed into compact status dots (one per socket) with the
-      // real gem name as a hover title, instead of listing full names inline.
+      // Gems collapsed into compact status dots (one per socket), but each
+      // dot is still a real Wowhead-linked element so the rich tooltip
+      // works - the earlier "compact" pass accidentally replaced these
+      // with plain title-only spans, losing the tooltip. Fixed here.
       const gemDots = combined.gems.length ? combined.gems.map(g => {
         const symbol = g.meta ? '◆' : STATUS_SYMBOL[g.status];
         const color = g.meta ? 'var(--dim)' : STATUS_COLOR[g.status];
-        return `<span style="color:${color};cursor:default;" title="${esc(g.itemName)}">${symbol}</span>`;
+        return g.itemId
+          ? `<a href="https://www.wowhead.com/tbc/item=${g.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${color};text-decoration:none;">${symbol}</a>`
+          : `<span style="color:${color};">${symbol}</span>`;
       }).join(' ') : '';
       return `
         <div style="display:flex;align-items:baseline;gap:0.5rem;padding:0.3rem 0;border-bottom:1px solid var(--hair2);font-size:0.82rem;">
@@ -1397,20 +1401,52 @@ async function loadConsumablesRaid(raidId) {
   consumablesRows = data || [];
   const bosses = [...new Set(consumablesRows.map(r => r.boss_name))];
   const bossSel = document.getElementById('consumables-boss-select');
-  bossSel.innerHTML = bosses.map(b => `<option value="${esc(b)}">${esc(b)}</option>`).join('');
+  bossSel.innerHTML = `<option value="__summary__">Summary</option>` + bosses.map(b => `<option value="${esc(b)}">${esc(b)}</option>`).join('');
   renderConsumables();
+}
+
+function renderConsumablesSummaryTable(search) {
+  const names = [...new Set(consumablesRows.map(r => r.character_name))];
+  const players = names.map(name => {
+    const rows = consumablesRows.filter(r => r.character_name === name);
+    const food = rows.filter(r => r.food?.used).length;
+    const flask = rows.filter(r => r.flask_elixir?.type === 'flask' || (r.flask_elixir?.type === 'elixir' && !r.flask_elixir?.tierIssue)).length;
+    const scroll = rows.filter(r => r.scroll?.status === 'good').length;
+    const weapon = rows.filter(r => r.weapon_enchant?.status === 'good').length;
+    const potions = rows.reduce((s, r) => s + (r.potions?.count || 0), 0);
+    const runes = rows.reduce((s, r) => s + (r.runes?.count || 0), 0);
+    const other = rows.reduce((s, r) => s + (r.other || []).reduce((s2, o) => s2 + (o.count || 0), 0), 0);
+    const total = food + flask + scroll + weapon + potions + runes + other;
+    const className = rows[0]?.class_name;
+    return { name, className, food, flask, scroll, weapon, potions, runes, other, total };
+  }).filter(p => !search || p.name.toLowerCase().includes(search))
+    .sort((a, b) => b.total - a.total);
+
+  let html = `<table class="dense-check-table"><tr><th class="name-col">Player</th><th>Total</th><th>Food</th><th>Flask/Elixir</th><th>Scroll</th><th>Weapon</th><th>Potions</th><th>Runes</th><th>Other</th></tr>`;
+  players.forEach(p => {
+    html += `<tr><td><span class="cls-name-row" style="cursor:pointer;" onclick='showPlayerProfile(${jsAttr(p.name)})' title="Click for full profile">${roleIcon(getDetectedRole(p.name))}${classIcon(p.className)}<span style="${classColor(p.className) ? `color:${classColor(p.className)};` : ''}">${esc(p.name)}</span></span></td>`;
+    html += `<td style="color:${STATUS_COLOR.good};font-weight:600;">${p.total}</td><td>${p.food}</td><td>${p.flask}</td><td>${p.scroll}</td><td>${p.weapon}</td><td>${p.potions}</td><td>${p.runes}</td><td>${p.other}</td></tr>`;
+  });
+  html += '</table>';
+  document.getElementById('consumables-table-wrap').innerHTML = html;
 }
 
 function renderConsumables() {
   const search = (document.getElementById('consumables-search')?.value || '').trim().toLowerCase();
   const boss = document.getElementById('consumables-boss-select')?.value;
+
+  if (boss === '__summary__') {
+    renderConsumablesSummaryTable(search);
+    return;
+  }
+
   let rows = consumablesRows.filter(r => r.boss_name === boss);
   if (search) rows = rows.filter(r => r.character_name.toLowerCase().includes(search));
   rows = [...rows].sort((a, b) => a.character_name.localeCompare(b.character_name));
 
   let html = `<table class="dense-check-table"><tr><th class="name-col">Player</th>${CONSUMABLE_COLS.map(c => `<th>${c.label}</th>`).join('')}</tr>`;
   rows.forEach(r => {
-    html += `<tr><td><span class="cls-name-row" style="cursor:pointer;" onclick='showPlayerProfile(${jsAttr(r.character_name)}, ${jsAttr(boss)})' title="Click for full profile">${classIcon(r.class_name)}<span style="${classColor(r.class_name) ? `color:${classColor(r.class_name)};` : ''}">${esc(r.character_name)}</span></span></td>`;
+    html += `<tr><td><span class="cls-name-row" style="cursor:pointer;" onclick='showPlayerProfile(${jsAttr(r.character_name)}, ${jsAttr(boss)})' title="Click for full profile">${roleIcon(getDetectedRole(r.character_name))}${classIcon(r.class_name)}<span style="${classColor(r.class_name) ? `color:${classColor(r.class_name)};` : ''}">${esc(r.character_name)}</span></span></td>`;
     CONSUMABLE_COLS.forEach(c => {
       const val = r[c.key] || {};
       let status, label;
@@ -2469,7 +2505,13 @@ async function runSync() {
           weaponEnchant: (() => {
             const mh = (ev.gear || [])[GEAR_SLOT_INDEX.MH];
             const oh = (ev.gear || [])[GEAR_SLOT_INDEX.OH];
-            const foundId = [mh, oh].filter(Boolean).map(w => w.temporaryEnchant).find(id => id && WEAPON_ENHANCEMENT_IDS_SYNC[id]);
+            if (fight === fights[0] && actor.name === Object.keys(consumablesByFight[fight.name])[0] && mh) {
+              console.log(`[Delusions Sync] Weapon gear item full field list (verify the temp enchant field name - "temporaryEnchant" was assumed, never confirmed against real data):`, mh, 'keys:', Object.keys(mh));
+            }
+            // Trying several plausible field name variants since the real
+            // one has never been confirmed against actual WCL data.
+            const getTempEnchant = (w) => w.temporaryEnchant ?? w.tempEnchant ?? w.temporary_enchant ?? null;
+            const foundId = [mh, oh].filter(Boolean).map(getTempEnchant).find(id => id && WEAPON_ENHANCEMENT_IDS_SYNC[id]);
             if (!foundId) return null;
             return { name: WEAPON_ENHANCEMENT_IDS_SYNC[foundId], stat: WEAPON_OIL_STAT_SYNC[foundId], tierIssue: isStatWrongForClass(WEAPON_OIL_STAT_SYNC[foundId], actor.subType) };
           })(),
@@ -2895,7 +2937,7 @@ async function confirmSync() {
         });
       }
     });
-    return { raid_night_id: night.id, character_name: name, class_name: info.className, enchants, gems };
+    return { raid_night_id: night.id, character_name: name, class_name: info.className, enchants, gems, detected_role: detectedRoleByPlayer?.[name] || null };
   });
   if (gearRows.length) await sb.from('gear_checks').insert(gearRows);
 

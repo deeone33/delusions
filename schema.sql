@@ -497,9 +497,11 @@ create table if not exists gear_checks (
   class_name text,
   enchants jsonb not null default '[]',
   gems jsonb not null default '[]',
+  detected_role text, -- 'tank'|'healer'|'dps' inferred from combat activity, majority-voted across fights
   synced_at timestamptz default now(),
   unique(raid_night_id, character_name)
 );
+alter table gear_checks add column if not exists detected_role text;
 alter table gear_checks enable row level security;
 drop policy if exists "gear_checks read all" on gear_checks;
 create policy "gear_checks read all" on gear_checks for select using (auth.uid() is not null);

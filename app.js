@@ -189,6 +189,18 @@ function classIcon(className) {
   return src ? `<img src="${src}" class="cls-icon" alt="">` : '';
 }
 
+// Role detected from combat activity (see sync logic) - simple unicode
+// symbols rather than custom art, since these are small inline indicators.
+function roleIcon(role) {
+  if (role === 'tank') return `<span title="Tank (detected from combat activity)" style="margin-right:0.15rem;">🛡️</span>`;
+  if (role === 'healer') return `<span title="Healer (detected from combat activity)" style="margin-right:0.15rem;">✚</span>`;
+  if (role === 'dps') return `<span title="DPS (detected from combat activity)" style="margin-right:0.15rem;">⚔️</span>`;
+  return '';
+}
+function getDetectedRole(name) {
+  return (typeof gearCheckRows !== 'undefined' && gearCheckRows.find(r => r.character_name === name)?.detected_role) || null;
+}
+
 function fmtDate(d) {
   if (!d) return '';
   return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
