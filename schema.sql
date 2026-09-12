@@ -524,12 +524,13 @@ create table if not exists consumable_logs (
   food jsonb not null default '{}',           -- {used, name}
   flask_elixir jsonb not null default '{}',   -- {type:'flask'|'elixir'|'partial'|'none', names:[]}
   scroll jsonb not null default '{}',         -- {applicable, used, name}
-  destruction jsonb not null default '{}',    -- {count, names:[]}
-  haste jsonb not null default '{}',
-  mana jsonb not null default '{}',
+  potions jsonb not null default '{}',        -- {count, names:[]} - combined destro/haste/mana, since only one is typically used
+  other jsonb not null default '[]',          -- [{name, count}] - Flame Cap, Nightmare Seed, Ironshield, etc
   synced_at timestamptz default now(),
   unique(raid_night_id, boss_name, character_name)
 );
+alter table consumable_logs add column if not exists potions jsonb not null default '{}';
+alter table consumable_logs add column if not exists other jsonb not null default '[]';
 alter table consumable_logs enable row level security;
 drop policy if exists "consumable_logs read all" on consumable_logs;
 create policy "consumable_logs read all" on consumable_logs for select using (auth.uid() is not null);

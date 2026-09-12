@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=58">
+<link rel="stylesheet" href="style.css?v=59">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
@@ -330,8 +330,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=58"></script>
-<script src="editor.js?v=58"></script>
+<script src="app.js?v=59"></script>
+<script src="editor.js?v=59"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -1340,9 +1340,8 @@ const CONSUMABLE_COLS = [
   { key: 'food', label: 'Food' },
   { key: 'flask_elixir', label: 'Flask/Elixir' },
   { key: 'scroll', label: 'Scroll' },
-  { key: 'destruction', label: 'Destro' },
-  { key: 'haste', label: 'Haste' },
-  { key: 'mana', label: 'Mana' },
+  { key: 'potions', label: 'Potions' },
+  { key: 'other', label: 'Other' },
 ];
 
 async function initConsumablesTab() {
@@ -1385,9 +1384,14 @@ function renderConsumables() {
       else if (c.key === 'flask_elixir') {
         status = (val.type === 'flask' || val.type === 'elixir') ? 'good' : val.type === 'partial' ? 'suboptimal' : 'missing';
         label = STATUS_SYMBOL[status];
-      } else if (['destruction', 'haste', 'mana'].includes(c.key)) {
+      } else if (c.key === 'potions') {
         status = (val.count > 0) ? 'good' : 'missing';
         label = val.count > 0 ? val.count : STATUS_SYMBOL['missing'];
+      } else if (c.key === 'other') {
+        const items = Array.isArray(val) ? val : [];
+        const total = items.reduce((sum, it) => sum + (it.count || 0), 0);
+        status = total > 0 ? 'good' : 'na';
+        label = total > 0 ? total : '—';
       } else {
         status = val.used ? 'good' : 'missing';
         label = STATUS_SYMBOL[status];
@@ -1407,8 +1411,11 @@ function showConsumableDetail(characterName, boss, key) {
   let detailHtml;
   if (key === 'flask_elixir') {
     detailHtml = (val.names && val.names.length) ? val.names.map(n => `<div class="modal-row"><span>${esc(n)}</span></div>`).join('') : '<div style="color:var(--dim);">None used.</div>';
-  } else if (['destruction', 'haste', 'mana'].includes(key)) {
+  } else if (key === 'potions') {
     detailHtml = `<div class="modal-row"><span>Times used</span><span>${val.count || 0}</span></div>` + (val.names || []).map(n => `<div class="modal-row"><span>${esc(n)}</span></div>`).join('');
+  } else if (key === 'other') {
+    const items = Array.isArray(val) ? val : [];
+    detailHtml = items.length ? items.map(it => `<div class="modal-row"><span>${esc(it.name)}</span><span>${it.count}x</span></div>`).join('') : '<div style="color:var(--dim);">Nothing recorded.</div>';
   } else if (key === 'scroll' && val.applicable === false) {
     detailHtml = `<div style="color:var(--dim);">Not tracked for this role.</div>`;
   } else {
@@ -2060,11 +2067,21 @@ function downloadWishlistCSV() {
 
 // ================= WCL SYNC (in-page modal) =================
 // Real ability IDs verified against Wowhead (not guessed) - safe to extend.
+// Confirmed via user checking in-game: Haste Potion's buff is just "Haste",
+// Destruction Potion's is just "Destruction" - same shortened-name pattern
+// as elixirs. The numeric IDs below are from Wowhead's 2021 TBC Classic
+// release and returned ZERO matches against real Anniversary data, so
+// they're likely wrong for this content - kept as fallback candidates
+// only. The sync's diagnostic below searches by NAME now instead, which
+// should nail the real IDs without another guess.
 const POTION_IDS_SYNC = {
-  destruction: [28565],   // Destruction Potion
-  haste: [28564],         // Haste Potion
-  mana: [28555],          // Super Mana Potion
+  destruction: [28565],
+  haste: [28564],
+  mana: [28555],
 };
+const POTION_NAMES_SYNC = { destruction: ['Destruction'], haste: ['Haste'], mana: ['Mana Potion','Restore Mana'] };
+// Confirmed directly from real synced data (low-frequency cast dump).
+const OTHER_IDS_SYNC = { 'Flame Cap': 28714, 'Nightmare Seed': 28726, 'Ironshield': 28515 };
 // Names ARE reliable here because they come from CombatantInfo's "auras"
 // array, which resolves names server-side - unlike raw Buff/Cast events,
 // which only ever give a numeric abilityGameID with no name attached.
@@ -2237,22 +2254,26 @@ async function runSync() {
         if (meleeHunterActor) {
           console.log(`[Delusions Sync] Full aura list for melee/hunter player "${meleeHunterActor.name}" (${meleeHunterActor.subType}) in "${fight.name}":`, JSON.stringify(consumablesByFight[fight.name][meleeHunterActor.name].auraNames, null, 2));
         }
-        // Resolve names for LOW-frequency cast abilities. Potions share a
-        // 2-min cooldown and aren't used by everyone, so they'll have low
-        // counts - high-frequency IDs here are just rotational spells and
-        // would drown out anything useful. This finds the real potion IDs
-        // for this game version directly from data, instead of guessing again.
+        // Resolve names for the lowest-frequency cast abilities (sorted
+        // ascending, no upper cap this time - the previous 30-use cap
+        // excluded anything used more than 30 times raid-wide, which a
+        // shared-cooldown item easily could be across 25 players over a
+        // longer fight). High-frequency rotational spells sort to the
+        // bottom and get excluded by the resolution limit instead.
         const idCounts = {};
         casts.forEach(c => { idCounts[c.abilityGameID] = (idCounts[c.abilityGameID] || 0) + 1; });
-        const lowFreqIds = Object.entries(idCounts).filter(([, count]) => count >= 1 && count <= 30).sort((a, b) => a[1] - b[1]).slice(0, 40).map(([id]) => parseInt(id));
+        const candidateIds = Object.entries(idCounts).sort((a, b) => a[1] - b[1]).slice(0, 120).map(([id]) => parseInt(id));
         const resolvedAbilities = [];
-        for (const id of lowFreqIds) {
+        for (const id of candidateIds) {
           try {
             const abResp = await wclQuery(token, `query($id: Int!) { gameData { ability(id: $id) { name } } }`, { id });
-            resolvedAbilities.push({ id, name: abResp.data?.gameData?.ability?.name || '(no name)', count: idCounts[id] });
+            const name = abResp.data?.gameData?.ability?.name || '(no name)';
+            resolvedAbilities.push({ id, name, count: idCounts[id] });
           } catch (e) { resolvedAbilities.push({ id, name: '(lookup failed)', count: idCounts[id] }); }
         }
-        console.log(`[Delusions Sync] Low-frequency cast abilities (1-30 uses), names resolved - look for Destruction/Haste/Mana Potion here:`, resolvedAbilities);
+        const potionMatches = resolvedAbilities.filter(a => ['Haste','Destruction','Mana Potion','Restore Mana','Super Mana Potion'].includes(a.name));
+        console.log(`[Delusions Sync] DIRECT MATCHES for confirmed potion names:`, potionMatches);
+        console.log(`[Delusions Sync] Full resolved list (${resolvedAbilities.length} abilities checked) if the above is empty:`, resolvedAbilities);
       }
       Object.keys(consumablesByFight[fight.name] || {}).forEach(playerName => {
         const actorId = actors.find(a => a.name === playerName)?.id;
@@ -2260,6 +2281,9 @@ async function runSync() {
         consumablesByFight[fight.name][playerName].destroCount = playerCasts.filter(c => POTION_IDS_SYNC.destruction.includes(c.abilityGameID)).length;
         consumablesByFight[fight.name][playerName].hasteCount = playerCasts.filter(c => POTION_IDS_SYNC.haste.includes(c.abilityGameID)).length;
         consumablesByFight[fight.name][playerName].manaCount = playerCasts.filter(c => POTION_IDS_SYNC.mana.includes(c.abilityGameID)).length;
+        consumablesByFight[fight.name][playerName].other = Object.entries(OTHER_IDS_SYNC)
+          .map(([name, id]) => ({ name, count: playerCasts.filter(c => c.abilityGameID === id).length }))
+          .filter(o => o.count > 0);
       });
     }
     syncLog(`✓ Potion usage pulled for ${fights.length} boss(es)`);
@@ -2333,14 +2357,17 @@ async function confirmSync() {
       const hasFlask = auraNames.some(n => KNOWN_FLASKS_SYNC.includes(n));
       const hasBattle = auraNames.some(n => KNOWN_BATTLE_ELIXIRS_SYNC.includes(n));
       const hasGuardian = auraNames.some(n => KNOWN_GUARDIAN_ELIXIRS_SYNC.includes(n));
+      const potionNames = [];
+      if (info.destroCount) potionNames.push(`Destruction Potion x${info.destroCount}`);
+      if (info.hasteCount) potionNames.push(`Haste Potion x${info.hasteCount}`);
+      if (info.manaCount) potionNames.push(`Mana Potion x${info.manaCount}`);
       consumableRows.push({
         raid_night_id: night.id, boss_name: bossName, character_name: name, class_name: info.className,
         food: { used: auraNames.includes('Well Fed'), name: 'Well Fed' },
         flask_elixir: { type: hasFlask ? 'flask' : (hasBattle && hasGuardian) ? 'elixir' : (hasBattle || hasGuardian) ? 'partial' : 'none', names: auraNames.filter(n => KNOWN_FLASKS_SYNC.includes(n) || KNOWN_BATTLE_ELIXIRS_SYNC.includes(n) || KNOWN_GUARDIAN_ELIXIRS_SYNC.includes(n)) },
         scroll: { applicable: isMelee, used: isMelee && auraNames.some(n => KNOWN_SCROLLS_SYNC.includes(n)), name: auraNames.find(n => KNOWN_SCROLLS_SYNC.includes(n)) },
-        destruction: { count: info.destroCount || 0, names: info.destroCount ? ['Destruction Potion'] : [] },
-        haste: { count: info.hasteCount || 0, names: info.hasteCount ? ['Haste Potion'] : [] },
-        mana: { count: info.manaCount || 0, names: info.manaCount ? ['Super Mana Potion'] : [] },
+        potions: { count: (info.destroCount || 0) + (info.hasteCount || 0) + (info.manaCount || 0), names: potionNames },
+        other: info.other || [],
       });
     });
   });
