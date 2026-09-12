@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=79">
+<link rel="stylesheet" href="style.css?v=80">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
@@ -335,8 +335,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=79"></script>
-<script src="editor.js?v=79"></script>
+<script src="app.js?v=80"></script>
+<script src="editor.js?v=80"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -1261,23 +1261,25 @@ async function showPlayerProfile(characterName, presetBoss) {
         enchantBit = `<span style="color:${STATUS_COLOR.good};">Enchanted</span>`;
       }
       // Gems: dots color-coded by quality (STATUS_COLOR already maps
-      // good=epic/green, suboptimal=rare/blue shown yellow, missing=red),
-      // real Wowhead item link for the rich hover card.
+      // good=epic/green, suboptimal=rare/blue shown yellow, missing=red).
+      // Uses the custom hover popup, not a real Wowhead link - Wowhead's
+      // own tooltip script auto-rewrites a link's visible text to the
+      // item's real name, which was silently destroying the compact dot
+      // (confirmed from a real screenshot showing full gem names instead
+      // of dots). The popup doesn't touch the element's text at all.
       const gemBits = combined.gems.length ? combined.gems.map(g => {
         const symbol = g.meta ? '◆' : STATUS_SYMBOL[g.status];
         const color = g.meta ? 'var(--dim)' : STATUS_COLOR[g.status];
-        return g.itemId
-          ? `<a href="https://www.wowhead.com/tbc/item=${g.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${color};text-decoration:none;">${symbol}</a>`
-          : `<span style="color:${color};">${symbol}</span>`;
+        return `<span style="color:${color};cursor:help;" onmouseenter='showInfoPopup(event, ${jsAttr(g.itemName)})' onmouseleave='hideInfoPopup()'>${symbol}</span>`;
       }).join(' ') : '<span style="color:var(--dim);">—</span>';
       return `
-        <div style="display:flex;align-items:baseline;gap:0.4rem;padding:0.4rem 0;border-bottom:1px solid var(--hair2);flex-wrap:wrap;">
-          <span style="font-size:0.6rem;color:var(--dim);text-transform:uppercase;letter-spacing:0.05em;width:52px;flex-shrink:0;">${slot}</span>
-          <span style="font-size:0.85rem;">${itemLink}</span>
-          <span style="color:var(--dim);">—</span>
-          <span style="font-size:0.85rem;">${enchantBit}</span>
-          <span style="color:var(--dim);">—</span>
-          <span style="font-size:0.9rem;">${gemBits}</span>
+        <div style="display:flex;align-items:baseline;gap:0.4rem;padding:0.4rem 0;border-bottom:1px solid var(--hair2);">
+          <span style="font-size:0.6rem;color:var(--dim);text-transform:uppercase;letter-spacing:0.05em;width:48px;flex-shrink:0;">${slot}</span>
+          <span style="font-size:0.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:145px;">${itemLink}</span>
+          <span style="color:var(--dim);flex-shrink:0;">—</span>
+          <span style="font-size:0.85rem;flex-shrink:0;">${enchantBit}</span>
+          <span style="color:var(--dim);flex-shrink:0;">—</span>
+          <span style="font-size:0.9rem;flex-shrink:0;">${gemBits}</span>
         </div>`;
     }).join('');
   }
