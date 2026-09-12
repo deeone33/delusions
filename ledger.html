@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=62">
+<link rel="stylesheet" href="style.css?v=64">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
@@ -195,8 +195,6 @@
   </div>
 
   <div id="panel-attendance" style="display:none;">
-    <div id="officer-attendance-form" style="display:none;"></div>
-    <div id="last-raid-card"></div>
 
     <h3 style="margin-bottom:1rem;cursor:pointer;font-size:0.95rem;color:var(--white);" onclick="toggleCollapse('attendance-table-body','attendance-table-toggle')">
       <span id="attendance-table-toggle" class="collapse-icon">+</span> Attendance (<span id="attendance-player-count">0</span> players)
@@ -298,20 +296,27 @@
       This is <em>not</em> the same as the "V1 Client Name / Key" shown under your account's Web API settings — that's a different, older system and won't work here.
     </p>
 
-    <div style="margin-bottom:1rem;">
-      <label class="form-label">Client ID</label>
+    <div id="sync-gm-creds" style="margin-bottom:1rem;display:none;">
+      <label class="form-label">Client ID (GM only — officers use this preset without seeing it)</label>
       <input type="text" id="wcl-client-id" placeholder="Paste your WCL Client ID" style="margin-bottom:0.6rem;">
       <label class="form-label">Client Secret</label>
       <div style="position:relative;margin-bottom:0.6rem;">
         <input type="password" id="wcl-client-secret" placeholder="Paste your WCL Client Secret" style="padding-right:2.4rem;">
         <button type="button" onclick="toggleSecretVisibility()" title="Show/hide" style="position:absolute;right:0.5rem;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--dim);cursor:pointer;font-size:0.9rem;padding:0.2rem;">👁</button>
       </div>
+      <button class="btn btn-sm" type="button" onclick="saveGmWclCreds()">Save Preset for Officers</button>
+      <p style="font-size:0.72rem;color:var(--dim);margin-top:0.5rem;">Honest limitation: this is stored so officers don't see it in this form, but since everything runs in the browser, a technically determined officer could still find it via browser dev tools (Network tab) while a sync runs. True secrecy needs a server-side proxy, which isn't built yet.</p>
+    </div>
+    <div style="margin-bottom:1rem;">
       <label class="form-label">Report link or code</label>
       <input type="text" id="wcl-report-code" placeholder="https://fresh.warcraftlogs.com/reports/AbCdEfGh123456">
     </div>
     <p style="font-size:0.75rem;color:var(--warn);margin-bottom:1rem;">
       While testing: pulls every player in the report, regardless of guild. Flag it once you're ready to lock this to Delusions only.
     </p>
+    <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.8rem;color:var(--dim);margin-bottom:1rem;">
+      <input type="checkbox" id="sync-discovery-mode" style="width:auto;"> Run full discovery scan (slow — only needed if hunting for a new/unrecognized consumable)
+    </label>
     <button class="btn primary" type="button" id="sync-btn" onclick="runSync()">Fetch from Warcraft Logs</button>
 
     <div id="sync-progress" style="display:none;margin-top:1.2rem;padding-top:1.2rem;border-top:1px solid var(--hair);">
@@ -330,8 +335,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=62"></script>
-<script src="editor.js?v=62"></script>
+<script src="app.js?v=64"></script>
+<script src="editor.js?v=64"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -630,72 +635,6 @@ function stripRealm(name) {
 
 function parseDate(val) { if (!val) return null; const d = new Date(val); return isNaN(d.getTime()) ? null : d.toISOString().slice(0,10); }
 
-function renderAttendanceForm() {
-  document.getElementById('officer-attendance-form').style.display = 'block';
-  document.getElementById('officer-attendance-form').innerHTML = `
-    <h3 style="margin-bottom:1rem;cursor:pointer;font-size:0.95rem;color:var(--white);" onclick="toggleCollapse('rn-body','rn-toggle')">
-      <span id="rn-toggle" class="collapse-icon">+</span> Log a Raid Night
-    </h3>
-    <div id="rn-body" style="display:none;margin-bottom:1.5rem;">
-      <div class="card">
-        <div style="display:grid;grid-template-columns:1fr 160px;gap:0.8rem;margin-bottom:0.8rem;">
-          <input type="text" id="rn-title" placeholder="Raid title (e.g. Serpentshrine Cavern)">
-          <input type="date" id="rn-date">
-        </div>
-        <textarea id="rn-csv" rows="8" placeholder="Paste the export from /dumpraid here (Name,Class,Guild per line — non-guild entries are auto-excluded)" style="width:100%;margin-bottom:0.8rem;font-family:'IBM Plex Mono',monospace;font-size:0.8rem;"></textarea>
-        <button class="btn primary" type="button" onclick="submitRaidNight()">Save Raid Night</button>
-      </div>
-    </div>
-  `;
-  document.getElementById('rn-date').valueAsDate = new Date();
-}
-
-const GUILD_NAME = 'Delusions'; // must match your addon's captured guild name — see /dumpraid export
-
-function parseRosterCsv(text) {
-  const lines = text.trim().split('\n').map(l => l.trim()).filter(Boolean);
-  const included = [];
-  const excluded = [];
-  for (const line of lines) {
-    if (/^name\s*,\s*class/i.test(line)) continue; // header row, either 2 or 3 column version
-    const parts = line.split(',').map(s => s && s.trim());
-    const [name, className, guild] = parts;
-    if (!name) continue;
-    // Older addon exports (2 columns, no guild) have nothing to check against —
-    // include them as-is rather than guessing.
-    if (guild !== undefined && guild.toLowerCase() !== GUILD_NAME.toLowerCase()) {
-      excluded.push(name);
-      continue;
-    }
-    included.push({ character_name: name, class_name: className || null });
-  }
-  return { included, excluded };
-}
-
-async function submitRaidNight() {
-  const title = document.getElementById('rn-title').value.trim();
-  const date = document.getElementById('rn-date').value;
-  const csvText = document.getElementById('rn-csv').value.trim();
-  if (!title || !date || !csvText) { toast('Fill in title, date, and paste the roster export.', 'error'); return; }
-
-  const { included, excluded } = parseRosterCsv(csvText);
-  if (!included.length) { toast('No valid guild members found in that paste.', 'error'); return; }
-
-  const { data: night, error } = await sb.from('raid_nights').insert({ title, raid_date: date, created_by: currentUser.id }).select().single();
-  if (error) { toast(error.message, 'error'); return; }
-
-  const rows = included.map(r => ({ raid_night_id: night.id, character_name: r.character_name, class_name: r.class_name }));
-  const { error: err2 } = await sb.from('raid_attendees').insert(rows);
-  if (err2) { toast(err2.message, 'error'); return; }
-
-  logActivity(`Logged raid night "${title}" (${included.length} attendees${excluded.length ? `, ${excluded.length} pugs excluded` : ''})`);
-  const excludedNote = excluded.length ? ` (${excluded.length} non-guild excluded: ${excluded.join(', ')})` : '';
-  toast(`Logged ${included.length} attendees for ${title}.${excludedNote}`, 'success');
-  document.getElementById('rn-title').value = '';
-  document.getElementById('rn-csv').value = '';
-  await loadAttendance();
-}
-
 let charToIdentity = {}; // lowercased character name -> { profileId, joinedAt, allNames }
 
 let charClassMap = {}; // lowercased character name -> class_name, from linked profile_characters
@@ -760,31 +699,6 @@ function renderAttendance() {
   if (expandedNights === null) expandedNights = new Set(); // all collapsed by default
   document.getElementById('nights-count').textContent = allNights.length;
 
-  const lastCard = document.getElementById('last-raid-card');
-  if (allNights.length) {
-    const last = allNights[0];
-    const roster = allAttendees.filter(a => a.raid_night_id === last.id);
-    const expanded = expandedNights && expandedNights.has('last-raid-card');
-    lastCard.innerHTML = `
-      <div class="raid-group card-accent" style="margin-bottom:1.2rem;">
-        <div class="raid-group-header" onclick="toggleLastRaidCard()">
-          <span class="expand-icon" id="last-raid-toggle">${expanded?'−':'+'}</span>
-          <span class="raid-group-title">${esc(last.title)}</span>
-          <span class="label">
-            ${last.raid_date ? new Date(last.raid_date).toLocaleDateString() : ''} · ${roster.length} raiders
-            ${isOfficer() ? `<button class="row-delete" title="Remove this raid" onclick="event.stopPropagation(); deleteRaidNight('${last.id}')">${TRASH_ICON}</button>` : ''}
-          </span>
-        </div>
-        <div id="last-raid-body" style="display:${expanded?'':'none'};padding:0.8rem 1.1rem;border-top:1px solid var(--hair);">
-          <div class="roster-compact">
-            ${roster.map(a => playerLink(a.character_name, a.class_name)).join('')}
-          </div>
-        </div>
-      </div>`;
-  } else {
-    lastCard.innerHTML = '';
-  }
-
   const seenIdentity = new Set();
   const players = [];
   allAttendees.forEach(a => {
@@ -839,10 +753,6 @@ function renderAttendance() {
 let expandedNights = null;
 function toggleNight(id) {
   if (expandedNights.has(id)) expandedNights.delete(id); else expandedNights.add(id);
-  renderAttendance();
-}
-function toggleLastRaidCard() {
-  if (expandedNights.has('last-raid-card')) expandedNights.delete('last-raid-card'); else expandedNights.add('last-raid-card');
   renderAttendance();
 }
 
@@ -1287,12 +1197,12 @@ async function loadGearCheckRaid(raidId) {
 
 function combineSlotStatus(row, slot) {
   const enchant = (row.enchants || []).find(e => e.slot === slot);
-  const gem = (row.gems || []).find(g => g.slot === slot);
-  const statuses = [enchant?.status, gem?.status].filter(Boolean);
-  if (!statuses.length) return { status: 'na', enchant, gem };
+  const slotGems = (row.gems || []).filter(g => g.slot === slot); // was .find() - silently dropped 2nd/3rd gems on multi-socket items
+  const statuses = [enchant?.status, ...slotGems.map(g => g.status)].filter(Boolean);
+  if (!statuses.length) return { status: 'na', enchant, gems: slotGems };
   let worst = 'good';
   statuses.forEach(s => { if ((STATUS_SEVERITY[s] || 0) > (STATUS_SEVERITY[worst] || 0)) worst = s; });
-  return { status: worst, enchant, gem };
+  return { status: worst, enchant, gems: slotGems };
 }
 
 function renderGearCheck() {
@@ -1303,7 +1213,7 @@ function renderGearCheck() {
 
   let html = `<table class="dense-check-table"><tr><th class="name-col">Player</th>${GEARCHECK_SLOTS.map(s => `<th>${s}</th>`).join('')}</tr>`;
   rows.forEach(r => {
-    html += `<tr><td><span class="cls-name-row">${classIcon(r.class_name)}<span style="${classColor(r.class_name) ? `color:${classColor(r.class_name)};` : ''}">${esc(r.character_name)}</span></span></td>`;
+    html += `<tr><td><span class="cls-name-row" style="cursor:pointer;" onclick='showPlayerProfile(${jsAttr(r.character_name)})' title="Click for full profile">${classIcon(r.class_name)}<span style="${classColor(r.class_name) ? `color:${classColor(r.class_name)};` : ''}">${esc(r.character_name)}</span></span></td>`;
     GEARCHECK_SLOTS.forEach(slot => {
       const combined = combineSlotStatus(r, slot);
       html += `<td style="cursor:pointer;" onclick='showGearCheckDetail(${jsAttr(r.character_name)}, ${jsAttr(slot)})' title="Click for detail"><span style="color:${STATUS_COLOR[combined.status]};font-weight:600;">${STATUS_SYMBOL[combined.status]}</span></td>`;
@@ -1314,21 +1224,98 @@ function renderGearCheck() {
   document.getElementById('gearcheck-table-wrap').innerHTML = rows.length ? html : `<div class="card" style="text-align:center;color:var(--dim);">${search ? 'No matches.' : 'No data.'}</div>`;
 }
 
+// Unified "everything about this player" view - combines the full gear
+// grid and a boss-switchable consumables breakdown in one modal, reusing
+// the same real-tooltip rendering already built for the per-cell popups.
+async function showPlayerProfile(characterName, presetBoss) {
+  if (!consumablesInited && currentGearCheckRaidId) {
+    // Consumables tab was never opened - load its data for the same raid now, quietly
+    await loadConsumablesRaid(currentGearCheckRaidId);
+  }
+  const gearRow = gearCheckRows.find(r => r.character_name === characterName);
+  const consumableEntries = consumablesRows.filter(r => r.character_name === characterName); // consumablesRows holds every boss for the current raid already, not just whichever one is currently shown in the table
+  const className = gearRow?.class_name || consumableEntries[0]?.class_name;
+  const bosses = [...new Set(consumableEntries.map(r => r.boss_name))];
+  const initialBoss = presetBoss && bosses.includes(presetBoss) ? presetBoss : bosses[0];
+
+  let gearHtml = '<div style="color:var(--dim);">No gear data for this raid.</div>';
+  if (gearRow) {
+    gearHtml = GEARCHECK_SLOTS.map(slot => {
+      const combined = combineSlotStatus(gearRow, slot);
+      const e = combined.enchant;
+      if (!e) return '';
+      const itemLink = e.itemId ? `<a href="https://www.wowhead.com/tbc/item=${e.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:inherit;">${esc(e.itemName)}</a>` : esc(e.itemName || '—');
+      const enchantBit = e.enchantId ? `<a href="https://www.wowhead.com/tbc/spell=${e.enchantId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${STATUS_COLOR.good};font-size:0.75rem;">enchanted</a>` : `<span style="color:${STATUS_COLOR.missing};font-size:0.75rem;">no enchant</span>`;
+      const gemsBit = combined.gems.length ? combined.gems.map(g => `<a href="https://www.wowhead.com/tbc/item=${g.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${g.meta?'inherit':STATUS_COLOR[g.status]};font-size:0.75rem;">${esc(g.itemName)}</a>`).join(', ') : '';
+      return `<div class="modal-row"><span>${slot}: ${itemLink}</span><span>${enchantBit}${gemsBit ? ' · '+gemsBit : ''}</span></div>`;
+    }).join('');
+  }
+
+  document.getElementById('player-modal-content').innerHTML = `
+    <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.3rem;">
+      ${classIcon(className)}
+      <div style="font-family:'Newsreader',serif;font-size:1.4rem;color:${classColor(className) || 'var(--white)'};">${esc(characterName)}</div>
+    </div>
+    <div class="modal-section" style="margin-top:0.8rem;"><h4>Gear</h4>${gearHtml}</div>
+    <div class="modal-section">
+      <h4>Consumables ${bosses.length ? `<select id="profile-boss-select" onchange="refreshProfileConsumables(${jsAttr(characterName)})" style="font-size:0.7rem;padding:0.2rem 0.4rem;margin-left:0.5rem;">${bosses.map(b => `<option value="${esc(b)}" ${b===initialBoss?'selected':''}>${esc(b)}</option>`).join('')}</select>` : ''}</h4>
+      <div id="profile-consumables-body"></div>
+    </div>
+  `;
+  openModalPlayer = null;
+  document.getElementById('player-modal').style.display = 'flex';
+  if (bosses.length) refreshProfileConsumables(characterName);
+  refreshWowheadTooltips();
+}
+
+function refreshProfileConsumables(characterName) {
+  const boss = document.getElementById('profile-boss-select')?.value;
+  const row = consumablesRows.find(r => r.character_name === characterName && r.boss_name === boss);
+  const body = document.getElementById('profile-consumables-body');
+  if (!row) { body.innerHTML = '<div style="color:var(--dim);">No data for this boss.</div>'; return; }
+
+  const spellLink = (name, id) => id ? `<a href="https://www.wowhead.com/tbc/spell=${id}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:inherit;">${esc(name)}</a>` : esc(name);
+  const foodLine = row.food?.used ? spellLink(row.food.name || 'Well Fed', row.food.spellId) : '<span style="color:var(--dim);">Not used</span>';
+  const elixirLines = (row.flask_elixir?.names || []).length ? row.flask_elixir.names.map((n, i) => spellLink(n, (row.flask_elixir.spellIds||[])[i])).join(', ') : '<span style="color:var(--dim);">None</span>';
+  const scrollLines = (row.scroll?.applicable === false) ? '<span style="color:var(--dim);">N/A for this role</span>' : ((row.scroll?.names || []).length ? row.scroll.names.map((n, i) => spellLink(n, (row.scroll.spellIds||[])[i])).join(', ') : '<span style="color:var(--dim);">None</span>');
+  const potionLines = (row.potions?.names || []).length ? row.potions.names.join(', ') : '<span style="color:var(--dim);">None</span>';
+  const runeLines = (row.runes?.names || []).length ? row.runes.names.join(', ') : '<span style="color:var(--dim);">None</span>';
+  const otherLines = (row.other || []).length ? row.other.map(o => `${esc(o.name)} x${o.count}`).join(', ') : '<span style="color:var(--dim);">None</span>';
+
+  body.innerHTML = `
+    <div class="modal-row"><span>Food</span><span>${foodLine}</span></div>
+    <div class="modal-row"><span>Flask/Elixir</span><span>${elixirLines}</span></div>
+    <div class="modal-row"><span>Scrolls</span><span>${scrollLines}</span></div>
+    <div class="modal-row"><span>Potions</span><span>${potionLines}</span></div>
+    <div class="modal-row"><span>Runes</span><span>${runeLines}</span></div>
+    <div class="modal-row"><span>Other</span><span>${otherLines}</span></div>
+  `;
+  refreshWowheadTooltips();
+}
+
 function showGearCheckDetail(characterName, slot) {
   const row = gearCheckRows.find(r => r.character_name === characterName);
   if (!row) return;
   const combined = combineSlotStatus(row, slot);
   const className = row.class_name;
+  const e = combined.enchant;
+  const itemLink = e?.itemId ? `<a href="https://www.wowhead.com/tbc/item=${e.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:inherit;">${esc(e.itemName)}</a>` : esc(e?.itemName || '—');
+  const enchantLink = e?.enchantId ? `<a href="https://www.wowhead.com/tbc/spell=${e.enchantId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${STATUS_COLOR.good};">Enchanted</a>` : `<span style="color:${STATUS_COLOR.missing};">No enchant</span>`;
+  const gemsHtml = combined.gems.length ? combined.gems.map(g => `
+    <div class="modal-row"><span>${g.meta ? '(Meta) ' : ''}<a href="https://www.wowhead.com/tbc/item=${g.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${g.meta ? 'inherit' : STATUS_COLOR[g.status]};">${esc(g.itemName)}</a></span></div>
+  `).join('') : `<div class="modal-row"><span style="color:${STATUS_COLOR.missing};">Empty socket</span></div>`;
   document.getElementById('player-modal-content').innerHTML = `
     <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.5rem;">
       ${classIcon(className)}
       <div style="font-family:'Newsreader',serif;font-size:1.3rem;color:${classColor(className) || 'var(--white)'};">${esc(characterName)}</div>
     </div>
-    <div class="label" style="margin-bottom:1rem;">${esc(slot)}</div>
-    <div class="modal-row"><span>Enchant</span><span style="color:${STATUS_COLOR[combined.enchant?.status || 'na']};">${esc(combined.enchant?.detail || (combined.enchant?.status === 'good' ? 'Best available' : combined.enchant?.status === 'missing' ? 'None' : '—'))}</span></div>
-    <div class="modal-row"><span>Gem(s)</span><span style="color:${STATUS_COLOR[combined.gem?.status || 'na']};">${esc(combined.gem?.detail || (combined.gem?.status === 'good' ? 'Epic quality' : combined.gem?.status === 'missing' ? 'Empty socket' : '—'))}</span></div>
+    <div class="label" style="margin-bottom:0.3rem;">${esc(slot)}</div>
+    <div class="modal-row"><span>Item</span><span>${itemLink}</span></div>
+    <div class="modal-row"><span>Enchant</span><span>${enchantLink}</span></div>
+    <div class="modal-section"><h4>Gems</h4>${gemsHtml}</div>
   `;
   openModalPlayer = null;
+  refreshWowheadTooltips();
   document.getElementById('player-modal').style.display = 'flex';
 }
 
@@ -1377,7 +1364,7 @@ function renderConsumables() {
 
   let html = `<table class="dense-check-table"><tr><th class="name-col">Player</th>${CONSUMABLE_COLS.map(c => `<th>${c.label}</th>`).join('')}</tr>`;
   rows.forEach(r => {
-    html += `<tr><td><span class="cls-name-row">${classIcon(r.class_name)}<span style="${classColor(r.class_name) ? `color:${classColor(r.class_name)};` : ''}">${esc(r.character_name)}</span></span></td>`;
+    html += `<tr><td><span class="cls-name-row" style="cursor:pointer;" onclick='showPlayerProfile(${jsAttr(r.character_name)}, ${jsAttr(boss)})' title="Click for full profile">${classIcon(r.class_name)}<span style="${classColor(r.class_name) ? `color:${classColor(r.class_name)};` : ''}">${esc(r.character_name)}</span></span></td>`;
     CONSUMABLE_COLS.forEach(c => {
       const val = r[c.key] || {};
       let status, label;
@@ -1385,7 +1372,7 @@ function renderConsumables() {
         if (val.applicable === false) { status = 'na'; label = '—'; }
         else { status = val.status === 'good' ? 'good' : val.status === 'partial' ? 'suboptimal' : 'missing'; label = STATUS_SYMBOL[status]; }
       } else if (c.key === 'flask_elixir') {
-        status = (val.type === 'flask' || val.type === 'elixir') ? 'good' : val.type === 'partial' ? 'suboptimal' : 'missing';
+        status = val.type === 'flask' ? 'good' : val.type === 'elixir' ? (val.tierIssue ? 'suboptimal' : 'good') : val.type === 'partial' ? 'suboptimal' : 'missing';
         label = STATUS_SYMBOL[status];
       } else if (c.key === 'potions' || c.key === 'runes') {
         status = (val.count > 0) ? 'good' : 'missing';
@@ -1411,18 +1398,32 @@ function showConsumableDetail(characterName, boss, key) {
   const row = consumablesRows.find(r => r.character_name === characterName && r.boss_name === boss);
   if (!row) return;
   const val = row[key] || {};
+  const spellLink = (name, id) => id ? `<a href="https://www.wowhead.com/tbc/spell=${id}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:inherit;">${esc(name)}</a>` : esc(name);
   let detailHtml;
   if (key === 'flask_elixir') {
-    detailHtml = (val.names && val.names.length) ? val.names.map(n => `<div class="modal-row"><span>${esc(n)}</span></div>`).join('') : '<div style="color:var(--dim);">None used.</div>';
+    const ids = val.spellIds || [];
+    const rows = (val.names && val.names.length) ? val.names.map((n, i) => `<div class="modal-row"><span>${spellLink(n, ids[i])}</span></div>`).join('') : '<div style="color:var(--dim);">None used.</div>';
+    const note = val.tierIssue ? `<div style="font-size:0.78rem;color:var(--warn);margin-top:0.6rem;">One of these is a cheaper vanilla-era alternative, not the best-in-slot version.</div>` : '';
+    detailHtml = rows + note;
   } else if (key === 'potions' || key === 'runes') {
-    detailHtml = `<div class="modal-row"><span>Times used</span><span>${val.count || 0}</span></div>` + (val.names || []).map(n => `<div class="modal-row"><span>${esc(n)}</span></div>`).join('');
+    detailHtml = (val.names && val.names.length) ? val.names.map(n => `<div class="modal-row"><span>${esc(n)}</span></div>`).join('') : '<div style="color:var(--dim);">None used.</div>';
   } else if (key === 'other') {
     const items = Array.isArray(val) ? val : [];
     detailHtml = items.length ? items.map(it => `<div class="modal-row"><span>${esc(it.name)}</span><span>${it.count}x</span></div>`).join('') : '<div style="color:var(--dim);">Nothing recorded.</div>';
   } else if (key === 'scroll') {
     if (val.applicable === false) { detailHtml = `<div style="color:var(--dim);">Not tracked for this role.</div>`; }
-    else if (val.names && val.names.length) { detailHtml = val.names.map(n => `<div class="modal-row"><span>${esc(n)}</span></div>`).join(''); }
-    else { detailHtml = '<div style="color:var(--dim);">Neither scroll used.</div>'; }
+    else {
+      const ids = val.spellIds || [];
+      detailHtml = (val.names && val.names.length) ? val.names.map((n, i) => `<div class="modal-row"><span>${spellLink(n, ids[i])}</span></div>`).join('') : '<div style="color:var(--dim);">Neither scroll used.</div>';
+      if (val.petScrolled) {
+        detailHtml += `<div class="modal-section"><h4>Pet</h4>
+          <div class="modal-row"><span>Strength scroll on pet</span><span style="color:${val.petScrolled.strength?STATUS_COLOR.good:STATUS_COLOR.missing};">${val.petScrolled.strength?'Yes':'No'}</span></div>
+          <div class="modal-row"><span>Agility scroll on pet</span><span style="color:${val.petScrolled.agility?STATUS_COLOR.good:STATUS_COLOR.missing};">${val.petScrolled.agility?'Yes':'No'}</span></div>
+        </div>`;
+      }
+    }
+  } else if (key === 'food') {
+    detailHtml = val.used ? `<div class="modal-row"><span>${spellLink(val.name || 'Well Fed', val.spellId)}</span></div><div style="font-size:0.72rem;color:var(--dim);margin-top:0.5rem;">"Well Fed" is shared across all food types by name — mouseover/click through to see exactly which food this was from its real effect.</div>` : `<div style="color:var(--dim);">Not used.</div>`;
   } else {
     detailHtml = `<div class="modal-row"><span>${val.used ? esc(val.name || 'Used') : 'Not used'}</span></div>`;
   }
@@ -1436,6 +1437,7 @@ function showConsumableDetail(characterName, boss, key) {
     ${detailHtml}
   `;
   openModalPlayer = null;
+  refreshWowheadTooltips();
   document.getElementById('player-modal').style.display = 'flex';
 }
 
@@ -2082,7 +2084,7 @@ const POTION_IDS_SYNC = {
 const RUNE_IDS_SYNC = { 'Dark Rune': 27869 }; // confirmed, 41 uses in real data. Demonic Rune not yet seen - add if it turns up.
 const POTION_NAMES_SYNC = { destruction: ['Destruction'], haste: ['Haste'], mana: ['Restore Mana'] };
 // Confirmed directly from real synced data.
-const OTHER_IDS_SYNC = { 'Flame Cap': 28714, 'Nightmare Seed': 28726, "Elixir of Demonslaying": 11406 };
+const OTHER_IDS_SYNC = { 'Flame Cap': 28714, 'Nightmare Seed': 28726 };
 // Names ARE reliable here because they come from CombatantInfo's "auras"
 // array, which resolves names server-side - unlike raw Buff/Cast events,
 // which only ever give a numeric abilityGameID with no name attached.
@@ -2097,8 +2099,42 @@ const KNOWN_FLASKS_SYNC = ["Flask of Relentless Assault","Flask of Blinding Ligh
 // name for Adept's Elixir (matches its effect - spell damage - and the
 // same shortened-name pattern as everything else here). "Greater Arcane
 // Elixir" and "Elixir of the Mongoose" were previously missing entirely.
-const KNOWN_BATTLE_ELIXIRS_SYNC = ["Elixir of Major Strength","Major Strength","Elixir of Major Agility","Major Agility","Elixir of Major Firepower","Major Firepower","Elixir of Major Shadow Power","Major Shadow Power","Elixir of Major Mageblood","Major Mageblood","Onslaught Elixir","Wrath Elixir","Fel Strength Elixir","Adept's Elixir","Spellpower Elixir","Greater Arcane Elixir","Elixir of the Mongoose"];
-const KNOWN_GUARDIAN_ELIXIRS_SYNC = ["Elixir of Major Defense","Major Defense","Elixir of Draenic Wisdom","Elixir of Healing Power","Healing Power","Elixir of Camouflage","Elixir of Ironskin","Elixir of Empowerment","Elixir of Major Fortitude"];
+// Each entry has a tier: 'good' (best-in-slot) or 'suboptimal' (a cheaper
+// vanilla-era alternative occupying the same slot - still counts as
+// "an elixir is up" but shouldn't read as equal to the real upgrade).
+// Elixir of the Mongoose is the cheap vanilla version of Major Agility;
+// Greater Arcane Elixir is the cheap vanilla version of Adept's/Spellpower
+// Elixir. Demonslaying is a full, good battle elixir, not situational.
+const BATTLE_ELIXIRS_SYNC = [
+  { names: ["Elixir of Major Strength","Major Strength"], tier: 'good' },
+  { names: ["Elixir of Major Agility","Major Agility"], tier: 'good' },
+  { names: ["Elixir of the Mongoose"], tier: 'suboptimal' },
+  { names: ["Elixir of Major Firepower","Major Firepower"], tier: 'good' },
+  { names: ["Elixir of Major Shadow Power","Major Shadow Power"], tier: 'good' },
+  { names: ["Adept's Elixir","Spellpower Elixir"], tier: 'good' },
+  { names: ["Greater Arcane Elixir"], tier: 'suboptimal' },
+  { names: ["Elixir of Major Mageblood","Major Mageblood"], tier: 'good' },
+  { names: ["Onslaught Elixir"], tier: 'good' },
+  { names: ["Wrath Elixir"], tier: 'good' },
+  { names: ["Fel Strength Elixir"], tier: 'good' },
+  { names: ["Elixir of Demonslaying"], tier: 'good' },
+  { names: ["Elixir of Healing Power","Healing Power"], tier: 'good' },
+];
+const GUARDIAN_ELIXIRS_SYNC = [
+  { names: ["Elixir of Major Defense","Major Defense"], tier: 'good' },
+  { names: ["Elixir of Draenic Wisdom"], tier: 'good' },
+  { names: ["Elixir of Camouflage"], tier: 'good' },
+  { names: ["Elixir of Ironskin"], tier: 'good' },
+  { names: ["Elixir of Empowerment"], tier: 'good' },
+  { names: ["Elixir of Major Fortitude"], tier: 'good' },
+];
+function findElixirMatch(auraNames, list) {
+  for (const entry of list) {
+    const match = entry.names.find(n => auraNames.includes(n));
+    if (match) return { name: match, tier: entry.tier };
+  }
+  return null;
+}
 // "Agility"/"Strength" confirmed as the actual shortened buff names from
 // real synced data - a Hunter's aura list showed bare "Agility" alongside
 // (and distinct from) "Mighty Agility", strongly indicating it's the scroll.
@@ -2148,13 +2184,36 @@ function toggleSecretVisibility() {
 }
 
 function openSyncModal() {
-  document.getElementById('wcl-client-id').value = localStorage.getItem('wcl_client_id') || '';
-  document.getElementById('wcl-client-secret').value = localStorage.getItem('wcl_client_secret') || '';
+  document.getElementById('sync-gm-creds').style.display = isGM() ? '' : 'none';
+  if (isGM()) {
+    document.getElementById('wcl-client-id').value = localStorage.getItem('wcl_client_id') || '';
+    document.getElementById('wcl-client-secret').value = localStorage.getItem('wcl_client_secret') || '';
+  }
   document.getElementById('sync-progress').style.display = 'none';
   document.getElementById('sync-preview').style.display = 'none';
   document.getElementById('sync-modal').style.display = 'flex';
 }
 function closeSyncModal() { document.getElementById('sync-modal').style.display = 'none'; }
+
+async function saveGmWclCreds() {
+  const id = document.getElementById('wcl-client-id').value.trim();
+  const secret = document.getElementById('wcl-client-secret').value.trim();
+  if (!id || !secret) { toast('Enter both fields first.', 'error'); return; }
+  const r1 = await sb.from('site_content').upsert({ key: 'config.wcl_client_id', text: id, updated_at: new Date().toISOString() });
+  const r2 = await sb.from('site_content').upsert({ key: 'config.wcl_client_secret', text: secret, updated_at: new Date().toISOString() });
+  if (r1.error || r2.error) { toast('Save failed.', 'error'); return; }
+  localStorage.setItem('wcl_client_id', id);
+  localStorage.setItem('wcl_client_secret', secret);
+  toast('Saved — officers can now sync without seeing these.', 'success');
+}
+
+async function getPresetWclCreds() {
+  try {
+    const r1 = await sb.from('site_content').select('*').eq('key', 'config.wcl_client_id').single();
+    const r2 = await sb.from('site_content').select('*').eq('key', 'config.wcl_client_secret').single();
+    return { id: r1.data?.text || '', secret: r2.data?.text || '' };
+  } catch (e) { return { id: '', secret: '' }; }
+}
 
 function syncLog(msg) { document.getElementById('sync-log').innerHTML += msg + '<br>'; }
 
@@ -2183,12 +2242,20 @@ async function wclQuery(token, query, variables = {}) {
 }
 
 async function runSync() {
-  const clientId = document.getElementById('wcl-client-id').value.trim();
-  const clientSecret = document.getElementById('wcl-client-secret').value.trim();
+  let clientId, clientSecret;
+  if (isGM()) {
+    clientId = document.getElementById('wcl-client-id').value.trim();
+    clientSecret = document.getElementById('wcl-client-secret').value.trim();
+    if (!clientId || !clientSecret) { toast('Client ID and Secret are required.', 'error'); return; }
+    localStorage.setItem('wcl_client_id', clientId);
+    localStorage.setItem('wcl_client_secret', clientSecret);
+  } else {
+    const preset = await getPresetWclCreds();
+    clientId = preset.id; clientSecret = preset.secret;
+    if (!clientId || !clientSecret) { toast('No WCL preset saved yet — ask your GM to set it up first.', 'error'); return; }
+  }
   const reportInput = document.getElementById('wcl-report-code').value.trim();
-  if (!clientId || !clientSecret || !reportInput) { toast('Client ID, Secret, and report link are all required.', 'error'); return; }
-  localStorage.setItem('wcl_client_id', clientId);
-  localStorage.setItem('wcl_client_secret', clientSecret);
+  if (!reportInput) { toast('Report link is required.', 'error'); return; }
   const code = extractReportCode(reportInput);
 
   document.getElementById('sync-progress').style.display = 'block';
@@ -2209,7 +2276,10 @@ async function runSync() {
             title startTime
             zone { name }
             fights(killType: Kills) { id name startTime endTime kill }
-            masterData { actors(type: "Player") { id name subType } }
+            masterData {
+              actors(type: "Player") { id name subType }
+              pets: actors(type: "Pet") { id name petOwner }
+            }
           }
         }
       }
@@ -2219,8 +2289,21 @@ async function runSync() {
     if (!report) throw new Error('Report not found — check the link/code.');
     syncLog(`✓ Found "${report.title}" in ${report.zone?.name || 'unknown zone'}`);
 
+    const { data: existingNight } = await sb.from('raid_nights').select('id, title').eq('wcl_report_code', code).maybeSingle();
+    if (existingNight) {
+      syncLog(`<span style="color:var(--red-bright);">✕ This report was already synced as "${existingNight.title}" — stopping to avoid duplicate data.</span>`);
+      toast('This report has already been synced.', 'error');
+      document.getElementById('sync-btn').disabled = false;
+      return;
+    }
+
     const fights = report.fights || [];
     const actors = report.masterData?.actors || [];
+    const pets = report.masterData?.pets || [];
+    console.log(`[Delusions Sync] Pets found in report: ${pets.length}`, pets);
+    if (pets.length && !pets.some(p => p.petOwner)) {
+      console.warn(`[Delusions Sync] Pets exist but none have a "petOwner" field populated - that field name is likely wrong for this schema. Pet scroll tracking will silently find nothing until this is fixed.`);
+    }
     syncLog(`✓ ${fights.length} boss kill(s), ${actors.length} total player(s) seen anywhere in the log`);
 
     syncLog('Fetching gear and consumable snapshots per boss…');
@@ -2242,7 +2325,27 @@ async function runSync() {
         if (!actor) return;
         attendeeNames.add(actor.name); // only players actually in a kill fight count as attended
         if (ev.gear && !gearByPlayer[actor.name]) gearByPlayer[actor.name] = { className: actor.subType, gear: ev.gear };
-        consumablesByFight[fight.name][actor.name] = { className: actor.subType, auraNames: (ev.auras || []).map(a => a.name) };
+        consumablesByFight[fight.name][actor.name] = {
+          className: actor.subType,
+          auraNames: (ev.auras || []).map(a => a.name),
+          auraDetails: (ev.auras || []).map(a => ({ name: a.name, ability: a.ability })),
+        };
+      });
+      // Hunter pets should be scrolled too - check pet auras for the same
+      // scroll buffs and attach to the owning hunter. petOwner field name
+      // is unverified against WCL's real schema - if this silently finds
+      // nothing despite pets being present, that field name is the first
+      // thing to check.
+      gearEvents.forEach(ev => {
+        const pet = pets.find(p => p.id === ev.sourceID);
+        if (!pet || !pet.petOwner) return;
+        const owner = actors.find(a => a.id === pet.petOwner);
+        if (!owner || !consumablesByFight[fight.name][owner.name]) return;
+        const petAuraNames = (ev.auras || []).map(a => a.name);
+        consumablesByFight[fight.name][owner.name].petScrolled = {
+          strength: petAuraNames.some(n => KNOWN_STRENGTH_SCROLLS_SYNC.includes(n)),
+          agility: petAuraNames.some(n => KNOWN_AGILITY_SCROLLS_SYNC.includes(n)),
+        };
       });
     }
 
@@ -2281,13 +2384,11 @@ async function runSync() {
     syncLog(`✓ Potion usage pulled for ${fights.length} boss(es)`);
 
     // ---------------------------------------------------------------
-    // ONE-TIME COMPREHENSIVE DISCOVERY SCAN
-    // Resolves every distinct cast ability across the WHOLE log exactly
-    // once (not per-fight, much cheaper), and dumps every distinct aura
-    // name seen anywhere (free - already have this data). Categorized by
-    // keyword so the console output is directly usable without manually
-    // scanning hundreds of rotational spells.
+    // ONE-TIME COMPREHENSIVE DISCOVERY SCAN (opt-in only - this is what
+    // was making every sync slow. Not needed now that the real IDs are
+    // confirmed; only useful when hunting a still-unrecognized consumable)
     // ---------------------------------------------------------------
+    if (document.getElementById('sync-discovery-mode').checked) {
     syncLog('Running full consumable discovery scan…');
     const allAuraNames = new Set();
     Object.values(consumablesByFight).forEach(players => {
@@ -2312,8 +2413,9 @@ async function runSync() {
     console.log(`[Delusions Sync] All cast abilities matching consumable keywords, with real IDs and total uses across the whole log (${castMatches.length} of ${distinctCastIds.length} total distinct casts checked):`, castMatches.sort((a,b) => b.count - a.count));
     console.log(`[Delusions Sync] Full unfiltered aura list, in case something didn't match a keyword:`, [...allAuraNames].sort());
     syncLog(`<span style="color:var(--dim);">(Full discovery scan logged to console — F12 → Console — one pass covers everything)</span>`);
+    }
 
-    syncResult = { report, fights, actors, attendance, gearByPlayer, consumablesByFight };
+    syncResult = { report, fights, actors, attendance, gearByPlayer, consumablesByFight, reportCode: code };
     renderSyncPreview();
 
   } catch (err) {
@@ -2340,16 +2442,27 @@ function renderSyncPreview() {
 async function confirmSync() {
   await loadTbcItems();
   await loadGemsData();
-  const { report, fights, attendance, gearByPlayer, consumablesByFight } = syncResult;
+  const { report, fights, attendance, gearByPlayer, consumablesByFight, reportCode } = syncResult;
 
   const { data: night, error: nightErr } = await sb.from('raid_nights').insert({
     title: report.zone?.name || report.title,
     raid_date: report.startTime ? new Date(report.startTime).toISOString() : new Date().toISOString(),
     created_by: currentUser.id,
+    wcl_report_code: reportCode,
   }).select().single();
   if (nightErr) { toast(nightErr.message, 'error'); return; }
 
   await sb.from('raid_attendees').insert(attendance.map(a => ({ raid_night_id: night.id, character_name: a.name, class_name: a.className })));
+
+  const META_GEM_KEYWORDS = ['skyfire', 'earthstorm', 'earthsiege']; // confirmed from real gem data - all TBC meta gems use one of these names, and all are Rare quality by design (no epic meta gems exist)
+  function isMetaGem(name) { return META_GEM_KEYWORDS.some(k => (name || '').toLowerCase().includes(k)); }
+  function resolveGemQuality(gemId) {
+    if (typeof gemsData !== 'undefined' && gemsData) {
+      const found = gemsData.find(g => g.id === gemId);
+      if (found) return found.q; // 'E'|'R'|'U'|... real quality letter, not a guess
+    }
+    return null;
+  }
 
   const gearRows = Object.entries(gearByPlayer).map(([name, info]) => {
     const enchants = [], gems = [];
@@ -2357,15 +2470,19 @@ async function confirmSync() {
       const item = (info.gear || [])[idx];
       if (!item || !item.id) return;
       const itemName = resolveItemName(item.id);
-      if (item.permanentEnchant) enchants.push({ slot: slotName, itemName, status: 'good', detail: 'Enchanted' });
-      else enchants.push({ slot: slotName, itemName, status: 'missing', detail: 'No enchant' });
+      if (item.permanentEnchant) enchants.push({ slot: slotName, itemName, itemId: item.id, enchantId: item.permanentEnchant, status: 'good', detail: 'Enchanted' });
+      else enchants.push({ slot: slotName, itemName, itemId: item.id, status: 'missing', detail: 'No enchant' });
       if (item.gems && item.gems.length) {
         item.gems.forEach(g => {
-          // No direct quality field on gems from WCL - itemLevel is the
-          // best available proxy (epic/rare-tier gems run ~70+, lower-tier
-          // fillers like Pearls run ~60). Worth revisiting if this proves
-          // inaccurate on real data.
-          gems.push({ slot: slotName, itemName: resolveGemName(g.id), status: g.itemLevel >= 70 ? 'good' : 'suboptimal', detail: `${resolveGemName(g.id)} (ilvl ${g.itemLevel})` });
+          const gemName = resolveGemName(g.id);
+          const quality = resolveGemQuality(g.id);
+          const meta = isMetaGem(gemName);
+          let status;
+          if (meta) status = 'na'; // meta gems are always Rare by design - not a fair "needs epic" comparison
+          else if (quality === 'E') status = 'good';
+          else if (quality === 'R') status = 'suboptimal';
+          else status = 'missing'; // Uncommon/unknown quality treated same as "no gem", per explicit request
+          gems.push({ slot: slotName, itemName: gemName, itemId: g.id, status, detail: gemName, meta });
         });
       }
     });
@@ -2378,9 +2495,18 @@ async function confirmSync() {
     Object.entries(players).forEach(([name, info]) => {
       const isScrollClass = SCROLL_CLASSES_SYNC.includes(info.className);
       const auraNames = info.auraNames || [];
-      const hasFlask = auraNames.some(n => KNOWN_FLASKS_SYNC.includes(n));
-      const hasBattle = auraNames.some(n => KNOWN_BATTLE_ELIXIRS_SYNC.includes(n));
-      const hasGuardian = auraNames.some(n => KNOWN_GUARDIAN_ELIXIRS_SYNC.includes(n));
+      const auraDetails = info.auraDetails || [];
+      const findAbilityId = (n) => auraDetails.find(a => a.name === n)?.ability || null;
+      const flaskMatch = auraNames.find(n => KNOWN_FLASKS_SYNC.includes(n));
+      const battleMatch = findElixirMatch(auraNames, BATTLE_ELIXIRS_SYNC);
+      const guardianMatch = findElixirMatch(auraNames, GUARDIAN_ELIXIRS_SYNC);
+      let elixirType, tierIssue = false;
+      if (flaskMatch) { elixirType = 'flask'; }
+      else if (battleMatch && guardianMatch) { elixirType = 'elixir'; tierIssue = battleMatch.tier === 'suboptimal' || guardianMatch.tier === 'suboptimal'; }
+      else if (battleMatch || guardianMatch) { elixirType = 'partial'; }
+      else { elixirType = 'none'; }
+      const elixirNames = [flaskMatch, battleMatch?.name, guardianMatch?.name].filter(Boolean);
+      const elixirSpellIds = elixirNames.map(n => findAbilityId(n)).filter(Boolean);
       const hasStrScroll = auraNames.some(n => KNOWN_STRENGTH_SCROLLS_SYNC.includes(n));
       const hasAgiScroll = auraNames.some(n => KNOWN_AGILITY_SCROLLS_SYNC.includes(n));
       const scrollNames = [];
@@ -2393,9 +2519,9 @@ async function confirmSync() {
       if (info.ironshieldCount) potionNames.push(`Ironshield Potion x${info.ironshieldCount}`);
       consumableRows.push({
         raid_night_id: night.id, boss_name: bossName, character_name: name, class_name: info.className,
-        food: { used: auraNames.includes('Well Fed'), name: 'Well Fed' },
-        flask_elixir: { type: hasFlask ? 'flask' : (hasBattle && hasGuardian) ? 'elixir' : (hasBattle || hasGuardian) ? 'partial' : 'none', names: auraNames.filter(n => KNOWN_FLASKS_SYNC.includes(n) || KNOWN_BATTLE_ELIXIRS_SYNC.includes(n) || KNOWN_GUARDIAN_ELIXIRS_SYNC.includes(n)) },
-        scroll: { applicable: isScrollClass, status: (hasStrScroll && hasAgiScroll) ? 'good' : (hasStrScroll || hasAgiScroll) ? 'partial' : 'none', names: scrollNames },
+        food: { used: auraNames.includes('Well Fed'), name: 'Well Fed', spellId: findAbilityId('Well Fed') },
+        flask_elixir: { type: elixirType, tierIssue, names: elixirNames, spellIds: elixirSpellIds },
+        scroll: { applicable: isScrollClass, status: (hasStrScroll && hasAgiScroll) ? 'good' : (hasStrScroll || hasAgiScroll) ? 'partial' : 'none', names: scrollNames, spellIds: [findAbilityId(hasStrScroll ? auraNames.find(n=>KNOWN_STRENGTH_SCROLLS_SYNC.includes(n)) : null), findAbilityId(hasAgiScroll ? auraNames.find(n=>KNOWN_AGILITY_SCROLLS_SYNC.includes(n)) : null)].filter(Boolean), petScrolled: info.petScrolled || null },
         potions: { count: (info.destroCount || 0) + (info.hasteCount || 0) + (info.manaCount || 0) + (info.ironshieldCount || 0), names: potionNames },
         other: info.other || [],
         runes: { count: (info.runes || []).reduce((sum, r) => sum + r.count, 0), names: (info.runes || []).map(r => `${r.name} x${r.count}`) },
@@ -2497,7 +2623,6 @@ async function autoMatchWishlistOnImport(lootRows) {
   const canSeeLootAttendance = isMember() || isOfficer();
   if (isOfficer()) {
     renderUploadUI();
-    renderAttendanceForm();
     renderPollForm();
   }
 
@@ -2514,8 +2639,10 @@ async function autoMatchWishlistOnImport(lootRows) {
 
   if (isOfficer()) {
     document.getElementById('officer-sync-bar').style.display = '';
+  }
+  if (isGM()) {
+    document.getElementById('gm-export-bar').style.display = '';
     document.getElementById('loot-csv-btn').style.display = '';
-    if (isGM()) document.getElementById('gm-export-bar').style.display = '';
     document.getElementById('attendance-csv-btn').style.display = '';
     document.getElementById('polls-csv-btn').style.display = '';
     document.getElementById('wishlist-csv-btn').style.display = '';

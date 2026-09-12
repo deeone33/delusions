@@ -113,6 +113,12 @@ create table if not exists raid_nights (
   created_by uuid references profiles(id),
   created_at timestamptz default now()
 );
+alter table raid_nights add column if not exists wcl_report_code text;
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'raid_nights_wcl_report_code_key') then
+    alter table raid_nights add constraint raid_nights_wcl_report_code_key unique (wcl_report_code);
+  end if;
+end $$;
 
 create table if not exists raid_attendees (
   id uuid primary key default gen_random_uuid(),
