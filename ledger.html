@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=53">
+<link rel="stylesheet" href="style.css?v=54">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
@@ -330,8 +330,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=53"></script>
-<script src="editor.js?v=53"></script>
+<script src="app.js?v=54"></script>
+<script src="editor.js?v=54"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -2138,25 +2138,35 @@ async function runSync() {
 
     const fights = report.fights || [];
     const actors = report.masterData?.actors || [];
-    syncLog(`✓ ${fights.length} boss kill(s), ${actors.length} player(s) in the log`);
+    syncLog(`✓ ${fights.length} boss kill(s), ${actors.length} total player(s) seen anywhere in the log`);
 
-    const attendance = actors.map(a => ({ name: a.name, className: a.subType }));
-
-    syncLog('Fetching gear/enchant/gem data…');
+    syncLog('Fetching gear/enchant/gem data and correctly-scoped attendance…');
     let gearByPlayer = {};
-    if (fights.length) {
+    const attendeeNames = new Set();
+    for (const fight of fights) {
       const gearResp = await wclQuery(token, `
         query($code: String!, $fightID: Int!) {
           reportData { report(code: $code) { events(dataType: CombatantInfo, fightIDs: [$fightID]) { data } } }
         }
-      `, { code, fightID: fights[0].id });
+      `, { code, fightID: fight.id });
       const gearEvents = gearResp.data?.reportData?.report?.events?.data || [];
+      console.log(`[Delusions Sync] Raw CombatantInfo events for fight "${fight.name}":`, gearEvents);
       gearEvents.forEach(ev => {
         const actor = actors.find(a => a.id === ev.sourceID);
-        if (actor && ev.gear) gearByPlayer[actor.name] = { className: actor.subType, gear: ev.gear };
+        if (!actor) return;
+        attendeeNames.add(actor.name); // only players who actually show up in a kill fight count as attended
+        if (ev.gear) gearByPlayer[actor.name] = { className: actor.subType, gear: ev.gear };
       });
-      syncLog(`✓ Gear data for ${Object.keys(gearByPlayer).length} player(s)`);
     }
+    // Attendance = union of everyone who appeared in combat data for the
+    // actual kill fights — NOT masterData.actors, which includes anyone
+    // seen anywhere in the whole report (other pulls, wipes, bench, etc).
+    const attendance = [...attendeeNames].map(name => {
+      const actor = actors.find(a => a.name === name);
+      return { name, className: actor?.subType };
+    });
+    syncLog(`✓ ${attendance.length} player(s) actually in the kill fights`);
+    syncLog(`✓ Gear data for ${Object.keys(gearByPlayer).length} player(s)`);
 
     syncLog('Fetching consumable usage per boss…');
     let consumablesByFight = {};
@@ -2171,12 +2181,14 @@ async function runSync() {
           }
         }
       `, { code, fightID: fight.id });
-      consumablesByFight[fight.name] = {
-        buffs: evResp.data?.reportData?.report?.buffEvents?.data || [],
-        casts: evResp.data?.reportData?.report?.castEvents?.data || [],
-      };
+      const rawBuffs = evResp.data?.reportData?.report?.buffEvents?.data || [];
+      const rawCasts = evResp.data?.reportData?.report?.castEvents?.data || [];
+      console.log(`[Delusions Sync] Raw Buff events for "${fight.name}":`, rawBuffs.slice(0, 20));
+      console.log(`[Delusions Sync] Raw Cast events for "${fight.name}":`, rawCasts.slice(0, 20));
+      consumablesByFight[fight.name] = { buffs: rawBuffs, casts: rawCasts };
     }
     syncLog(`✓ Consumable events pulled for ${fights.length} boss(es)`);
+    syncLog(`<span style="color:var(--dim);">(Raw event data logged to your browser console — F12 → Console — for troubleshooting)</span>`);
 
     syncResult = { report, fights, actors, attendance, gearByPlayer, consumablesByFight };
     renderSyncPreview();
