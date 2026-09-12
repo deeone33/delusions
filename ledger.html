@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=73">
+<link rel="stylesheet" href="style.css?v=74">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
@@ -335,8 +335,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=73"></script>
-<script src="editor.js?v=73"></script>
+<script src="app.js?v=74"></script>
+<script src="editor.js?v=74"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -1476,7 +1476,11 @@ function showConsumableDetail(characterName, boss, key) {
       }
     }
   } else if (key === 'food') {
-    if (val.used) { detailHtml = `<div class="modal-row"><span>${esc(val.name)}</span></div>`; }
+    if (val.used) {
+      const foodItemId = FOOD_ITEM_IDS_SYNC[val.spellId];
+      const foodLink = foodItemId ? `<a href="https://www.wowhead.com/tbc/item=${foodItemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:inherit;">${esc(val.name)}</a>` : esc(val.name);
+      detailHtml = `<div class="modal-row"><span>${foodLink}</span></div>`;
+    }
     else { detailHtml = `<div style="color:var(--dim);">Not used.</div><div style="font-size:0.72rem;color:var(--dim);margin-top:0.5rem;">Note: only shows as used if the specific food's spell ID is in the known list - an unrecognized food would show as not used here even if one was eaten.</div>`; }
   } else {
     detailHtml = `<div class="modal-row"><span>${val.used ? esc(val.name || 'Used') : 'Not used'}</span></div>`;
@@ -2138,14 +2142,32 @@ const POTION_IDS_SYNC = {
 const RUNE_IDS_SYNC = { 'Dark Rune': 27869 }; // confirmed, 41 uses in real data. Demonic Rune not yet seen - add if it turns up.
 const POTION_NAMES_SYNC = { destruction: ['Destruction'], haste: ['Haste'], mana: ['Restore Mana'] };
 // Confirmed directly from real synced data.
-// Real item IDs (for icons/tooltips) - from wowsims/tbc-new's db.json,
+// Real item IDs (for icons/tooltips) - from wowsims/tbc-new's db.json plus
+// targeted verification searches for the handful not in that database,
 // cross-referenced by name against the buff-based detection above (a
 // different ID space, same pattern as everything else in this file).
 const CONSUMABLE_ITEM_IDS_SYNC = {
   'Destruction Potion': 22839, 'Haste Potion': 22838, 'Mana Potion': 22832, 'Ironshield Potion': 22849,
   'Flame Cap': 22788, 'Nightmare Seed': 22797, 'Thistle Tea': 7676, 'Elixir of Demonslaying': 9224,
-  // Dark Rune's real item ID not found yet - 12662 is Demonic Rune, a
-  // different item (caught before shipping, not left in as a guess).
+  'Dark Rune': 20520, 'Fel Iron Bomb': 23736, 'Goblin Sapper Charge': 10646, 'Super Sapper Charge': 23827,
+  'Drums of Battle': 29529,
+};
+// Food item IDs keyed by spell ID (not name) since food display names carry
+// parenthetical stat text ("Roasted Clefthoof (+20 Str)") that won't match
+// simple name-stripping. Where one spell/buff is shared by two foods (the
+// "one aura, several foods" limitation noted earlier), one representative
+// item is picked for the icon - can't show both since we can't tell which
+// was actually eaten.
+const FOOD_ITEM_IDS_SYNC = {
+  33256: 27658, // Roasted Clefthoof
+  33259: 27655, // Ravager Dog
+  33261: 27659, // Warp Burger (also covers Grilled Mudfish, 27664)
+  33263: 27657, // Blackened Basilisk (also covers Poached Bluefish, 27665)
+  33265: 27663, // Blackened Sporefish
+  33268: 27666, // Golden Fish Sticks
+  33257: 27667, // Spicy Crawdad (also covers Fisherman's Feast, 33052)
+  43722: 33825, // Skullfish Soup
+  43764: 33872, // Spicy Hot Talbuk
 };
 function findConsumableItemId(name) {
   if (!name) return null;
@@ -2221,6 +2243,15 @@ const STAT_WRONG_FOR_CLASS_SYNC = {
 };
 function isStatWrongForClass(stat, className) {
   return stat && STAT_WRONG_FOR_CLASS_SYNC[stat]?.includes(className);
+}
+// Detected-role check (from combat activity) - only reliable for healer
+// and tank. A "dps" role could be physical OR caster DPS, and self-relative
+// activity alone can't tell those apart, so 'dps' deliberately adds no
+// extra flagging beyond the existing class-based check.
+function isStatWrongForRole(stat, role) {
+  if (role === 'healer') return stat === 'strength' || stat === 'agility' || stat === 'spellDamage';
+  if (role === 'tank') return stat === 'spellDamage' || stat === 'spellHealing';
+  return false;
 }
 const GUARDIAN_ELIXIRS_SYNC = [
   { id: 28502, tier: 'good' },   // Elixir of Major Defense
@@ -2440,7 +2471,7 @@ async function runSync() {
             const oh = (ev.gear || [])[GEAR_SLOT_INDEX.OH];
             const foundId = [mh, oh].filter(Boolean).map(w => w.temporaryEnchant).find(id => id && WEAPON_ENHANCEMENT_IDS_SYNC[id]);
             if (!foundId) return null;
-            return { name: WEAPON_ENHANCEMENT_IDS_SYNC[foundId], tierIssue: isStatWrongForClass(WEAPON_OIL_STAT_SYNC[foundId], actor.subType) };
+            return { name: WEAPON_ENHANCEMENT_IDS_SYNC[foundId], stat: WEAPON_OIL_STAT_SYNC[foundId], tierIssue: isStatWrongForClass(WEAPON_OIL_STAT_SYNC[foundId], actor.subType) };
           })(),
         };
       });
@@ -2492,9 +2523,88 @@ async function runSync() {
         consumablesByFight[fight.name][playerName].other = Object.entries(OTHER_IDS_SYNC)
           .map(([name, id]) => ({ name, count: playerCasts.filter(c => c.abilityGameID === id).length }))
           .filter(o => o.count > 0);
+        const superSapperCount = playerCasts.filter(c => SUPER_SAPPER_IDS_SYNC.includes(c.abilityGameID)).length;
+        if (superSapperCount > 0) consumablesByFight[fight.name][playerName].other.push({ name: 'Super Sapper Charge', count: superSapperCount });
       });
     }
     syncLog(`✓ Potion usage pulled for ${fights.length} boss(es)`);
+
+    // ---------------------------------------------------------------
+    // ROLE DETECTION - infers tank/healer/dps per player from actual
+    // combat behavior rather than guessing from class, so hybrid classes
+    // (Paladin/Priest/Shaman/Druid) can get real role-aware suboptimal
+    // consumable checks instead of being left unflagged entirely.
+    //
+    // dps-vs-healer: purely self-relative - whichever of a player's own
+    // damage-done or healing-done is larger for a given fight. No
+    // comparison to other players needed here.
+    //
+    // tank: "being the boss's target" is inherently a raid-relative
+    // concept (that's what makes it tanking), so this one specific check
+    // compares a player's damage-taken against the raid's average for
+    // that fight - a meaningfully-above-average result marks them as
+    // tanking that fight.
+    //
+    // Per-fight guesses are majority-voted into one final role per player
+    // for the whole raid, so a single fight where a DPS died early to a
+    // mechanic (spiking their relative damage-taken, zeroing their
+    // damage-done) doesn't wrongly flag them as a tank - it's outvoted by
+    // every other normal fight.
+    //
+    // UNVERIFIED: this is the first time this sync has queried WCL's
+    // `table` field for DamageDone/Healing/DamageTaken. I don't have a
+    // confirmed shape for what that JSON blob actually looks like -
+    // parsing below is a reasonable guess at the standard WCL table
+    // format, with diagnostic logging so this can be corrected from real
+    // data on the next sync if the shape is wrong.
+    syncLog('Detecting player roles from combat activity…');
+    const roleVotesByPlayer = {}; // name -> {tank: N, healer: N, dps: N}
+    for (const fight of fights) {
+      try {
+        const roleResp = await wclQuery(token, `
+          query($code: String!, $fightID: Int!) {
+            reportData { report(code: $code) {
+              dmg: table(fightIDs: [$fightID], dataType: DamageDone)
+              heal: table(fightIDs: [$fightID], dataType: Healing)
+              taken: table(fightIDs: [$fightID], dataType: DamageTaken)
+            } }
+          }
+        `, { code, fightID: fight.id });
+        const rd = roleResp.data?.reportData?.report;
+        const dmgEntries = rd?.dmg?.data?.entries || [];
+        const healEntries = rd?.heal?.data?.entries || [];
+        const takenEntries = rd?.taken?.data?.entries || [];
+        if (fight === fights[0]) {
+          console.log('[Delusions Sync] Role detection - raw table shapes for first fight (verify this looks like {name, total} per player):', { dmgEntries: dmgEntries.slice(0,2), healEntries: healEntries.slice(0,2), takenEntries: takenEntries.slice(0,2) });
+        }
+        const takenByName = {};
+        takenEntries.forEach(e => { takenByName[e.name] = e.total || 0; });
+        const takenValues = Object.values(takenByName);
+        const avgTaken = takenValues.length ? takenValues.reduce((a,b) => a+b, 0) / takenValues.length : 0;
+
+        const playersInFight = new Set([...dmgEntries.map(e=>e.name), ...healEntries.map(e=>e.name), ...takenEntries.map(e=>e.name)]);
+        playersInFight.forEach(name => {
+          if (!consumablesByFight[fight.name]?.[name]) return; // only count players actually tracked for this fight
+          const dmg = dmgEntries.find(e => e.name === name)?.total || 0;
+          const heal = healEntries.find(e => e.name === name)?.total || 0;
+          const taken = takenByName[name] || 0;
+          let role;
+          if (avgTaken > 0 && taken > avgTaken * 1.8) role = 'tank';
+          else if (heal > dmg) role = 'healer';
+          else role = 'dps';
+          roleVotesByPlayer[name] = roleVotesByPlayer[name] || { tank: 0, healer: 0, dps: 0 };
+          roleVotesByPlayer[name][role]++;
+        });
+      } catch (e) {
+        console.warn(`[Delusions Sync] Role detection query failed for "${fight.name}" - skipping this fight for role purposes:`, e);
+      }
+    }
+    const detectedRoleByPlayer = {};
+    Object.entries(roleVotesByPlayer).forEach(([name, votes]) => {
+      detectedRoleByPlayer[name] = Object.entries(votes).sort((a,b) => b[1]-a[1])[0][0];
+    });
+    console.log('[Delusions Sync] Detected roles (majority vote across all fights):', detectedRoleByPlayer);
+
 
     // ---------------------------------------------------------------
     // ONE-TIME COMPREHENSIVE DISCOVERY SCAN (opt-in only - this is what
@@ -2536,7 +2646,7 @@ async function runSync() {
     syncLog(`<span style="color:var(--dim);">(Full discovery scan logged to console — F12 → Console — one pass covers everything)</span>`);
     }
 
-    syncResult = { report, fights, actors, attendance, gearByPlayer, consumablesByFight, reportCode: code };
+    syncResult = { report, fights, actors, attendance, gearByPlayer, consumablesByFight, reportCode: code, detectedRoleByPlayer };
     renderSyncPreview();
 
   } catch (err) {
@@ -2563,7 +2673,7 @@ function renderSyncPreview() {
 async function confirmSync() {
   await loadTbcItems();
   await loadGemsData();
-  const { report, fights, attendance, gearByPlayer, consumablesByFight, reportCode } = syncResult;
+  const { report, fights, attendance, gearByPlayer, consumablesByFight, reportCode, detectedRoleByPlayer } = syncResult;
 
   const { data: night, error: nightErr } = await sb.from('raid_nights').insert({
     title: report.zone?.name || report.title,
@@ -2797,12 +2907,14 @@ async function confirmSync() {
       const flaskDetail = auraDetails.find(a => FLASK_IDS_SYNC.includes(a.ability));
       const battleMatch = findElixirMatch(auraDetails, BATTLE_ELIXIRS_SYNC);
       const guardianMatch = findElixirMatch(auraDetails, GUARDIAN_ELIXIRS_SYNC);
+      const detectedRole = detectedRoleByPlayer?.[name];
       let elixirType, tierIssue = false;
       if (flaskDetail) { elixirType = 'flask'; }
       else if (battleMatch && guardianMatch) {
         elixirType = 'elixir';
         tierIssue = battleMatch.tier === 'suboptimal' || guardianMatch.tier === 'suboptimal'
-          || isStatWrongForClass(battleMatch.stat, info.className) || isStatWrongForClass(guardianMatch.stat, info.className);
+          || isStatWrongForClass(battleMatch.stat, info.className) || isStatWrongForClass(guardianMatch.stat, info.className)
+          || isStatWrongForRole(battleMatch.stat, detectedRole) || isStatWrongForRole(guardianMatch.stat, detectedRole);
       }
       else if (battleMatch || guardianMatch) { elixirType = 'partial'; }
       else { elixirType = 'none'; }
@@ -2840,7 +2952,7 @@ async function confirmSync() {
         potions: { count: (info.destroCount || 0) + (info.hasteCount || 0) + (info.manaCount || 0) + (info.ironshieldCount || 0), names: potionNames },
         other: info.other || [],
         runes: { count: (info.runes || []).reduce((sum, r) => sum + r.count, 0), names: (info.runes || []).map(r => `${r.name} x${r.count}`) },
-        weapon_enchant: { status: info.weaponEnchant ? (info.weaponEnchant.tierIssue ? 'suboptimal' : 'good') : 'missing', name: info.weaponEnchant?.name, tierIssue: info.weaponEnchant?.tierIssue },
+        weapon_enchant: { status: info.weaponEnchant ? ((info.weaponEnchant.tierIssue || isStatWrongForRole(info.weaponEnchant.stat, detectedRole)) ? 'suboptimal' : 'good') : 'missing', name: info.weaponEnchant?.name, tierIssue: info.weaponEnchant?.tierIssue || isStatWrongForRole(info.weaponEnchant?.stat, detectedRole) },
       });
     });
   });
