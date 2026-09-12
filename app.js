@@ -199,7 +199,7 @@ function roleIcon(role) {
   return wrap(''); // reserve the same width even with no detected role, so names always align
 }
 function getDetectedRole(name) {
-  return (typeof gearCheckRows !== 'undefined' && gearCheckRows.find(r => r.character_name === name)?.detected_role) || null;
+  return (typeof detectedRolesMap !== 'undefined' && detectedRolesMap[name]) || null;
 }
 
 function fmtDate(d) {

@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=90">
+<link rel="stylesheet" href="style.css?v=91">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
@@ -335,8 +335,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=90"></script>
-<script src="editor.js?v=90"></script>
+<script src="app.js?v=91"></script>
+<script src="editor.js?v=91"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -1170,6 +1170,7 @@ async function submitPoll() {
 // ================= GEAR CHECK =================
 let currentGearCheckRaidId = null;
 let gearCheckRows = [];
+let detectedRolesMap = {}; // character_name -> role, populated independently by either tab (Gear Check or Consumables), not dependent on the other having been visited
 
 const GEARCHECK_SLOTS = ['Head','Shoulder','Back','Chest','Wrist','Hands','Legs','Feet','MH','OH'];
 const STATUS_SEVERITY = { missing: 3, suboptimal: 2, good: 1, na: 0 };
@@ -1193,6 +1194,7 @@ async function switchGearCheckRaid(raidId) { currentGearCheckRaidId = raidId; aw
 async function loadGearCheckRaid(raidId) {
   const { data } = await sb.from('gear_checks').select('*').eq('raid_night_id', raidId);
   gearCheckRows = data || [];
+  gearCheckRows.forEach(r => { detectedRolesMap[r.character_name] = r.detected_role; });
   renderGearCheck();
 }
 
@@ -1206,15 +1208,35 @@ function combineSlotStatus(row, slot) {
   return { status: worst, enchant, gems: slotGems };
 }
 
+let gearCheckSortState = { col: 'name', dir: 'asc' };
+function sortGearCheckBy(col) {
+  if (gearCheckSortState.col === col) gearCheckSortState.dir = gearCheckSortState.dir === 'asc' ? 'desc' : 'asc';
+  else gearCheckSortState = { col, dir: 'asc' };
+  renderGearCheck();
+}
+function gearCheckSortArrow(col) { return gearCheckSortState.col === col ? (gearCheckSortState.dir === 'asc' ? ' ▲' : ' ▼') : ''; }
+
 function renderGearCheck() {
   const search = (document.getElementById('gearcheck-search')?.value || '').trim().toLowerCase();
   let rows = gearCheckRows;
   if (search) rows = rows.filter(r => r.character_name.toLowerCase().includes(search));
-  rows = [...rows].sort((a, b) => a.character_name.localeCompare(b.character_name));
 
-  let html = `<table class="dense-check-table"><tr><th class="name-col">Player</th>${GEARCHECK_SLOTS.map(s => `<th>${s}</th>`).join('')}</tr>`;
+  const { col, dir } = gearCheckSortState;
+  const mult = dir === 'asc' ? 1 : -1;
+  rows = [...rows];
+  if (col === 'name') rows.sort((a, b) => mult * a.character_name.localeCompare(b.character_name));
+  else if (col === 'role') {
+    const order = { tank: 0, healer: 1, dps: 2 };
+    rows.sort((a, b) => mult * ((order[a.detected_role] ?? 3) - (order[b.detected_role] ?? 3)));
+  } else {
+    // col is a slot name - sort by that slot's combined status severity (best/suboptimal/missing)
+    rows.sort((a, b) => mult * (STATUS_SEVERITY[combineSlotStatus(a, col).status] - STATUS_SEVERITY[combineSlotStatus(b, col).status]));
+  }
+
+  let html = `<table class="dense-check-table"><tr><th class="name-col" style="cursor:pointer;" onclick="sortGearCheckBy('name')">Player${gearCheckSortArrow('name')}</th><th style="cursor:pointer;" onclick="sortGearCheckBy('role')">Role${gearCheckSortArrow('role')}</th>${GEARCHECK_SLOTS.map(s => `<th style="cursor:pointer;" onclick="sortGearCheckBy('${s}')">${s}${gearCheckSortArrow(s)}</th>`).join('')}</tr>`;
   rows.forEach(r => {
-    html += `<tr><td><span class="cls-name-row" style="cursor:pointer;" onclick='showPlayerProfile(${jsAttr(r.character_name)})' title="Click for full profile">${roleIcon(r.detected_role)}${classIcon(r.class_name)}<span style="${classColor(r.class_name) ? `color:${classColor(r.class_name)};` : ''}">${esc(r.character_name)}</span></span></td>`;
+    html += `<tr><td><span class="cls-name-row" style="cursor:pointer;" onclick='showPlayerProfile(${jsAttr(r.character_name)})' title="Click for full profile">${classIcon(r.class_name)}<span style="${classColor(r.class_name) ? `color:${classColor(r.class_name)};` : ''}">${esc(r.character_name)}</span></span></td>`;
+    html += `<td>${roleIcon(r.detected_role)}</td>`;
     GEARCHECK_SLOTS.forEach(slot => {
       const combined = combineSlotStatus(r, slot);
       html += `<td style="cursor:pointer;" onclick='showGearCheckDetail(${jsAttr(r.character_name)}, ${jsAttr(slot)})' title="Click for detail"><span style="color:${STATUS_COLOR[combined.status]};font-weight:600;">${STATUS_SYMBOL[combined.status]}</span></td>`;
@@ -1423,11 +1445,21 @@ async function switchConsumablesRaid(raidId) { currentConsumablesRaidId = raidId
 async function loadConsumablesRaid(raidId) {
   const { data } = await sb.from('consumable_logs').select('*').eq('raid_night_id', raidId);
   consumablesRows = data || [];
+  const { data: roleData } = await sb.from('gear_checks').select('character_name, detected_role').eq('raid_night_id', raidId);
+  (roleData || []).forEach(r => { detectedRolesMap[r.character_name] = r.detected_role; });
   const bosses = [...new Set(consumablesRows.map(r => r.boss_name))];
   const bossSel = document.getElementById('consumables-boss-select');
   bossSel.innerHTML = `<option value="__summary__">Summary</option>` + bosses.map(b => `<option value="${esc(b)}">${esc(b)}</option>`).join('');
   renderConsumables();
 }
+
+let summarySortState = { col: 'total', dir: 'desc' };
+function sortSummaryBy(col) {
+  if (summarySortState.col === col) summarySortState.dir = summarySortState.dir === 'asc' ? 'desc' : 'asc';
+  else summarySortState = { col, dir: col === 'name' ? 'asc' : 'desc' };
+  renderConsumablesSummaryTable(document.getElementById('consumables-search')?.value.trim().toLowerCase() || '');
+}
+function summarySortArrow(col) { return summarySortState.col === col ? (summarySortState.dir === 'asc' ? ' ▲' : ' ▼') : ''; }
 
 function renderConsumablesSummaryTable(search) {
   const names = [...new Set(consumablesRows.map(r => r.character_name))];
@@ -1443,17 +1475,81 @@ function renderConsumablesSummaryTable(search) {
     const total = food + flask + scroll + weapon + potions + runes + other;
     const className = rows[0]?.class_name;
     return { name, className, food, flask, scroll, weapon, potions, runes, other, total };
-  }).filter(p => !search || p.name.toLowerCase().includes(search))
-    .sort((a, b) => b.total - a.total);
+  }).filter(p => !search || p.name.toLowerCase().includes(search));
 
-  let html = `<table class="dense-check-table"><tr><th class="name-col">Player</th><th>Total</th><th>Food</th><th>Flask/Elixir</th><th>Scroll</th><th>Weapon</th><th>Potions</th><th>Runes</th><th>Other</th></tr>`;
+  const { col, dir } = summarySortState;
+  const mult = dir === 'asc' ? 1 : -1;
+  if (col === 'name') players.sort((a, b) => mult * a.name.localeCompare(b.name));
+  else if (col === 'role') {
+    const order = { tank: 0, healer: 1, dps: 2 };
+    players.sort((a, b) => mult * ((order[getDetectedRole(a.name)] ?? 3) - (order[getDetectedRole(b.name)] ?? 3)));
+  } else players.sort((a, b) => mult * (a[col] - b[col]));
+
+  const numericCols = [['total','Total'],['food','Food'],['flask','Flask/Elixir'],['scroll','Scroll'],['weapon','Weapon'],['potions','Potions'],['runes','Runes'],['other','Other']];
+  let html = `<table class="dense-check-table"><tr><th class="name-col" style="cursor:pointer;" onclick="sortSummaryBy('name')">Player${summarySortArrow('name')}</th><th style="cursor:pointer;" onclick="sortSummaryBy('role')">Role${summarySortArrow('role')}</th>${numericCols.map(([key,label]) => `<th style="cursor:pointer;" onclick="sortSummaryBy('${key}')">${label}${summarySortArrow(key)}</th>`).join('')}</tr>`;
   players.forEach(p => {
-    html += `<tr><td><span class="cls-name-row" style="cursor:pointer;" onclick='showPlayerProfile(${jsAttr(p.name)})' title="Click for full profile">${roleIcon(getDetectedRole(p.name))}${classIcon(p.className)}<span style="${classColor(p.className) ? `color:${classColor(p.className)};` : ''}">${esc(p.name)}</span></span></td>`;
+    html += `<tr><td><span class="cls-name-row" style="cursor:pointer;" onclick='showPlayerProfile(${jsAttr(p.name)})' title="Click for full profile">${classIcon(p.className)}<span style="${classColor(p.className) ? `color:${classColor(p.className)};` : ''}">${esc(p.name)}</span></span></td>`;
+    html += `<td>${roleIcon(getDetectedRole(p.name))}</td>`;
     html += `<td style="color:${STATUS_COLOR.good};font-weight:600;">${p.total}</td><td>${p.food}</td><td>${p.flask}</td><td>${p.scroll}</td><td>${p.weapon}</td><td>${p.potions}</td><td>${p.runes}</td><td>${p.other}</td></tr>`;
   });
   html += '</table>';
   document.getElementById('consumables-table-wrap').innerHTML = html;
 }
+
+function getConsumableCellStatus(row, colKey) {
+  const val = row[colKey] || {};
+  let status, label;
+  if (colKey === 'scroll') {
+    if (val.applicable === false) { status = 'na'; label = '—'; }
+    else { status = val.status === 'good' ? 'good' : val.status === 'partial' ? 'suboptimal' : 'missing'; label = STATUS_SYMBOL[status]; }
+  } else if (colKey === 'flask_elixir') {
+    status = val.type === 'flask' ? 'good' : val.type === 'elixir' ? (val.tierIssue ? 'suboptimal' : 'good') : val.type === 'partial' ? 'suboptimal' : 'missing';
+    label = STATUS_SYMBOL[status];
+  } else if (colKey === 'potions' || colKey === 'runes') {
+    status = (val.count > 0) ? 'good' : 'missing';
+    label = val.count > 0 ? val.count : STATUS_SYMBOL['missing'];
+  } else if (colKey === 'weapon_enchant') {
+    status = val.status === 'good' ? 'good' : val.status === 'suboptimal' ? 'suboptimal' : 'missing';
+    label = STATUS_SYMBOL[status];
+  } else if (colKey === 'other') {
+    const items = Array.isArray(val) ? val : [];
+    const total = items.reduce((sum, it) => sum + (it.count || 0), 0);
+    status = total > 0 ? 'good' : 'na';
+    label = total > 0 ? total : '—';
+  } else {
+    status = val.used ? 'good' : 'missing';
+    label = STATUS_SYMBOL[status];
+  }
+  return { status, label };
+}
+
+let consumablesSortState = { col: 'name', dir: 'asc' };
+function sortConsumablesBy(col) {
+  if (consumablesSortState.col === col) consumablesSortState.dir = consumablesSortState.dir === 'asc' ? 'desc' : 'asc';
+  else consumablesSortState = { col, dir: 'asc' };
+  renderConsumables();
+}
+function applyConsumablesSort(rows) {
+  const { col, dir } = consumablesSortState;
+  const mult = dir === 'asc' ? 1 : -1;
+  const sorted = [...rows];
+  if (col === 'name') {
+    sorted.sort((a, b) => mult * a.character_name.localeCompare(b.character_name));
+  } else if (col === 'role') {
+    const order = { tank: 0, healer: 1, dps: 2 };
+    sorted.sort((a, b) => mult * ((order[getDetectedRole(a.character_name)] ?? 3) - (order[getDetectedRole(b.character_name)] ?? 3)));
+  } else if (col === 'potions' || col === 'runes') {
+    sorted.sort((a, b) => mult * ((a[col]?.count || 0) - (b[col]?.count || 0)));
+  } else if (col === 'other') {
+    const totalOf = (r) => (r.other || []).reduce((s, o) => s + (o.count || 0), 0);
+    sorted.sort((a, b) => mult * (totalOf(a) - totalOf(b)));
+  } else {
+    // status-based columns: good first, then suboptimal, then missing (severity order), reversible
+    sorted.sort((a, b) => mult * (STATUS_SEVERITY[getConsumableCellStatus(a, col).status] - STATUS_SEVERITY[getConsumableCellStatus(b, col).status]));
+  }
+  return sorted;
+}
+function sortArrow(col) { return consumablesSortState.col === col ? (consumablesSortState.dir === 'asc' ? ' ▲' : ' ▼') : ''; }
 
 function renderConsumables() {
   const search = (document.getElementById('consumables-search')?.value || '').trim().toLowerCase();
@@ -1466,35 +1562,14 @@ function renderConsumables() {
 
   let rows = consumablesRows.filter(r => r.boss_name === boss);
   if (search) rows = rows.filter(r => r.character_name.toLowerCase().includes(search));
-  rows = [...rows].sort((a, b) => a.character_name.localeCompare(b.character_name));
+  rows = applyConsumablesSort(rows);
 
-  let html = `<table class="dense-check-table"><tr><th class="name-col">Player</th>${CONSUMABLE_COLS.map(c => `<th>${c.label}</th>`).join('')}</tr>`;
+  let html = `<table class="dense-check-table"><tr><th class="name-col" style="cursor:pointer;" onclick="sortConsumablesBy('name')">Player${sortArrow('name')}</th><th style="cursor:pointer;" onclick="sortConsumablesBy('role')">Role${sortArrow('role')}</th>${CONSUMABLE_COLS.map(c => `<th style="cursor:pointer;" onclick="sortConsumablesBy('${c.key}')">${c.label}${sortArrow(c.key)}</th>`).join('')}</tr>`;
   rows.forEach(r => {
-    html += `<tr><td><span class="cls-name-row" style="cursor:pointer;" onclick='showPlayerProfile(${jsAttr(r.character_name)}, ${jsAttr(boss)})' title="Click for full profile">${roleIcon(getDetectedRole(r.character_name))}${classIcon(r.class_name)}<span style="${classColor(r.class_name) ? `color:${classColor(r.class_name)};` : ''}">${esc(r.character_name)}</span></span></td>`;
+    html += `<tr><td><span class="cls-name-row" style="cursor:pointer;" onclick='showPlayerProfile(${jsAttr(r.character_name)}, ${jsAttr(boss)})' title="Click for full profile">${classIcon(r.class_name)}<span style="${classColor(r.class_name) ? `color:${classColor(r.class_name)};` : ''}">${esc(r.character_name)}</span></span></td>`;
+    html += `<td>${roleIcon(getDetectedRole(r.character_name))}</td>`;
     CONSUMABLE_COLS.forEach(c => {
-      const val = r[c.key] || {};
-      let status, label;
-      if (c.key === 'scroll') {
-        if (val.applicable === false) { status = 'na'; label = '—'; }
-        else { status = val.status === 'good' ? 'good' : val.status === 'partial' ? 'suboptimal' : 'missing'; label = STATUS_SYMBOL[status]; }
-      } else if (c.key === 'flask_elixir') {
-        status = val.type === 'flask' ? 'good' : val.type === 'elixir' ? (val.tierIssue ? 'suboptimal' : 'good') : val.type === 'partial' ? 'suboptimal' : 'missing';
-        label = STATUS_SYMBOL[status];
-      } else if (c.key === 'potions' || c.key === 'runes') {
-        status = (val.count > 0) ? 'good' : 'missing';
-        label = val.count > 0 ? val.count : STATUS_SYMBOL['missing'];
-      } else if (c.key === 'weapon_enchant') {
-        status = val.status === 'good' ? 'good' : val.status === 'suboptimal' ? 'suboptimal' : 'missing';
-        label = STATUS_SYMBOL[status];
-      } else if (c.key === 'other') {
-        const items = Array.isArray(val) ? val : [];
-        const total = items.reduce((sum, it) => sum + (it.count || 0), 0);
-        status = total > 0 ? 'good' : 'na';
-        label = total > 0 ? total : '—';
-      } else {
-        status = val.used ? 'good' : 'missing';
-        label = STATUS_SYMBOL[status];
-      }
+      const { status, label } = getConsumableCellStatus(r, c.key);
       html += `<td style="cursor:pointer;color:${STATUS_COLOR[status]};font-weight:600;" onclick='showConsumableDetail(${jsAttr(r.character_name)}, ${jsAttr(boss)}, ${jsAttr(c.key)})' title="Click for detail">${label}</td>`;
     });
     html += `</tr>`;
@@ -1502,6 +1577,7 @@ function renderConsumables() {
   html += `</table>`;
   document.getElementById('consumables-table-wrap').innerHTML = rows.length ? html : `<div class="card" style="text-align:center;color:var(--dim);">${search ? 'No matches.' : 'No data for this boss.'}</div>`;
 }
+
 
 function showConsumableDetail(characterName, boss, key) {
   const row = consumablesRows.find(r => r.character_name === characterName && r.boss_name === boss);
