@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=85">
+<link rel="stylesheet" href="style.css?v=87">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>const whTooltips = {colorLinks: false, iconizeLinks: false, renameLinks: false};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
@@ -335,8 +335,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=85"></script>
-<script src="editor.js?v=85"></script>
+<script src="app.js?v=87"></script>
+<script src="editor.js?v=87"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -451,7 +451,7 @@ function renderLoot() {
             ${items.map(r => `
               <tr>
                 <td>${esc(r.raid_title || '—')}</td>
-                <td class="item-name">${r.item_link ? `<a href="${esc(r.item_link)}" target="_blank" rel="noopener" style="color:inherit;" data-wowhead="domain=tbc">${esc(r.item_name)}</a>` : esc(r.item_name || '—')}</td>
+                <td class="item-name">${r.item_link ? `<a href="${esc(r.item_link)}" target="_blank" rel="noopener" style="color:${qualityColorFromWowheadLink(r.item_link)};" data-wowhead="domain=tbc">${esc(r.item_name)}</a>` : esc(r.item_name || '—')}</td>
                 <td>${esc(r.response || '—')}</td>
                 <td>${playerLink(r.winner_name, r.class_name)}</td>
                 ${isOfficer() ? `<td><button class="row-delete" title="Remove this item" onclick="deleteLootItem('${r.id}')">${TRASH_ICON}</button></td>` : ''}
@@ -817,7 +817,7 @@ function openPlayerModal(name) {
       <h4>Loot History (${lootItems.length})</h4>
       ${lootItems.length ? lootItems.map(l => `
         <div class="modal-row">
-          <span class="item-name">${l.item_link ? `<a href="${esc(l.item_link)}" target="_blank" rel="noopener" style="color:inherit;" data-wowhead="domain=tbc">${esc(l.item_name)}</a>` : esc(l.item_name)}</span>
+          <span class="item-name">${l.item_link ? `<a href="${esc(l.item_link)}" target="_blank" rel="noopener" style="color:${qualityColorFromWowheadLink(l.item_link)};" data-wowhead="domain=tbc">${esc(l.item_name)}</a>` : esc(l.item_name)}</span>
           <span style="display:flex;align-items:center;gap:0.6rem;">
             ${l.awarded_at ? new Date(l.awarded_at).toLocaleDateString() : ''}
             ${officer ? `<button class="row-delete" title="Remove this item" onclick="deleteLootItem('${l.id}')">${TRASH_ICON}</button>` : ''}
@@ -996,7 +996,7 @@ async function showWishlistHistoryModal(wishlistId) {
   const renderSnapshotItem = (entry) => {
     const it = normalize(entry);
     if (!it.text) return '<span style="color:var(--dim)">—</span>';
-    return it.link ? `<a href="${esc(it.link)}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:inherit;">${esc(it.text)}</a>` : esc(it.text);
+    return it.link ? `<a href="${esc(it.link)}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${qualityColorFromWowheadLink(it.link)};">${esc(it.text)}</a>` : esc(it.text);
   };
 
   const [after, before] = history; // most recent first
@@ -1238,11 +1238,11 @@ async function showPlayerProfile(characterName, presetBoss) {
 
   let gearHtml = '<div style="color:var(--dim);">No gear data for this raid.</div>';
   if (gearRow) {
-    gearHtml = `<div style="display:grid;grid-template-columns:44px 130px 60px auto;gap:0.5rem;align-items:center;">` + GEARCHECK_SLOTS.map(slot => {
+    gearHtml = `<div style="display:grid;grid-template-columns:66px 1fr 64px 1fr;gap:0.8rem;align-items:center;">` + GEARCHECK_SLOTS.map(slot => {
       const combined = combineSlotStatus(gearRow, slot);
       const e = combined.enchant;
       if (!e) return '';
-      const itemLink = e.itemId ? `<a href="https://www.wowhead.com/tbc/item=${e.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:var(--bone);">${esc(e.itemName)}</a>` : esc(e.itemName || '—');
+      const itemLink = e.itemId ? `<a href="https://www.wowhead.com/tbc/item=${e.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${resolveItemQualityColor(e.itemId)};">${esc(e.itemName)}</a>` : esc(e.itemName || '—');
 
       // Enchant: just "Enchanted"/"No Enchant" - color alone carries good/
       // suboptimal/missing, no redundant "(outdated)" text. Always uses the
@@ -1272,7 +1272,7 @@ async function showPlayerProfile(characterName, presetBoss) {
       }).join(' ') : '<span style="color:var(--dim);">—</span>';
 
       return `
-        <span style="font-size:0.6rem;color:var(--dim);text-transform:uppercase;letter-spacing:0.05em;">${slot}</span>
+        <span style="font-size:0.6rem;color:var(--dim);text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;overflow:hidden;">${slot}</span>
         <span style="font-size:0.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${itemLink}</span>
         <span style="font-size:0.85rem;">${enchantBit}</span>
         <span style="font-size:0.9rem;">${gemBits}</span>`;
@@ -1325,7 +1325,7 @@ function refreshProfileConsumables(characterName) {
   const row = consumablesRows.find(r => r.character_name === characterName && r.boss_name === boss);
   if (!row) { body.innerHTML = '<div style="color:var(--dim);">No data for this boss.</div>'; return; }
 
-  const spellLink = (name, id) => id ? `<a href="https://www.wowhead.com/tbc/spell=${id}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:inherit;">${esc(name)}</a>` : esc(name);
+  const spellLink = (name, id) => id ? `<a href="https://www.wowhead.com/tbc/spell=${id}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:var(--bone);">${esc(name)}</a>` : esc(name);
   const foodLine = row.food?.used ? esc(row.food.name) : '<span style="color:var(--dim);">Not used</span>';
   const elixirLines = (row.flask_elixir?.names || []).length ? row.flask_elixir.names.map((n, i) => spellLink(n, (row.flask_elixir.spellIds||[])[i])).join(', ') : '<span style="color:var(--dim);">None</span>';
   const scrollLines = (row.scroll?.applicable === false) ? '<span style="color:var(--dim);">N/A for this role</span>' : ((row.scroll?.names || []).length ? row.scroll.names.map((n, i) => spellLink(n, (row.scroll.spellIds||[])[i])).join(', ') : '<span style="color:var(--dim);">None</span>');
@@ -1352,7 +1352,7 @@ function showGearCheckDetail(characterName, slot) {
   const combined = combineSlotStatus(row, slot);
   const className = row.class_name;
   const e = combined.enchant;
-  const itemLink = e?.itemId ? `<a href="https://www.wowhead.com/tbc/item=${e.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:inherit;">${esc(e.itemName)}</a>` : esc(e?.itemName || '—');
+  const itemLink = e?.itemId ? `<a href="https://www.wowhead.com/tbc/item=${e.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${resolveItemQualityColor(e.itemId)};">${esc(e.itemName)}</a>` : esc(e?.itemName || '—');
   const enchantLink = e?.enchantId
     ? (e.enchantName
         ? (() => {
@@ -1498,8 +1498,8 @@ function showConsumableDetail(characterName, boss, key) {
   const row = consumablesRows.find(r => r.character_name === characterName && r.boss_name === boss);
   if (!row) return;
   const val = row[key] || {};
-  const spellLink = (name, id) => id ? `<a href="https://www.wowhead.com/tbc/spell=${id}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:inherit;">${esc(name)}</a>` : esc(name);
-  const itemLink = (name) => { const id = findConsumableItemId(name); return id ? `<a href="https://www.wowhead.com/tbc/item=${id}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:inherit;">${esc(name)}</a>` : esc(name); };
+  const spellLink = (name, id) => id ? `<a href="https://www.wowhead.com/tbc/spell=${id}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:var(--bone);">${esc(name)}</a>` : esc(name);
+  const itemLink = (name) => { const id = findConsumableItemId(name); return id ? `<a href="https://www.wowhead.com/tbc/item=${id}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:var(--bone);">${esc(name)}</a>` : esc(name); };
   let detailHtml;
   if (key === 'flask_elixir') {
     const ids = val.spellIds || [];
@@ -1512,7 +1512,7 @@ function showConsumableDetail(characterName, boss, key) {
     const note = val.tierIssue ? `<div style="font-size:0.78rem;color:var(--warn);margin-top:0.4rem;">Wrong stat priority for this class (e.g. Wizard Oil on a healer, Mana Oil on a non-healer).</div>` : '';
     const itemId = WEAPON_ENHANCEMENT_ITEM_IDS_SYNC[val.enchantId];
     const nameBit = !val.name ? '' : itemId
-      ? `<a href="https://www.wowhead.com/tbc/item=${itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:inherit;">${esc(val.name)}</a>`
+      ? `<a href="https://www.wowhead.com/tbc/item=${itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:var(--bone);">${esc(val.name)}</a>`
       : `<span style="cursor:help;text-decoration:underline dotted;" onmouseenter='showInfoPopup(event, ${jsAttr(weaponEnhancementDesc(val.name) || val.name)})' onmouseleave='hideInfoPopup()'>${esc(val.name)}</span>`;
     detailHtml = val.name ? `<div class="modal-row"><span>${nameBit}</span></div>${note}` : '<div style="color:var(--dim);">None used (or an unrecognized temp enchant not in the known whitelist).</div>';
   } else if (key === 'other') {
@@ -1533,7 +1533,7 @@ function showConsumableDetail(characterName, boss, key) {
   } else if (key === 'food') {
     if (val.used) {
       const foodItemId = FOOD_ITEM_IDS_SYNC[val.spellId];
-      const foodLink = foodItemId ? `<a href="https://www.wowhead.com/tbc/item=${foodItemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:inherit;">${esc(val.name)}</a>` : esc(val.name);
+      const foodLink = foodItemId ? `<a href="https://www.wowhead.com/tbc/item=${foodItemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:var(--bone);">${esc(val.name)}</a>` : esc(val.name);
       detailHtml = `<div class="modal-row"><span>${foodLink}</span></div>`;
     }
     else { detailHtml = `<div style="color:var(--dim);">Not used.</div><div style="font-size:0.72rem;color:var(--dim);margin-top:0.5rem;">Note: only shows as used if the specific food's spell ID is in the known list - an unrecognized food would show as not used here even if one was eaten.</div>`; }
@@ -1714,7 +1714,7 @@ function renderWishlistRows() {
 }
 
 function renderWishlistItemDisplay(it) {
-  if (it.item_link) return `<a href="${esc(it.item_link)}" target="_blank" rel="noopener" data-wowhead="domain=tbc">${esc(it.item_text)}</a>`;
+  if (it.item_link) return `<a href="${esc(it.item_link)}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${qualityColorFromWowheadLink(it.item_link)};">${esc(it.item_text)}</a>`;
   return esc(it.item_text) || '<span style="color:var(--dim)">(empty)</span>';
 }
 
@@ -2014,7 +2014,7 @@ function renderHotItems() {
     const bodyId = `hot-item-body-${idx}`;
     const toggleId = `hot-item-toggle-${idx}`;
     const display = item.itemLink
-      ? `<a href="${esc(item.itemLink)}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:inherit;">${esc(item.displayText)}</a>`
+      ? `<a href="${esc(item.itemLink)}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${qualityColorFromWowheadLink(item.itemLink)};">${esc(item.displayText)}</a>`
       : esc(item.displayText);
     return `
       <div class="raid-group">
@@ -2455,6 +2455,23 @@ function resolveItemName(itemId) {
     if (found) return found.name;
   }
   return `Item #${itemId}`;
+}
+// Standard WoW quality colors - needed now that Wowhead's own auto-color
+// is disabled (colorLinks:false, required to stop it overriding the gem
+// circle colors), which means item name coloring is no longer automatic.
+const QUALITY_COLOR_SYNC = { E: '#a335ee', R: '#0070dd', U: '#1eff00', C: '#ffffff' };
+function resolveItemQualityColor(itemId) {
+  if (typeof tbcItemsData !== 'undefined' && tbcItemsData) {
+    const found = tbcItemsData.find(it => it.id === itemId);
+    if (found && found.q) return QUALITY_COLOR_SYNC[found.q] || 'var(--bone)';
+  }
+  return 'var(--bone)';
+}
+function qualityColorFromWowheadLink(link) {
+  if (!link) return 'var(--bone)';
+  const m = link.match(/item=(\d+)/);
+  if (!m) return 'var(--bone)';
+  return resolveItemQualityColor(parseInt(m[1]));
 }
 
 function resolveGemName(gemId) {
