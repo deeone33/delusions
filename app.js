@@ -192,10 +192,11 @@ function classIcon(className) {
 // Role detected from combat activity (see sync logic) - simple unicode
 // symbols rather than custom art, since these are small inline indicators.
 function roleIcon(role) {
-  if (role === 'tank') return `<span title="Tank (detected from combat activity)" style="margin-right:0.15rem;">🛡️</span>`;
-  if (role === 'healer') return `<span title="Healer (detected from combat activity)" style="margin-right:0.15rem;">✚</span>`;
-  if (role === 'dps') return `<span title="DPS (detected from combat activity)" style="margin-right:0.15rem;">⚔️</span>`;
-  return '';
+  const wrap = (content, tooltip) => `<span title="${tooltip||''}" style="display:inline-block;width:1.3em;text-align:center;margin-right:0.25rem;">${content}</span>`;
+  if (role === 'tank') return wrap('🛡️', 'Tank (detected from combat activity)');
+  if (role === 'healer') return wrap('✚', 'Healer (detected from combat activity)');
+  if (role === 'dps') return wrap('⚔️', 'DPS (detected from combat activity)');
+  return wrap(''); // reserve the same width even with no detected role, so names always align
 }
 function getDetectedRole(name) {
   return (typeof gearCheckRows !== 'undefined' && gearCheckRows.find(r => r.character_name === name)?.detected_role) || null;

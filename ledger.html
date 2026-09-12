@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=75">
+<link rel="stylesheet" href="style.css?v=76">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
@@ -335,8 +335,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=75"></script>
-<script src="editor.js?v=75"></script>
+<script src="app.js?v=76"></script>
+<script src="editor.js?v=76"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -1243,28 +1243,34 @@ async function showPlayerProfile(characterName, presetBoss) {
       const e = combined.enchant;
       if (!e) return '';
       const itemLink = e.itemId ? `<a href="https://www.wowhead.com/tbc/item=${e.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:var(--bone);">${esc(e.itemName)}</a>` : esc(e.itemName || '—');
+      // Enchants: no verified Wowhead link exists for raw enchant ids, so
+      // this uses the guaranteed click-popup instead of a hover tooltip.
       const enchantBit = e.enchantId
         ? (e.enchantName
-            ? `<span style="color:${STATUS_COLOR[e.status]};font-size:0.75rem;" title="${esc(e.enchantDesc || e.enchantName)}">${esc(e.enchantName)}${e.status === 'suboptimal' ? ' (outdated)' : ''}</span>`
-            : `<span style="color:${STATUS_COLOR.good};font-size:0.75rem;">enchanted</span>`)
-        : `<span style="color:${STATUS_COLOR.missing};font-size:0.75rem;">no enchant</span>`;
-      // Gems collapsed into compact status dots (one per socket), but each
-      // dot is still a real Wowhead-linked element so the rich tooltip
-      // works - the earlier "compact" pass accidentally replaced these
-      // with plain title-only spans, losing the tooltip. Fixed here.
-      const gemDots = combined.gems.length ? combined.gems.map(g => {
+            ? `<span style="color:${STATUS_COLOR[e.status]};cursor:pointer;text-decoration:underline dotted;" onclick="showInfoPopup(event, ${JSON.stringify(e.enchantDesc || e.enchantName).replace(/'/g,'&#39;')})">${esc(e.enchantName)}${e.status === 'suboptimal' ? ' (outdated)' : ''}</span>`
+            : `<span style="color:${STATUS_COLOR.good};">enchanted</span>`)
+        : `<span style="color:${STATUS_COLOR.missing};">no enchant</span>`;
+      // Gems: real Wowhead link as a bonus hover tooltip if that script is
+      // working, PLUS a guaranteed click-popup fallback either way -
+      // clicking shows the name regardless of whether Wowhead's widget loaded.
+      const gemBits = combined.gems.length ? combined.gems.map(g => {
         const symbol = g.meta ? '◆' : STATUS_SYMBOL[g.status];
         const color = g.meta ? 'var(--dim)' : STATUS_COLOR[g.status];
+        const clickAttr = `onclick="showInfoPopup(event, ${JSON.stringify(g.itemName).replace(/'/g,'&#39;')})"`;
         return g.itemId
-          ? `<a href="https://www.wowhead.com/tbc/item=${g.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${color};text-decoration:none;">${symbol}</a>`
-          : `<span style="color:${color};">${symbol}</span>`;
+          ? `<a href="https://www.wowhead.com/tbc/item=${g.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" ${clickAttr} style="color:${color};text-decoration:none;cursor:pointer;">${symbol}</a>`
+          : `<span ${clickAttr} style="color:${color};cursor:pointer;">${symbol}</span>`;
       }).join(' ') : '';
       return `
-        <div style="display:flex;align-items:baseline;gap:0.5rem;padding:0.3rem 0;border-bottom:1px solid var(--hair2);font-size:0.82rem;">
-          <div style="width:60px;flex-shrink:0;font-size:0.6rem;color:var(--dim);text-transform:uppercase;letter-spacing:0.05em;">${slot}</div>
-          <div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${itemLink}</div>
-          <div style="flex-shrink:0;">${enchantBit}</div>
-          ${gemDots ? `<div style="flex-shrink:0;">${gemDots}</div>` : ''}
+        <div style="padding:0.45rem 0;border-bottom:1px solid var(--hair2);">
+          <div style="display:flex;justify-content:space-between;gap:0.5rem;">
+            <span style="font-size:0.6rem;color:var(--dim);text-transform:uppercase;letter-spacing:0.05em;">${slot}</span>
+          </div>
+          <div style="font-size:0.88rem;word-break:break-word;">${itemLink}</div>
+          <div style="font-size:0.78rem;color:var(--mist);margin-top:0.15rem;display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+            <span>${enchantBit}</span>
+            ${gemBits ? `<span>${gemBits}</span>` : ''}
+          </div>
         </div>`;
     }).join('');
   }
@@ -1345,11 +1351,10 @@ function showGearCheckDetail(characterName, slot) {
   const itemLink = e?.itemId ? `<a href="https://www.wowhead.com/tbc/item=${e.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:inherit;">${esc(e.itemName)}</a>` : esc(e?.itemName || '—');
   const enchantLink = e?.enchantId
     ? (e.enchantName
-        ? (e.status === 'suboptimal'
-            ? `<span style="color:${STATUS_COLOR.suboptimal};" title="${esc(e.enchantDesc || ('Outdated enchant, id ' + e.enchantId))}">${esc(e.enchantName)} (outdated)</span>`
-            : `<span style="color:${STATUS_COLOR.good};" title="${esc(e.enchantDesc || ('Confirmed in-game, id ' + e.enchantId))}">${esc(e.enchantName)}</span>`)
-        : `<span style="color:${STATUS_COLOR.good};" title="Enchant ID ${e.enchantId} - not yet identified">Enchanted</span>`)
+        ? `<span style="color:${STATUS_COLOR[e.status]};cursor:pointer;text-decoration:underline dotted;" onclick="showInfoPopup(event, ${JSON.stringify(e.enchantDesc || e.enchantName).replace(/'/g,'&#39;')})">${esc(e.enchantName)}${e.status === 'suboptimal' ? ' (outdated)' : ''}</span>`
+        : `<span style="color:${STATUS_COLOR.good};">Enchanted</span>`)
     : `<span style="color:${STATUS_COLOR.missing};">No enchant</span>`;
+  const enchantDescInline = (e?.enchantName && e?.enchantDesc) ? `<div style="font-size:0.75rem;color:var(--mist);margin-top:0.2rem;">${esc(e.enchantDesc)}</div>` : '';
   const gemsHtml = combined.gems.length ? combined.gems.map(g => `
     <div class="modal-row"><span><a href="https://www.wowhead.com/tbc/item=${g.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${g.meta ? 'inherit' : STATUS_COLOR[g.status]};">${esc(g.itemName)}</a></span></div>
   `).join('') : `<div class="modal-row"><span style="color:${STATUS_COLOR.missing};">Empty socket</span></div>`;
@@ -1361,6 +1366,7 @@ function showGearCheckDetail(characterName, slot) {
     <div class="label" style="margin-bottom:0.3rem;">${esc(slot)}</div>
     <div class="modal-row"><span>Item</span><span>${itemLink}</span></div>
     <div class="modal-row"><span>Enchant</span><span>${enchantLink}</span></div>
+    ${enchantDescInline}
     <div class="modal-section"><h4>Gems</h4>${gemsHtml}</div>
   `;
   openModalPlayer = null;
@@ -1495,7 +1501,9 @@ function showConsumableDetail(characterName, boss, key) {
     detailHtml = (val.names && val.names.length) ? val.names.map(n => `<div class="modal-row"><span>${itemLink(n)}</span></div>`).join('') : '<div style="color:var(--dim);">None used.</div>';
   } else if (key === 'weapon_enchant') {
     const note = val.tierIssue ? `<div style="font-size:0.78rem;color:var(--warn);margin-top:0.4rem;">Wrong stat priority for this class (e.g. Wizard Oil on a healer, Mana Oil on a non-healer).</div>` : '';
-    detailHtml = val.name ? `<div class="modal-row"><span>${esc(val.name)}</span></div>${note}` : '<div style="color:var(--dim);">None used (or an unrecognized temp enchant not in the known whitelist).</div>';
+    const desc = weaponEnhancementDesc(val.name);
+    const nameBit = val.name ? `<span style="cursor:pointer;text-decoration:underline dotted;" onclick="showInfoPopup(event, ${JSON.stringify(desc || val.name).replace(/'/g,'&#39;')})">${esc(val.name)}</span>` : '';
+    detailHtml = val.name ? `<div class="modal-row"><span>${nameBit}</span></div>${desc ? `<div style="font-size:0.75rem;color:var(--mist);margin-top:0.3rem;">${esc(desc)}</div>` : ''}${note}` : '<div style="color:var(--dim);">None used (or an unrecognized temp enchant not in the known whitelist).</div>';
   } else if (key === 'other') {
     const items = Array.isArray(val) ? val : [];
     detailHtml = items.length ? items.map(it => `<div class="modal-row"><span>${itemLink(it.name)}</span><span>${it.count}x</span></div>`).join('') : '<div style="color:var(--dim);">Nothing recorded.</div>';
@@ -1705,6 +1713,34 @@ function detectWowheadLink(text) {
 }
 
 let wowheadRefreshFallbackUsed = false;
+// Click-based info popup - does NOT rely on native title/hover tooltips,
+// which have proven unreliable. Click an element to see its info near the
+// cursor; click anywhere else to dismiss. Used for enchants, gems, and
+// weapon enchants where a real Wowhead link isn't available/reliable.
+function showInfoPopup(event, text) {
+  event.stopPropagation();
+  event.preventDefault();
+  let popup = document.getElementById('inline-info-popup');
+  if (!popup) {
+    popup = document.createElement('div');
+    popup.id = 'inline-info-popup';
+    popup.style.cssText = 'position:fixed;background:#1a1a2e;border:1px solid #555;padding:0.5rem 0.8rem;border-radius:6px;font-size:0.8rem;color:#fff;z-index:99999;max-width:280px;box-shadow:0 4px 16px rgba(0,0,0,0.6);pointer-events:none;';
+    document.body.appendChild(popup);
+  }
+  popup.textContent = text;
+  popup.style.display = 'block';
+  // Keep it on-screen even near the right/bottom edge
+  const x = Math.min(event.clientX + 12, window.innerWidth - 300);
+  const y = Math.min(event.clientY + 12, window.innerHeight - 60);
+  popup.style.left = x + 'px';
+  popup.style.top = y + 'px';
+  setTimeout(() => { document.addEventListener('click', hideInfoPopup, { once: true }); }, 0);
+}
+function hideInfoPopup() {
+  const popup = document.getElementById('inline-info-popup');
+  if (popup) popup.style.display = 'none';
+}
+
 function refreshWowheadTooltips() {
   if (window.$WowheadPower && typeof window.$WowheadPower.refreshLinks === 'function') { window.$WowheadPower.refreshLinks(); return; }
   if (window.WH && window.WH.Tooltips && typeof window.WH.Tooltips.refreshLinks === 'function') { window.WH.Tooltips.refreshLinks(); return; }
@@ -2235,6 +2271,18 @@ const WEAPON_ENHANCEMENT_IDS_SYNC = {
 // distinction even for tiers whose exact display name isn't individually verified.
 const WEAPON_OIL_STAT_SYNC = { 25:'spellDamage',2625:'spellDamage',2626:'spellDamage',2676:'spellDamage',2678:'spellDamage',2685:'spellDamage',
   26:'spellHealing',2623:'spellHealing',2624:'spellHealing',2629:'spellHealing',2677:'spellHealing' };
+// General effect category per type - exact per-tier numbers aren't
+// individually verified (only Superior Wizard/Mana Oil are), but the
+// category itself is well-known TBC mechanics.
+function weaponEnhancementDesc(name) {
+  if (!name) return '';
+  if (name.includes('Sharpening Stone')) return 'Increases weapon damage.';
+  if (name.includes('Weightstone')) return 'Increases weapon damage (for blunt weapons).';
+  if (name.includes('Wizard Oil')) return 'Increases spell damage for a limited number of hits.';
+  if (name.includes('Mana Oil')) return 'Increases healing and mana regeneration for a limited number of hits.';
+  if (name.includes('Coating')) return 'Bonus damage vs. Undead or Demons.';
+  return '';
+}
 //
 // Everything below this point is matched by spell/buff ID, not name - a
 // fix for the whole "shortened aura name" unreliability problem this file
