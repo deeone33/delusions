@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=77">
+<link rel="stylesheet" href="style.css?v=78">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
@@ -335,8 +335,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=77"></script>
-<script src="editor.js?v=77"></script>
+<script src="app.js?v=78"></script>
+<script src="editor.js?v=78"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -1243,32 +1243,41 @@ async function showPlayerProfile(characterName, presetBoss) {
       const e = combined.enchant;
       if (!e) return '';
       const itemLink = e.itemId ? `<a href="https://www.wowhead.com/tbc/item=${e.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:var(--bone);">${esc(e.itemName)}</a>` : esc(e.itemName || '—');
-      // Enchants: no verified Wowhead link exists for raw enchant ids, so
-      // this uses the guaranteed click-popup instead of a hover tooltip.
-      const enchantBit = e.enchantId
-        ? (e.enchantName
-            ? `<span style="color:${STATUS_COLOR[e.status]};cursor:help;text-decoration:underline dotted;" onmouseenter='showInfoPopup(event, ${jsAttr(e.enchantDesc || e.enchantName)})' onmouseleave='hideInfoPopup()'>${esc(e.enchantName)}${e.status === 'suboptimal' ? ' (outdated)' : ''}</span>`
-            : `<span style="color:${STATUS_COLOR.good};">enchanted</span>`)
-        : `<span style="color:${STATUS_COLOR.missing};">no enchant</span>`;
-      // Gems: real Wowhead link as a bonus hover tooltip if that script is
-      // working, matching the pattern already confirmed working elsewhere.
+      // Shows just "Enchanted"/"No Enchant" as the status word (not the
+      // full enchant name) - hover reveals what it actually is, via a real
+      // Wowhead spell link where the name matches a known casting spell,
+      // or the custom hover popup otherwise.
+      let enchantBit;
+      if (!e.enchantId) {
+        enchantBit = `<span style="color:${STATUS_COLOR.missing};">No Enchant</span>`;
+      } else if (e.enchantName) {
+        const baseName = e.enchantName.replace(/ \([+\-].*\)$/, '');
+        const spellId = ENCHANT_NAME_TO_SPELL_SYNC[baseName];
+        const label = `Enchanted${e.status === 'suboptimal' ? ' (outdated)' : ''}`;
+        enchantBit = spellId
+          ? `<a href="https://www.wowhead.com/tbc/spell=${spellId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${STATUS_COLOR[e.status]};">${label}</a>`
+          : `<span style="color:${STATUS_COLOR[e.status]};cursor:help;text-decoration:underline dotted;" onmouseenter='showInfoPopup(event, ${jsAttr(e.enchantDesc || e.enchantName)})' onmouseleave='hideInfoPopup()'>${label}</span>`;
+      } else {
+        enchantBit = `<span style="color:${STATUS_COLOR.good};">Enchanted</span>`;
+      }
+      // Gems: dots color-coded by quality (STATUS_COLOR already maps
+      // good=epic/green, suboptimal=rare/blue shown yellow, missing=red),
+      // real Wowhead item link for the rich hover card.
       const gemBits = combined.gems.length ? combined.gems.map(g => {
         const symbol = g.meta ? '◆' : STATUS_SYMBOL[g.status];
         const color = g.meta ? 'var(--dim)' : STATUS_COLOR[g.status];
         return g.itemId
           ? `<a href="https://www.wowhead.com/tbc/item=${g.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${color};text-decoration:none;">${symbol}</a>`
           : `<span style="color:${color};">${symbol}</span>`;
-      }).join(' ') : '';
+      }).join(' ') : '<span style="color:var(--dim);">—</span>';
       return `
-        <div style="padding:0.45rem 0;border-bottom:1px solid var(--hair2);">
-          <div style="display:flex;justify-content:space-between;gap:0.5rem;">
-            <span style="font-size:0.6rem;color:var(--dim);text-transform:uppercase;letter-spacing:0.05em;">${slot}</span>
-          </div>
-          <div style="font-size:0.88rem;word-break:break-word;">${itemLink}</div>
-          <div style="font-size:0.78rem;color:var(--mist);margin-top:0.15rem;display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
-            <span>${enchantBit}</span>
-            ${gemBits ? `<span>${gemBits}</span>` : ''}
-          </div>
+        <div style="display:flex;align-items:baseline;gap:0.4rem;padding:0.4rem 0;border-bottom:1px solid var(--hair2);flex-wrap:wrap;">
+          <span style="font-size:0.6rem;color:var(--dim);text-transform:uppercase;letter-spacing:0.05em;width:52px;flex-shrink:0;">${slot}</span>
+          <span style="font-size:0.85rem;">${itemLink}</span>
+          <span style="color:var(--dim);">—</span>
+          <span style="font-size:0.85rem;">${enchantBit}</span>
+          <span style="color:var(--dim);">—</span>
+          <span style="font-size:0.9rem;">${gemBits}</span>
         </div>`;
     }).join('');
   }
@@ -1349,10 +1358,16 @@ function showGearCheckDetail(characterName, slot) {
   const itemLink = e?.itemId ? `<a href="https://www.wowhead.com/tbc/item=${e.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:inherit;">${esc(e.itemName)}</a>` : esc(e?.itemName || '—');
   const enchantLink = e?.enchantId
     ? (e.enchantName
-        ? `<span style="color:${STATUS_COLOR[e.status]};cursor:help;text-decoration:underline dotted;" onmouseenter='showInfoPopup(event, ${jsAttr(e.enchantDesc || e.enchantName)})' onmouseleave='hideInfoPopup()'>${esc(e.enchantName)}${e.status === 'suboptimal' ? ' (outdated)' : ''}</span>`
+        ? (() => {
+            const baseName = e.enchantName.replace(/ \(outdated\)$/, '').replace(/ \([+\-].*\)$/, ''); // strip any stat-suffix so it matches the plain enchant name
+            const spellId = ENCHANT_NAME_TO_SPELL_SYNC[baseName];
+            const label = `${esc(e.enchantName)}${e.status === 'suboptimal' ? ' (outdated)' : ''}`;
+            return spellId
+              ? `<a href="https://www.wowhead.com/tbc/spell=${spellId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${STATUS_COLOR[e.status]};">${label}</a>`
+              : `<span style="color:${STATUS_COLOR[e.status]};cursor:help;text-decoration:underline dotted;" onmouseenter='showInfoPopup(event, ${jsAttr(e.enchantDesc || e.enchantName)})' onmouseleave='hideInfoPopup()'>${label}</span>`;
+          })()
         : `<span style="color:${STATUS_COLOR.good};">Enchanted</span>`)
     : `<span style="color:${STATUS_COLOR.missing};">No enchant</span>`;
-  const enchantDescInline = (e?.enchantName && e?.enchantDesc) ? `<div style="font-size:0.75rem;color:var(--mist);margin-top:0.2rem;">${esc(e.enchantDesc)}</div>` : '';
   const gemsHtml = combined.gems.length ? combined.gems.map(g => `
     <div class="modal-row"><span><a href="https://www.wowhead.com/tbc/item=${g.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${g.meta ? 'inherit' : STATUS_COLOR[g.status]};">${esc(g.itemName)}</a></span></div>
   `).join('') : `<div class="modal-row"><span style="color:${STATUS_COLOR.missing};">Empty socket</span></div>`;
@@ -1364,7 +1379,6 @@ function showGearCheckDetail(characterName, slot) {
     <div class="label" style="margin-bottom:0.3rem;">${esc(slot)}</div>
     <div class="modal-row"><span>Item</span><span>${itemLink}</span></div>
     <div class="modal-row"><span>Enchant</span><span>${enchantLink}</span></div>
-    ${enchantDescInline}
     <div class="modal-section"><h4>Gems</h4>${gemsHtml}</div>
   `;
   openModalPlayer = null;
@@ -1499,9 +1513,11 @@ function showConsumableDetail(characterName, boss, key) {
     detailHtml = (val.names && val.names.length) ? val.names.map(n => `<div class="modal-row"><span>${itemLink(n)}</span></div>`).join('') : '<div style="color:var(--dim);">None used.</div>';
   } else if (key === 'weapon_enchant') {
     const note = val.tierIssue ? `<div style="font-size:0.78rem;color:var(--warn);margin-top:0.4rem;">Wrong stat priority for this class (e.g. Wizard Oil on a healer, Mana Oil on a non-healer).</div>` : '';
-    const desc = weaponEnhancementDesc(val.name);
-    const nameBit = val.name ? `<span style="cursor:help;text-decoration:underline dotted;" onmouseenter='showInfoPopup(event, ${jsAttr(desc || val.name)})' onmouseleave='hideInfoPopup()'>${esc(val.name)}</span>` : '';
-    detailHtml = val.name ? `<div class="modal-row"><span>${nameBit}</span></div>${desc ? `<div style="font-size:0.75rem;color:var(--mist);margin-top:0.3rem;">${esc(desc)}</div>` : ''}${note}` : '<div style="color:var(--dim);">None used (or an unrecognized temp enchant not in the known whitelist).</div>';
+    const itemId = WEAPON_ENHANCEMENT_ITEM_IDS_SYNC[val.enchantId];
+    const nameBit = !val.name ? '' : itemId
+      ? `<a href="https://www.wowhead.com/tbc/item=${itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:inherit;">${esc(val.name)}</a>`
+      : `<span style="cursor:help;text-decoration:underline dotted;" onmouseenter='showInfoPopup(event, ${jsAttr(weaponEnhancementDesc(val.name) || val.name)})' onmouseleave='hideInfoPopup()'>${esc(val.name)}</span>`;
+    detailHtml = val.name ? `<div class="modal-row"><span>${nameBit}</span></div>${note}` : '<div style="color:var(--dim);">None used (or an unrecognized temp enchant not in the known whitelist).</div>';
   } else if (key === 'other') {
     const items = Array.isArray(val) ? val : [];
     detailHtml = items.length ? items.map(it => `<div class="modal-row"><span>${itemLink(it.name)}</span><span>${it.count}x</span></div>`).join('') : '<div style="color:var(--dim);">Nothing recorded.</div>';
@@ -2262,6 +2278,20 @@ const WEAPON_ENHANCEMENT_IDS_SYNC = {
   2629: 'Brilliant Mana Oil', 2676: 'Superior Wizard Oil', 2677: 'Superior Mana Oil', 2678: 'Superior Wizard Oil',
   2684: 'Consecrated Sharpening Stone', 2685: 'Blessed Wizard Oil', 3093: 'Righteous Weapon Coating', 3265: 'Blessed Weapon Coating',
 };
+// Real Wowhead item IDs for the most common ones - verified via search, not
+// guessed. Where an id below is missing, the display falls back to the
+// plain description popup rather than a false/guessed item link.
+const WEAPON_ENHANCEMENT_ITEM_IDS_SYNC = {
+  2712: 12404,  // Dense Sharpening Stone
+  2713: 18262,  // Elemental Sharpening Stone
+  2954: 12643,  // Dense Weightstone
+  2624: 20748, 2629: 20748, // Brilliant Mana Oil
+  2626: 20749,  // Brilliant Wizard Oil
+  2677: 22521,  // Superior Mana Oil
+  2678: 22522,  // Superior Wizard Oil
+  2684: 23122,  // Consecrated Sharpening Stone
+  2685: 23123,  // Blessed Wizard Oil
+};
 // Wizard oils = spell damage, Mana oils = spell healing - a safe, well-known
 // distinction even for tiers whose exact display name isn't individually verified.
 const WEAPON_OIL_STAT_SYNC = { 25:'spellDamage',2625:'spellDamage',2626:'spellDamage',2676:'spellDamage',2678:'spellDamage',2685:'spellDamage',
@@ -2556,7 +2586,7 @@ async function runSync() {
             const getTempEnchant = (w) => w.temporaryEnchant ?? w.tempEnchant ?? w.temporary_enchant ?? null;
             const foundId = [mh, oh].filter(Boolean).map(getTempEnchant).find(id => id && WEAPON_ENHANCEMENT_IDS_SYNC[id]);
             if (!foundId) return null;
-            return { name: WEAPON_ENHANCEMENT_IDS_SYNC[foundId], stat: WEAPON_OIL_STAT_SYNC[foundId], tierIssue: isStatWrongForClass(WEAPON_OIL_STAT_SYNC[foundId], actor.subType) };
+            return { name: WEAPON_ENHANCEMENT_IDS_SYNC[foundId], enchantId: foundId, stat: WEAPON_OIL_STAT_SYNC[foundId], tierIssue: isStatWrongForClass(WEAPON_OIL_STAT_SYNC[foundId], actor.subType) };
           })(),
         };
       });
@@ -2794,6 +2824,38 @@ async function confirmSync() {
   // several turns earlier. Four independent confirmations on one dataset.
   // Specific-slot entries are ordered before null-slot (weapon-agnostic)
   // fallback entries so exact slot matches always win in the lookup below.
+  // Real Wowhead casting-spell IDs, keyed by enchant NAME - from earlier
+  // tbc-bis-guide.com research. This is deliberately the CASTING spell
+  // (different id space than the WCL-matching effect id above), used only
+  // for the tooltip display since Wowhead's casting-spell page accurately
+  // describes the resulting effect. Not every enchant name below is
+  // covered - uncovered ones fall back to the plain popup.
+  const ENCHANT_NAME_TO_SPELL_SYNC = {
+    "Glyph of Ferocity": 35452, "Glyph of Power": 35447, "Glyph of Renewal": 35445, "Glyph of the Defender": 35443,
+    "Glyph of the Gladiator": 35453, "Glyph of the Outcast": 37891, "Presence of Might": 24149,
+    "Fortitude of the Scourge": 29480, "Might of the Scourge": 29483, "Power of the Scourge": 29467,
+    "Greater Inscription of Discipline": 35406, "Greater Inscription of Faith": 35404, "Greater Inscription of the Blade": 35439,
+    "Greater Inscription of the Knight": 35433, "Greater Inscription of the Orb": 35437, "Greater Inscription of Vengeance": 35417,
+    "Greater Inscription of Warding": 35402, "Heavy Knothide Armor Kit": 44968, "Inscription of Faith": 35403, "Inscription of Vengeance": 35407,
+    "Enchant Cloak - Dodge": 25086, "Enchant Cloak - Greater Agility": 34004, "Enchant Cloak - Greater Shadow Resistance": 34006,
+    "Enchant Cloak - Major Armor": 27961, "Enchant Cloak - Major Resistance": 27962, "Enchant Cloak - Steelweave": 47051, "Enchant Cloak - Subtlety": 25084,
+    "Enchant Chest - Exceptional Health": 27957, "Enchant Chest - Exceptional Stats": 27960, "Enchant Chest - Major Resilience": 33992,
+    "Enchant Chest - Major Spirit": 33990, "Enchant Chest - Restore Mana Prime": 33991,
+    "Enchant Bracer - Assault": 34002, "Enchant Bracer - Brawn": 27899, "Enchant Bracer - Fortitude": 27914, "Enchant Bracer - Major Defense": 27906,
+    "Enchant Bracer - Spellpower": 27917, "Enchant Bracer - Stats": 27905, "Enchant Bracer - Superior Healing": 27911,
+    "Enchant Gloves - Frost Power": 25074, "Enchant Gloves - Major Healing": 33999, "Enchant Gloves - Major Spellpower": 33997,
+    "Enchant Gloves - Major Strength": 33995, "Enchant Gloves - Spell Strike": 33994, "Enchant Gloves - Superior Agility": 25080, "Enchant Gloves - Threat": 25072,
+    "Glove Reinforcements": 44769, "Cobrahide Leg Armor": 35488, "Golden Spellthread": 31370, "Nethercleft Leg Armor": 35495,
+    "Nethercobra Leg Armor": 35490, "Runic Spellthread": 31372, "Silver Spellthread": 31369,
+    "Enchant Boots - Boar's Speed": 34008, "Enchant Boots - Cat's Swiftness": 34007, "Enchant Boots - Dexterity": 27951,
+    "Enchant Boots - Fortitude": 27950, "Enchant Boots - Minor Speed": 13890, "Enchant Boots - Surefooted": 27954,
+    "Enchant Weapon - Agility": 23800, "Enchant Weapon - Crusader": 20034, "Enchant Weapon - Executioner": 42974,
+    "Enchant Weapon - Greater Agility": 42620, "Enchant Weapon - Major Healing": 34010, "Enchant Weapon - Major Spellpower": 27975,
+    "Enchant Weapon - Mongoose": 27984, "Enchant Weapon - Soulfrost": 27982, "Enchant Weapon - Sunfire": 27981,
+    "Enchant Shield - Intellect": 27945, "Enchant Shield - Major Stamina": 34009, "Enchant Shield - Shield Block": 27946,
+    "Enchant 2H Weapon - Major Agility": 27977, "Enchant Ring - Healing Power": 27926, "Enchant Ring - Spellpower": 27924,
+    "Enchant Ring - Stats": 27927, "Enchant Ring - Striking": 27920,
+  };
   const GOOD_ENCHANTS_SYNC = [
     {id:2583,slot:0,name:"Presence of Might",desc:"+10 Sta, +10 Defense, +15 Block Value"},
     {id:2588,slot:0,name:"Presence of Sight",desc:"+18 Healing, +18 Spell Dmg, +8 Spell Hit"},
@@ -3037,7 +3099,7 @@ async function confirmSync() {
         potions: { count: (info.destroCount || 0) + (info.hasteCount || 0) + (info.manaCount || 0) + (info.ironshieldCount || 0), names: potionNames },
         other: info.other || [],
         runes: { count: (info.runes || []).reduce((sum, r) => sum + r.count, 0), names: (info.runes || []).map(r => `${r.name} x${r.count}`) },
-        weapon_enchant: { status: info.weaponEnchant ? ((info.weaponEnchant.tierIssue || isStatWrongForRole(info.weaponEnchant.stat, detectedRole)) ? 'suboptimal' : 'good') : 'missing', name: info.weaponEnchant?.name, tierIssue: info.weaponEnchant?.tierIssue || isStatWrongForRole(info.weaponEnchant?.stat, detectedRole) },
+        weapon_enchant: { status: info.weaponEnchant ? ((info.weaponEnchant.tierIssue || isStatWrongForRole(info.weaponEnchant.stat, detectedRole)) ? 'suboptimal' : 'good') : 'missing', name: info.weaponEnchant?.name, enchantId: info.weaponEnchant?.enchantId, tierIssue: info.weaponEnchant?.tierIssue || isStatWrongForRole(info.weaponEnchant?.stat, detectedRole) },
       });
     });
   });
