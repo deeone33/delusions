@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=61">
+<link rel="stylesheet" href="style.css?v=62">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
@@ -330,8 +330,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=61"></script>
-<script src="editor.js?v=61"></script>
+<script src="app.js?v=62"></script>
+<script src="editor.js?v=62"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -1341,6 +1341,7 @@ const CONSUMABLE_COLS = [
   { key: 'flask_elixir', label: 'Flask/Elixir' },
   { key: 'scroll', label: 'Scroll' },
   { key: 'potions', label: 'Potions' },
+  { key: 'runes', label: 'Runes' },
   { key: 'other', label: 'Other' },
 ];
 
@@ -1386,7 +1387,7 @@ function renderConsumables() {
       } else if (c.key === 'flask_elixir') {
         status = (val.type === 'flask' || val.type === 'elixir') ? 'good' : val.type === 'partial' ? 'suboptimal' : 'missing';
         label = STATUS_SYMBOL[status];
-      } else if (c.key === 'potions') {
+      } else if (c.key === 'potions' || c.key === 'runes') {
         status = (val.count > 0) ? 'good' : 'missing';
         label = val.count > 0 ? val.count : STATUS_SYMBOL['missing'];
       } else if (c.key === 'other') {
@@ -1413,7 +1414,7 @@ function showConsumableDetail(characterName, boss, key) {
   let detailHtml;
   if (key === 'flask_elixir') {
     detailHtml = (val.names && val.names.length) ? val.names.map(n => `<div class="modal-row"><span>${esc(n)}</span></div>`).join('') : '<div style="color:var(--dim);">None used.</div>';
-  } else if (key === 'potions') {
+  } else if (key === 'potions' || key === 'runes') {
     detailHtml = `<div class="modal-row"><span>Times used</span><span>${val.count || 0}</span></div>` + (val.names || []).map(n => `<div class="modal-row"><span>${esc(n)}</span></div>`).join('');
   } else if (key === 'other') {
     const items = Array.isArray(val) ? val : [];
@@ -2071,22 +2072,17 @@ function downloadWishlistCSV() {
 
 // ================= WCL SYNC (in-page modal) =================
 // Real ability IDs verified against Wowhead (not guessed) - safe to extend.
-// Confirmed via user checking in-game: Haste Potion's buff is just "Haste",
-// Destruction Potion's is just "Destruction" - same shortened-name pattern
-// as elixirs. The numeric IDs below are from Wowhead's 2021 TBC Classic
-// release and returned ZERO matches against real Anniversary data, so
-// they're likely wrong for this content - kept as fallback candidates
-// only. The sync's diagnostic below searches by NAME now instead, which
-// should nail the real IDs without another guess.
+// Confirmed directly from a real sync's discovery scan (not guessed):
 const POTION_IDS_SYNC = {
-  destruction: [28565],
-  haste: [28564],
-  mana: [28555],
-  ironshield: [28515], // confirmed from real data - tank equivalent, grouped with the other potions per request
+  destruction: [28508],   // "Destruction" - confirmed, 71 uses in real data
+  haste: [28507],         // "Haste" - confirmed, 127 uses in real data
+  mana: [28499],          // "Restore Mana" - high confidence: same naming pattern as the other two, usage count (114) fits a raid-wide mana potion far better than a niche spell
+  ironshield: [28515],    // "Ironshield" - confirmed, 12 uses in real data
 };
-const POTION_NAMES_SYNC = { destruction: ['Destruction'], haste: ['Haste'], mana: ['Mana Potion','Restore Mana'] };
-// Confirmed directly from real synced data (low-frequency cast dump).
-const OTHER_IDS_SYNC = { 'Flame Cap': 28714, 'Nightmare Seed': 28726 };
+const RUNE_IDS_SYNC = { 'Dark Rune': 27869 }; // confirmed, 41 uses in real data. Demonic Rune not yet seen - add if it turns up.
+const POTION_NAMES_SYNC = { destruction: ['Destruction'], haste: ['Haste'], mana: ['Restore Mana'] };
+// Confirmed directly from real synced data.
+const OTHER_IDS_SYNC = { 'Flame Cap': 28714, 'Nightmare Seed': 28726, "Elixir of Demonslaying": 11406 };
 // Names ARE reliable here because they come from CombatantInfo's "auras"
 // array, which resolves names server-side - unlike raw Buff/Cast events,
 // which only ever give a numeric abilityGameID with no name attached.
@@ -2097,8 +2093,12 @@ const KNOWN_FLASKS_SYNC = ["Flask of Relentless Assault","Flask of Blinding Ligh
 // shows as just "Healing Power"). Only the Healing Power case is verified;
 // the other shortened forms below are a reasonable guess following the
 // same pattern, not individually confirmed - flag it if any still miss.
-const KNOWN_BATTLE_ELIXIRS_SYNC = ["Elixir of Major Strength","Major Strength","Elixir of Major Agility","Major Agility","Elixir of Major Firepower","Major Firepower","Elixir of Major Shadow Power","Major Shadow Power","Elixir of Major Mageblood","Major Mageblood","Onslaught Elixir","Wrath Elixir","Fel Strength Elixir","Adept's Elixir"];
-const KNOWN_GUARDIAN_ELIXIRS_SYNC = ["Elixir of Major Defense","Major Defense","Elixir of Draenic Wisdom","Elixir of Healing Power","Healing Power","Elixir of Camouflage","Elixir of Ironskin","Elixir of Empowerment"];
+// "Spellpower Elixir" confirmed from real data as the likely actual buff
+// name for Adept's Elixir (matches its effect - spell damage - and the
+// same shortened-name pattern as everything else here). "Greater Arcane
+// Elixir" and "Elixir of the Mongoose" were previously missing entirely.
+const KNOWN_BATTLE_ELIXIRS_SYNC = ["Elixir of Major Strength","Major Strength","Elixir of Major Agility","Major Agility","Elixir of Major Firepower","Major Firepower","Elixir of Major Shadow Power","Major Shadow Power","Elixir of Major Mageblood","Major Mageblood","Onslaught Elixir","Wrath Elixir","Fel Strength Elixir","Adept's Elixir","Spellpower Elixir","Greater Arcane Elixir","Elixir of the Mongoose"];
+const KNOWN_GUARDIAN_ELIXIRS_SYNC = ["Elixir of Major Defense","Major Defense","Elixir of Draenic Wisdom","Elixir of Healing Power","Healing Power","Elixir of Camouflage","Elixir of Ironskin","Elixir of Empowerment","Elixir of Major Fortitude"];
 // "Agility"/"Strength" confirmed as the actual shortened buff names from
 // real synced data - a Hunter's aura list showed bare "Agility" alongside
 // (and distinct from) "Mighty Agility", strongly indicating it's the scroll.
@@ -2270,6 +2270,9 @@ async function runSync() {
         consumablesByFight[fight.name][playerName].hasteCount = playerCasts.filter(c => POTION_IDS_SYNC.haste.includes(c.abilityGameID)).length;
         consumablesByFight[fight.name][playerName].manaCount = playerCasts.filter(c => POTION_IDS_SYNC.mana.includes(c.abilityGameID)).length;
         consumablesByFight[fight.name][playerName].ironshieldCount = playerCasts.filter(c => POTION_IDS_SYNC.ironshield.includes(c.abilityGameID)).length;
+        consumablesByFight[fight.name][playerName].runes = Object.entries(RUNE_IDS_SYNC)
+          .map(([name, id]) => ({ name, count: playerCasts.filter(c => c.abilityGameID === id).length }))
+          .filter(r => r.count > 0);
         consumablesByFight[fight.name][playerName].other = Object.entries(OTHER_IDS_SYNC)
           .map(([name, id]) => ({ name, count: playerCasts.filter(c => c.abilityGameID === id).length }))
           .filter(o => o.count > 0);
@@ -2395,6 +2398,7 @@ async function confirmSync() {
         scroll: { applicable: isScrollClass, status: (hasStrScroll && hasAgiScroll) ? 'good' : (hasStrScroll || hasAgiScroll) ? 'partial' : 'none', names: scrollNames },
         potions: { count: (info.destroCount || 0) + (info.hasteCount || 0) + (info.manaCount || 0) + (info.ironshieldCount || 0), names: potionNames },
         other: info.other || [],
+        runes: { count: (info.runes || []).reduce((sum, r) => sum + r.count, 0), names: (info.runes || []).map(r => `${r.name} x${r.count}`) },
       });
     });
   });
