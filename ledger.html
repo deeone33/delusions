@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=81">
+<link rel="stylesheet" href="style.css?v=82">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: false};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
@@ -335,8 +335,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=81"></script>
-<script src="editor.js?v=81"></script>
+<script src="app.js?v=82"></script>
+<script src="editor.js?v=82"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -1238,51 +1238,42 @@ async function showPlayerProfile(characterName, presetBoss) {
 
   let gearHtml = '<div style="color:var(--dim);">No gear data for this raid.</div>';
   if (gearRow) {
-    gearHtml = GEARCHECK_SLOTS.map(slot => {
+    gearHtml = `<div style="display:grid;grid-template-columns:44px 1fr 70px 60px;gap:0.5rem;align-items:center;">` + GEARCHECK_SLOTS.map(slot => {
       const combined = combineSlotStatus(gearRow, slot);
       const e = combined.enchant;
       if (!e) return '';
       const itemLink = e.itemId ? `<a href="https://www.wowhead.com/tbc/item=${e.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:var(--bone);">${esc(e.itemName)}</a>` : esc(e.itemName || '—');
-      // Shows just "Enchanted"/"No Enchant" as the status word (not the
-      // full enchant name) - hover reveals what it actually is, via a real
-      // Wowhead spell link where the name matches a known casting spell,
-      // or the custom hover popup otherwise.
+
+      // Enchant: just "Enchanted"/"No Enchant" - color alone carries good/
+      // suboptimal/missing, no redundant "(outdated)" text. Always uses the
+      // custom hover popup (guaranteed to fire on mouseenter, no dependency
+      // on any external script's behavior) with the real name + effect.
       let enchantBit;
       if (!e.enchantId) {
         enchantBit = `<span style="color:${STATUS_COLOR.missing};">No Enchant</span>`;
       } else if (e.enchantName) {
-        const baseName = e.enchantName.replace(/ \([+\-].*\)$/, '');
-        const spellId = ENCHANT_NAME_TO_SPELL_SYNC[baseName];
-        const label = `Enchanted${e.status === 'suboptimal' ? ' (outdated)' : ''}`;
-        enchantBit = spellId
-          ? `<a href="https://www.wowhead.com/tbc/spell=${spellId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${STATUS_COLOR[e.status]};">${label}</a>`
-          : `<span style="color:${STATUS_COLOR[e.status]};cursor:help;text-decoration:underline dotted;" onmouseenter='showInfoPopup(event, ${jsAttr(e.enchantDesc || e.enchantName)})' onmouseleave='hideInfoPopup()'>${label}</span>`;
+        const popupHtml = `<div style="color:${STATUS_COLOR[e.status]};font-weight:600;margin-bottom:0.2rem;">${esc(e.enchantName)}</div>${e.enchantDesc ? `<div style="color:#ccc;">${esc(e.enchantDesc)}</div>` : ''}`;
+        enchantBit = `<span style="color:${STATUS_COLOR[e.status]};cursor:help;text-decoration:underline dotted;" onmouseenter='showInfoPopup(event, ${jsAttr(popupHtml)})' onmouseleave='hideInfoPopup()'>Enchanted</span>`;
       } else {
         enchantBit = `<span style="color:${STATUS_COLOR.good};">Enchanted</span>`;
       }
-      // Gems: dots color-coded by quality (STATUS_COLOR already maps
-      // good=epic/green, suboptimal=rare/blue shown yellow, missing=red).
-      // Real Wowhead links, giving the full rich hover card (icon, quality,
-      // stats) - safe now that renameLinks is disabled globally, so the
-      // dot symbol stays as the visible text instead of being overwritten
-      // with the gem's full name (which is what broke this before).
+
+      // Gems: plain circle characters only (not check/X symbols), color-coded
+      // by quality. Custom hover popup with the real icon image + name -
+      // fully self-built, not dependent on Wowhead's tooltip script.
       const gemBits = combined.gems.length ? combined.gems.map(g => {
-        const symbol = g.meta ? '◆' : STATUS_SYMBOL[g.status];
         const color = g.meta ? STATUS_COLOR.good : STATUS_COLOR[g.status];
-        return g.itemId
-          ? `<a href="https://www.wowhead.com/tbc/item=${g.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${color};text-decoration:none;">${symbol}</a>`
-          : `<span style="color:${color};cursor:help;" onmouseenter='showInfoPopup(event, ${jsAttr(g.itemName)})' onmouseleave='hideInfoPopup()'>${symbol}</span>`;
+        const iconUrl = g.icon ? `https://wow.zamimg.com/images/wow/icons/medium/${g.icon}.jpg` : null;
+        const popupHtml = `<div style="display:flex;align-items:center;gap:0.5rem;">${iconUrl ? `<img src="${iconUrl}" style="width:28px;height:28px;border-radius:3px;border:1px solid ${color};">` : ''}<div style="color:${color};font-weight:600;">${esc(g.itemName)}${g.meta ? ' (Meta)' : ''}</div></div>`;
+        return `<span style="color:${color};cursor:help;font-size:1.1rem;" onmouseenter='showInfoPopup(event, ${jsAttr(popupHtml)})' onmouseleave='hideInfoPopup()'>●</span>`;
       }).join(' ') : '<span style="color:var(--dim);">—</span>';
+
       return `
-        <div style="display:flex;align-items:baseline;gap:0.4rem;padding:0.4rem 0;border-bottom:1px solid var(--hair2);">
-          <span style="font-size:0.6rem;color:var(--dim);text-transform:uppercase;letter-spacing:0.05em;width:48px;flex-shrink:0;">${slot}</span>
-          <span style="font-size:0.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:145px;">${itemLink}</span>
-          <span style="color:var(--dim);flex-shrink:0;">—</span>
-          <span style="font-size:0.85rem;flex-shrink:0;">${enchantBit}</span>
-          <span style="color:var(--dim);flex-shrink:0;">—</span>
-          <span style="font-size:0.9rem;flex-shrink:0;">${gemBits}</span>
-        </div>`;
-    }).join('');
+        <span style="font-size:0.6rem;color:var(--dim);text-transform:uppercase;letter-spacing:0.05em;">${slot}</span>
+        <span style="font-size:0.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${itemLink}</span>
+        <span style="font-size:0.85rem;">${enchantBit}</span>
+        <span style="font-size:0.9rem;">${gemBits}</span>`;
+    }).join('') + `</div>`;
   }
 
   document.getElementById('player-modal-content').innerHTML = `
@@ -1734,19 +1725,19 @@ let wowheadRefreshFallbackUsed = false;
 // which have proven unreliable. Click an element to see its info near the
 // cursor; click anywhere else to dismiss. Used for enchants, gems, and
 // weapon enchants where a real Wowhead link isn't available/reliable.
-function showInfoPopup(event, text) {
+function showInfoPopup(event, html) {
   let popup = document.getElementById('inline-info-popup');
   if (!popup) {
     popup = document.createElement('div');
     popup.id = 'inline-info-popup';
-    popup.style.cssText = 'position:fixed;background:#1a1a2e;border:1px solid #555;padding:0.5rem 0.8rem;border-radius:6px;font-size:0.8rem;color:#fff;z-index:99999;max-width:280px;box-shadow:0 4px 16px rgba(0,0,0,0.6);pointer-events:none;';
+    popup.style.cssText = 'position:fixed;background:#1a1a2e;border:1px solid #555;padding:0.5rem 0.7rem;border-radius:6px;font-size:0.8rem;color:#fff;z-index:99999;max-width:260px;box-shadow:0 4px 16px rgba(0,0,0,0.6);pointer-events:none;';
     document.body.appendChild(popup);
   }
-  popup.textContent = text;
+  popup.innerHTML = html;
   popup.style.display = 'block';
   // Keep it on-screen even near the right/bottom edge
-  const x = Math.min(event.clientX + 12, window.innerWidth - 300);
-  const y = Math.min(event.clientY + 12, window.innerHeight - 60);
+  const x = Math.min(event.clientX + 12, window.innerWidth - 280);
+  const y = Math.min(event.clientY + 12, window.innerHeight - 80);
   popup.style.left = x + 'px';
   popup.style.top = y + 'px';
 }
@@ -2457,6 +2448,13 @@ function resolveGemName(gemId) {
   }
   return `Gem #${gemId}`;
 }
+function resolveGemIcon(gemId) {
+  if (typeof gemsData !== 'undefined' && gemsData) {
+    const found = gemsData.find(g => g.id === gemId);
+    if (found) return found.icon;
+  }
+  return null;
+}
 
 let syncResult = null;
 
@@ -3045,7 +3043,7 @@ async function confirmSync() {
           else if (quality === 'E') status = 'good';
           else if (quality === 'R') status = 'suboptimal';
           else status = 'missing'; // Uncommon/unknown quality treated same as "no gem", per explicit request
-          gems.push({ slot: slotName, itemName: gemName, itemId: g.id, status, detail: gemName, meta });
+          gems.push({ slot: slotName, itemName: gemName, itemId: g.id, icon: resolveGemIcon(g.id), status, detail: gemName, meta });
         });
       }
     });
