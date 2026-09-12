@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=56">
+<link rel="stylesheet" href="style.css?v=57">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
@@ -330,8 +330,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=56"></script>
-<script src="editor.js?v=56"></script>
+<script src="app.js?v=57"></script>
+<script src="editor.js?v=57"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -1627,6 +1627,8 @@ async function addWishlistItem() {
 // external API, so nothing here can go down or start rate-limiting later.
 let tbcItemsData = [];
 let tbcItemsLoaded = false;
+let gemsData = [];
+let gemsLoaded = false;
 let wlSearchDebounce = null;
 
 async function loadTbcItems() {
@@ -1636,6 +1638,15 @@ async function loadTbcItems() {
     tbcItemsData = await res.json();
     tbcItemsLoaded = true;
   } catch (e) { console.warn('Could not load item database:', e); }
+}
+
+async function loadGemsData() {
+  if (gemsLoaded) return;
+  try {
+    const res = await fetch('gems.json');
+    gemsData = await res.json();
+    gemsLoaded = true;
+  } catch (e) { console.warn('Could not load gem database:', e); }
 }
 
 // Extracts the phase number from the officer-set phase text (e.g. "Phase 3"
@@ -2058,8 +2069,14 @@ const POTION_IDS_SYNC = {
 // array, which resolves names server-side - unlike raw Buff/Cast events,
 // which only ever give a numeric abilityGameID with no name attached.
 const KNOWN_FLASKS_SYNC = ["Flask of Relentless Assault","Flask of Blinding Light","Flask of Pure Death","Flask of Mighty Restoration","Flask of Fortification","Flask of Chromatic Resistance","Flask of Supreme Power","Flask of the Titans","Flask of Distilled Wisdom"];
-const KNOWN_BATTLE_ELIXIRS_SYNC = ["Elixir of Major Strength","Elixir of Major Agility","Elixir of Major Firepower","Elixir of Major Shadow Power","Elixir of Major Mageblood","Onslaught Elixir","Wrath Elixir","Fel Strength Elixir","Adept's Elixir"];
-const KNOWN_GUARDIAN_ELIXIRS_SYNC = ["Elixir of Major Defense","Elixir of Draenic Wisdom","Elixir of Healing Power","Elixir of Camouflage","Elixir of Ironskin","Elixir of Empowerment"];
+// WCL's aura names sometimes use the item's full name, sometimes a
+// shortened spell name - confirmed inconsistent from real data (e.g.
+// "Elixir of Draenic Wisdom" stays full, but "Elixir of Healing Power"
+// shows as just "Healing Power"). Only the Healing Power case is verified;
+// the other shortened forms below are a reasonable guess following the
+// same pattern, not individually confirmed - flag it if any still miss.
+const KNOWN_BATTLE_ELIXIRS_SYNC = ["Elixir of Major Strength","Major Strength","Elixir of Major Agility","Major Agility","Elixir of Major Firepower","Major Firepower","Elixir of Major Shadow Power","Major Shadow Power","Elixir of Major Mageblood","Major Mageblood","Onslaught Elixir","Wrath Elixir","Fel Strength Elixir","Adept's Elixir"];
+const KNOWN_GUARDIAN_ELIXIRS_SYNC = ["Elixir of Major Defense","Major Defense","Elixir of Draenic Wisdom","Elixir of Healing Power","Healing Power","Elixir of Camouflage","Elixir of Ironskin","Elixir of Empowerment"];
 const KNOWN_SCROLLS_SYNC = ["Scroll of Strength V","Scroll of Agility V"];
 const MELEE_HUNTER_CLASSES_SYNC = ["Warrior","Rogue","Hunter"];
 
@@ -2074,6 +2091,14 @@ function resolveItemName(itemId) {
     if (found) return found.name;
   }
   return `Item #${itemId}`;
+}
+
+function resolveGemName(gemId) {
+  if (typeof gemsData !== 'undefined' && gemsData) {
+    const found = gemsData.find(g => g.id === gemId);
+    if (found) return found.name;
+  }
+  return `Gem #${gemId}`;
 }
 
 let syncResult = null;
@@ -2197,6 +2222,19 @@ async function runSync() {
         }
       `, { code, fightID: fight.id });
       const casts = castResp.data?.reportData?.report?.events?.data || [];
+      if (fight === fights[0]) {
+        const destroTotal = casts.filter(c => POTION_IDS_SYNC.destruction.includes(c.abilityGameID)).length;
+        const hasteTotal = casts.filter(c => POTION_IDS_SYNC.haste.includes(c.abilityGameID)).length;
+        const manaTotal = casts.filter(c => POTION_IDS_SYNC.mana.includes(c.abilityGameID)).length;
+        console.log(`[Delusions Sync] Potion ID matches across ALL ${casts.length} casts in "${fight.name}": destro=${destroTotal} haste=${hasteTotal} mana=${manaTotal}`);
+        // If all three are 0 here, the spell IDs themselves are wrong for
+        // this content (not a per-player attribution bug) - the fix is
+        // finding the real IDs, not touching the matching logic.
+        const meleeHunterActor = actors.find(a => MELEE_HUNTER_CLASSES_SYNC.includes(a.subType) && consumablesByFight[fight.name]?.[a.name]);
+        if (meleeHunterActor) {
+          console.log(`[Delusions Sync] Full aura list for melee/hunter player "${meleeHunterActor.name}" (${meleeHunterActor.subType}) in "${fight.name}":`, JSON.stringify(consumablesByFight[fight.name][meleeHunterActor.name].auraNames, null, 2));
+        }
+      }
       Object.keys(consumablesByFight[fight.name] || {}).forEach(playerName => {
         const actorId = actors.find(a => a.name === playerName)?.id;
         const playerCasts = casts.filter(c => c.sourceID === actorId);
@@ -2206,6 +2244,7 @@ async function runSync() {
       });
     }
     syncLog(`✓ Potion usage pulled for ${fights.length} boss(es)`);
+    syncLog(`<span style="color:var(--dim);">(Diagnostics for potions/scrolls logged to console — F12 → Console)</span>`);
 
     syncResult = { report, fights, actors, attendance, gearByPlayer, consumablesByFight };
     renderSyncPreview();
@@ -2232,6 +2271,8 @@ function renderSyncPreview() {
 }
 
 async function confirmSync() {
+  await loadTbcItems();
+  await loadGemsData();
   const { report, fights, attendance, gearByPlayer, consumablesByFight } = syncResult;
 
   const { data: night, error: nightErr } = await sb.from('raid_nights').insert({
@@ -2257,7 +2298,7 @@ async function confirmSync() {
           // best available proxy (epic/rare-tier gems run ~70+, lower-tier
           // fillers like Pearls run ~60). Worth revisiting if this proves
           // inaccurate on real data.
-          gems.push({ slot: slotName, itemName: `Gem #${g.id}`, status: g.itemLevel >= 70 ? 'good' : 'suboptimal', detail: `Gem #${g.id} (ilvl ${g.itemLevel})` });
+          gems.push({ slot: slotName, itemName: resolveGemName(g.id), status: g.itemLevel >= 70 ? 'good' : 'suboptimal', detail: `${resolveGemName(g.id)} (ilvl ${g.itemLevel})` });
         });
       }
     });
