@@ -7,9 +7,9 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=88">
+<link rel="stylesheet" href="style.css?v=89">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-<script>const whTooltips = {colorLinks: false, iconizeLinks: false, renameLinks: false};</script>
+<script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
 <style>
   .page-wide{max-width:920px;margin:0 auto;padding:0 2rem 5rem;}
@@ -335,8 +335,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=88"></script>
-<script src="editor.js?v=88"></script>
+<script src="app.js?v=89"></script>
+<script src="editor.js?v=89"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -452,7 +452,7 @@ function renderLoot() {
             ${items.map(r => `
               <tr>
                 <td>${esc(r.raid_title || '—')}</td>
-                <td class="item-name">${r.item_link ? `<a href="${esc(r.item_link)}" target="_blank" rel="noopener" style="color:${qualityColorFromWowheadLink(r.item_link)};" data-wowhead="domain=tbc">${esc(r.item_name)}</a>` : esc(r.item_name || '—')}</td>
+                <td class="item-name">${r.item_link ? `<a href="${esc(r.item_link)}" target="_blank" rel="noopener" style="color:inherit;" data-wowhead="domain=tbc">${esc(r.item_name)}</a>` : esc(r.item_name || '—')}</td>
                 <td>${esc(r.response || '—')}</td>
                 <td>${playerLink(r.winner_name, r.class_name)}</td>
                 ${isOfficer() ? `<td><button class="row-delete" title="Remove this item" onclick="deleteLootItem('${r.id}')">${TRASH_ICON}</button></td>` : ''}
@@ -818,7 +818,7 @@ function openPlayerModal(name) {
       <h4>Loot History (${lootItems.length})</h4>
       ${lootItems.length ? lootItems.map(l => `
         <div class="modal-row">
-          <span class="item-name">${l.item_link ? `<a href="${esc(l.item_link)}" target="_blank" rel="noopener" style="color:${qualityColorFromWowheadLink(l.item_link)};" data-wowhead="domain=tbc">${esc(l.item_name)}</a>` : esc(l.item_name)}</span>
+          <span class="item-name">${l.item_link ? `<a href="${esc(l.item_link)}" target="_blank" rel="noopener" style="color:inherit;" data-wowhead="domain=tbc">${esc(l.item_name)}</a>` : esc(l.item_name)}</span>
           <span style="display:flex;align-items:center;gap:0.6rem;">
             ${l.awarded_at ? new Date(l.awarded_at).toLocaleDateString() : ''}
             ${officer ? `<button class="row-delete" title="Remove this item" onclick="deleteLootItem('${l.id}')">${TRASH_ICON}</button>` : ''}
@@ -997,7 +997,7 @@ async function showWishlistHistoryModal(wishlistId) {
   const renderSnapshotItem = (entry) => {
     const it = normalize(entry);
     if (!it.text) return '<span style="color:var(--dim)">—</span>';
-    return it.link ? `<a href="${esc(it.link)}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${qualityColorFromWowheadLink(it.link)};">${esc(it.text)}</a>` : esc(it.text);
+    return it.link ? `<a href="${esc(it.link)}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:inherit;">${esc(it.text)}</a>` : esc(it.text);
   };
 
   const [after, before] = history; // most recent first
@@ -1244,7 +1244,7 @@ async function showPlayerProfile(characterName, presetBoss) {
       const combined = combineSlotStatus(gearRow, slot);
       const e = combined.enchant;
       if (!e) return '';
-      const itemLink = e.itemId ? `<a href="https://www.wowhead.com/tbc/item=${e.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${resolveItemQualityColor(e.itemId)};">${esc(e.itemName)}</a>` : esc(e.itemName || '—');
+      const itemLink = e.itemId ? `<a href="https://www.wowhead.com/tbc/item=${e.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:inherit;">${esc(e.itemName)}</a>` : esc(e.itemName || '—');
 
       // Enchant: just "Enchanted"/"No Enchant" - color alone carries good/
       // suboptimal/missing, no redundant "(outdated)" text. Always uses the
@@ -1261,16 +1261,19 @@ async function showPlayerProfile(characterName, presetBoss) {
         enchantBit = `<span style="color:${STATUS_COLOR.good};">Enchant</span>`;
       }
 
-      // Gems: plain circle characters, color-coded by quality. Real
-      // Wowhead links - safe now that both renameLinks and iconizeLinks
-      // are disabled globally, so the circle stays as the visible text
-      // while hover still shows Wowhead's full rich card (same as Gear
-      // Check's own popup), instead of my smaller custom one.
+      // Gems: plain circle characters, color-coded by MY OWN good/
+      // suboptimal/missing scheme (not raw item quality) - deliberately
+      // never a real Wowhead link, since Wowhead's global settings (which
+      // need to stay in their normal state for icons/colors to work
+      // correctly everywhere else on the site) would otherwise override
+      // this circle's color with the item's raw quality color again.
+      // Custom popup includes the real icon image, so hover still shows
+      // something rich, just not Wowhead's own card.
       const gemBits = combined.gems.length ? combined.gems.map(g => {
         const color = g.meta ? STATUS_COLOR.good : STATUS_COLOR[g.status];
-        return g.itemId
-          ? `<a href="https://www.wowhead.com/tbc/item=${g.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${color};text-decoration:none;font-size:1.1rem;">●</a>`
-          : `<span style="color:${color};">●</span>`;
+        const iconUrl = g.icon ? `https://wow.zamimg.com/images/wow/icons/medium/${g.icon}.jpg` : null;
+        const popupHtml = `<div style="display:flex;align-items:center;gap:0.5rem;">${iconUrl ? `<img src="${iconUrl}" style="width:28px;height:28px;border-radius:3px;border:1px solid ${color};">` : ''}<div style="color:${color};font-weight:600;">${esc(g.itemName)}${g.meta ? ' (Meta)' : ''}</div></div>`;
+        return `<span style="color:${color};cursor:help;font-size:1.1rem;" onmouseenter='showInfoPopup(event, ${jsAttr(popupHtml)})' onmouseleave='hideInfoPopup()'>●</span>`;
       }).join(' ') : '<span style="color:var(--dim);">—</span>';
 
       return `
@@ -1355,7 +1358,7 @@ async function showGearCheckDetail(characterName, slot) {
   const combined = combineSlotStatus(row, slot);
   const className = row.class_name;
   const e = combined.enchant;
-  const itemLink = e?.itemId ? `<a href="https://www.wowhead.com/tbc/item=${e.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${resolveItemQualityColor(e.itemId)};">${esc(e.itemName)}</a>` : esc(e?.itemName || '—');
+  const itemLink = e?.itemId ? `<a href="https://www.wowhead.com/tbc/item=${e.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:inherit;">${esc(e.itemName)}</a>` : esc(e?.itemName || '—');
   const enchantLink = e?.enchantId
     ? (e.enchantName
         ? (() => {
@@ -1718,7 +1721,7 @@ function renderWishlistRows() {
 }
 
 function renderWishlistItemDisplay(it) {
-  if (it.item_link) return `<a href="${esc(it.item_link)}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${qualityColorFromWowheadLink(it.item_link)};">${esc(it.item_text)}</a>`;
+  if (it.item_link) return `<a href="${esc(it.item_link)}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:inherit;">${esc(it.item_text)}</a>`;
   return esc(it.item_text) || '<span style="color:var(--dim)">(empty)</span>';
 }
 
@@ -2018,7 +2021,7 @@ function renderHotItems() {
     const bodyId = `hot-item-body-${idx}`;
     const toggleId = `hot-item-toggle-${idx}`;
     const display = item.itemLink
-      ? `<a href="${esc(item.itemLink)}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${qualityColorFromWowheadLink(item.itemLink)};">${esc(item.displayText)}</a>`
+      ? `<a href="${esc(item.itemLink)}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:inherit;">${esc(item.displayText)}</a>`
       : esc(item.displayText);
     return `
       <div class="raid-group">
