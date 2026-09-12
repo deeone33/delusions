@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=54">
+<link rel="stylesheet" href="style.css?v=55">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
@@ -330,8 +330,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=54"></script>
-<script src="editor.js?v=54"></script>
+<script src="app.js?v=55"></script>
+<script src="editor.js?v=55"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -2150,7 +2150,7 @@ async function runSync() {
         }
       `, { code, fightID: fight.id });
       const gearEvents = gearResp.data?.reportData?.report?.events?.data || [];
-      console.log(`[Delusions Sync] Raw CombatantInfo events for fight "${fight.name}":`, gearEvents);
+      if (fight === fights[0]) console.log(`[Delusions Sync] FULL first CombatantInfo event (one player's gear, fully expanded):`, JSON.stringify(gearEvents[0], null, 2));
       gearEvents.forEach(ev => {
         const actor = actors.find(a => a.id === ev.sourceID);
         if (!actor) return;
@@ -2183,8 +2183,10 @@ async function runSync() {
       `, { code, fightID: fight.id });
       const rawBuffs = evResp.data?.reportData?.report?.buffEvents?.data || [];
       const rawCasts = evResp.data?.reportData?.report?.castEvents?.data || [];
-      console.log(`[Delusions Sync] Raw Buff events for "${fight.name}":`, rawBuffs.slice(0, 20));
-      console.log(`[Delusions Sync] Raw Cast events for "${fight.name}":`, rawCasts.slice(0, 20));
+      if (fight === fights[0]) {
+        console.log(`[Delusions Sync] FULL first 5 Buff events, fully expanded:`, JSON.stringify(rawBuffs.slice(0, 5), null, 2));
+        console.log(`[Delusions Sync] FULL first 5 Cast events, fully expanded:`, JSON.stringify(rawCasts.slice(0, 5), null, 2));
+      }
       consumablesByFight[fight.name] = { buffs: rawBuffs, casts: rawCasts };
     }
     syncLog(`✓ Consumable events pulled for ${fights.length} boss(es)`);
