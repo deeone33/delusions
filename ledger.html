@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=59">
+<link rel="stylesheet" href="style.css?v=61">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
@@ -330,8 +330,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=59"></script>
-<script src="editor.js?v=59"></script>
+<script src="app.js?v=61"></script>
+<script src="editor.js?v=61"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -1306,7 +1306,7 @@ function renderGearCheck() {
     html += `<tr><td><span class="cls-name-row">${classIcon(r.class_name)}<span style="${classColor(r.class_name) ? `color:${classColor(r.class_name)};` : ''}">${esc(r.character_name)}</span></span></td>`;
     GEARCHECK_SLOTS.forEach(slot => {
       const combined = combineSlotStatus(r, slot);
-      html += `<td style="cursor:pointer;" onclick='showGearCheckDetail(${JSON.stringify(r.character_name)}, ${JSON.stringify(slot)})' title="Click for detail"><span style="color:${STATUS_COLOR[combined.status]};font-weight:600;">${STATUS_SYMBOL[combined.status]}</span></td>`;
+      html += `<td style="cursor:pointer;" onclick='showGearCheckDetail(${jsAttr(r.character_name)}, ${jsAttr(slot)})' title="Click for detail"><span style="color:${STATUS_COLOR[combined.status]};font-weight:600;">${STATUS_SYMBOL[combined.status]}</span></td>`;
     });
     html += `</tr>`;
   });
@@ -1380,8 +1380,10 @@ function renderConsumables() {
     CONSUMABLE_COLS.forEach(c => {
       const val = r[c.key] || {};
       let status, label;
-      if (c.key === 'scroll' && val.applicable === false) { status = 'na'; label = '—'; }
-      else if (c.key === 'flask_elixir') {
+      if (c.key === 'scroll') {
+        if (val.applicable === false) { status = 'na'; label = '—'; }
+        else { status = val.status === 'good' ? 'good' : val.status === 'partial' ? 'suboptimal' : 'missing'; label = STATUS_SYMBOL[status]; }
+      } else if (c.key === 'flask_elixir') {
         status = (val.type === 'flask' || val.type === 'elixir') ? 'good' : val.type === 'partial' ? 'suboptimal' : 'missing';
         label = STATUS_SYMBOL[status];
       } else if (c.key === 'potions') {
@@ -1396,7 +1398,7 @@ function renderConsumables() {
         status = val.used ? 'good' : 'missing';
         label = STATUS_SYMBOL[status];
       }
-      html += `<td style="cursor:pointer;color:${STATUS_COLOR[status]};font-weight:600;" onclick='showConsumableDetail(${JSON.stringify(r.character_name)}, ${JSON.stringify(boss)}, ${JSON.stringify(c.key)})' title="Click for detail">${label}</td>`;
+      html += `<td style="cursor:pointer;color:${STATUS_COLOR[status]};font-weight:600;" onclick='showConsumableDetail(${jsAttr(r.character_name)}, ${jsAttr(boss)}, ${jsAttr(c.key)})' title="Click for detail">${label}</td>`;
     });
     html += `</tr>`;
   });
@@ -1416,8 +1418,10 @@ function showConsumableDetail(characterName, boss, key) {
   } else if (key === 'other') {
     const items = Array.isArray(val) ? val : [];
     detailHtml = items.length ? items.map(it => `<div class="modal-row"><span>${esc(it.name)}</span><span>${it.count}x</span></div>`).join('') : '<div style="color:var(--dim);">Nothing recorded.</div>';
-  } else if (key === 'scroll' && val.applicable === false) {
-    detailHtml = `<div style="color:var(--dim);">Not tracked for this role.</div>`;
+  } else if (key === 'scroll') {
+    if (val.applicable === false) { detailHtml = `<div style="color:var(--dim);">Not tracked for this role.</div>`; }
+    else if (val.names && val.names.length) { detailHtml = val.names.map(n => `<div class="modal-row"><span>${esc(n)}</span></div>`).join(''); }
+    else { detailHtml = '<div style="color:var(--dim);">Neither scroll used.</div>'; }
   } else {
     detailHtml = `<div class="modal-row"><span>${val.used ? esc(val.name || 'Used') : 'Not used'}</span></div>`;
   }
@@ -2078,10 +2082,11 @@ const POTION_IDS_SYNC = {
   destruction: [28565],
   haste: [28564],
   mana: [28555],
+  ironshield: [28515], // confirmed from real data - tank equivalent, grouped with the other potions per request
 };
 const POTION_NAMES_SYNC = { destruction: ['Destruction'], haste: ['Haste'], mana: ['Mana Potion','Restore Mana'] };
 // Confirmed directly from real synced data (low-frequency cast dump).
-const OTHER_IDS_SYNC = { 'Flame Cap': 28714, 'Nightmare Seed': 28726, 'Ironshield': 28515 };
+const OTHER_IDS_SYNC = { 'Flame Cap': 28714, 'Nightmare Seed': 28726 };
 // Names ARE reliable here because they come from CombatantInfo's "auras"
 // array, which resolves names server-side - unlike raw Buff/Cast events,
 // which only ever give a numeric abilityGameID with no name attached.
@@ -2097,8 +2102,22 @@ const KNOWN_GUARDIAN_ELIXIRS_SYNC = ["Elixir of Major Defense","Major Defense","
 // "Agility"/"Strength" confirmed as the actual shortened buff names from
 // real synced data - a Hunter's aura list showed bare "Agility" alongside
 // (and distinct from) "Mighty Agility", strongly indicating it's the scroll.
-const KNOWN_SCROLLS_SYNC = ["Scroll of Strength V","Scroll of Agility V","Strength","Agility"];
-const MELEE_HUNTER_CLASSES_SYNC = ["Warrior","Rogue","Hunter"];
+const KNOWN_STRENGTH_SCROLLS_SYNC = ["Scroll of Strength V","Strength"];
+const KNOWN_AGILITY_SCROLLS_SYNC = ["Scroll of Agility V","Agility"];
+// WCL's CombatantInfo aura snapshot has no magnitude field - just presence
+// and a name. There's no way to directly verify a "Strength"/"Agility"
+// aura is actually granting +20 rather than some other buff that happens
+// to share that generic name. This is a real limitation, not an oversight -
+// flag it if a false match ever turns up.
+//
+// Enhancement Shaman and Feral Druid should also use scrolls, but WCL's
+// TBC data doesn't reliably expose spec (specID comes back as 0 for
+// everyone in real synced data) - there's no way to tell a Feral Druid
+// from a Resto/Balance one here. Widening to the whole class means
+// casters within Shaman/Druid will show as "applicable" even though they
+// don't need scrolls - worth mentally discounting those when reviewing.
+const SCROLL_CLASSES_SYNC = ["Warrior","Rogue","Hunter","Shaman","Druid"];
+const MELEE_HUNTER_CLASSES_SYNC = ["Warrior","Rogue","Hunter"]; // used for the aura diagnostic below, not scroll applicability
 
 // WCL's gear array has no "slot" field at all - position in the array IS
 // the slot, in WoW's standard inventory order. Confirmed against real
@@ -2235,6 +2254,7 @@ async function runSync() {
     syncLog(`✓ Gear data for ${Object.keys(gearByPlayer).length} player(s)`);
 
     syncLog('Fetching potion cast counts per boss…');
+    const globalCastIdCounts = {}; // id -> total count across the WHOLE log, not per-fight
     for (const fight of fights) {
       const castResp = await wclQuery(token, `
         query($code: String!, $fightID: Int!) {
@@ -2242,52 +2262,53 @@ async function runSync() {
         }
       `, { code, fightID: fight.id });
       const casts = castResp.data?.reportData?.report?.events?.data || [];
-      if (fight === fights[0]) {
-        const destroTotal = casts.filter(c => POTION_IDS_SYNC.destruction.includes(c.abilityGameID)).length;
-        const hasteTotal = casts.filter(c => POTION_IDS_SYNC.haste.includes(c.abilityGameID)).length;
-        const manaTotal = casts.filter(c => POTION_IDS_SYNC.mana.includes(c.abilityGameID)).length;
-        console.log(`[Delusions Sync] Potion ID matches across ALL ${casts.length} casts in "${fight.name}": destro=${destroTotal} haste=${hasteTotal} mana=${manaTotal}`);
-        // If all three are 0 here, the spell IDs themselves are wrong for
-        // this content (not a per-player attribution bug) - the fix is
-        // finding the real IDs, not touching the matching logic.
-        const meleeHunterActor = actors.find(a => MELEE_HUNTER_CLASSES_SYNC.includes(a.subType) && consumablesByFight[fight.name]?.[a.name]);
-        if (meleeHunterActor) {
-          console.log(`[Delusions Sync] Full aura list for melee/hunter player "${meleeHunterActor.name}" (${meleeHunterActor.subType}) in "${fight.name}":`, JSON.stringify(consumablesByFight[fight.name][meleeHunterActor.name].auraNames, null, 2));
-        }
-        // Resolve names for the lowest-frequency cast abilities (sorted
-        // ascending, no upper cap this time - the previous 30-use cap
-        // excluded anything used more than 30 times raid-wide, which a
-        // shared-cooldown item easily could be across 25 players over a
-        // longer fight). High-frequency rotational spells sort to the
-        // bottom and get excluded by the resolution limit instead.
-        const idCounts = {};
-        casts.forEach(c => { idCounts[c.abilityGameID] = (idCounts[c.abilityGameID] || 0) + 1; });
-        const candidateIds = Object.entries(idCounts).sort((a, b) => a[1] - b[1]).slice(0, 120).map(([id]) => parseInt(id));
-        const resolvedAbilities = [];
-        for (const id of candidateIds) {
-          try {
-            const abResp = await wclQuery(token, `query($id: Int!) { gameData { ability(id: $id) { name } } }`, { id });
-            const name = abResp.data?.gameData?.ability?.name || '(no name)';
-            resolvedAbilities.push({ id, name, count: idCounts[id] });
-          } catch (e) { resolvedAbilities.push({ id, name: '(lookup failed)', count: idCounts[id] }); }
-        }
-        const potionMatches = resolvedAbilities.filter(a => ['Haste','Destruction','Mana Potion','Restore Mana','Super Mana Potion'].includes(a.name));
-        console.log(`[Delusions Sync] DIRECT MATCHES for confirmed potion names:`, potionMatches);
-        console.log(`[Delusions Sync] Full resolved list (${resolvedAbilities.length} abilities checked) if the above is empty:`, resolvedAbilities);
-      }
+      casts.forEach(c => { globalCastIdCounts[c.abilityGameID] = (globalCastIdCounts[c.abilityGameID] || 0) + 1; });
       Object.keys(consumablesByFight[fight.name] || {}).forEach(playerName => {
         const actorId = actors.find(a => a.name === playerName)?.id;
         const playerCasts = casts.filter(c => c.sourceID === actorId);
         consumablesByFight[fight.name][playerName].destroCount = playerCasts.filter(c => POTION_IDS_SYNC.destruction.includes(c.abilityGameID)).length;
         consumablesByFight[fight.name][playerName].hasteCount = playerCasts.filter(c => POTION_IDS_SYNC.haste.includes(c.abilityGameID)).length;
         consumablesByFight[fight.name][playerName].manaCount = playerCasts.filter(c => POTION_IDS_SYNC.mana.includes(c.abilityGameID)).length;
+        consumablesByFight[fight.name][playerName].ironshieldCount = playerCasts.filter(c => POTION_IDS_SYNC.ironshield.includes(c.abilityGameID)).length;
         consumablesByFight[fight.name][playerName].other = Object.entries(OTHER_IDS_SYNC)
           .map(([name, id]) => ({ name, count: playerCasts.filter(c => c.abilityGameID === id).length }))
           .filter(o => o.count > 0);
       });
     }
     syncLog(`✓ Potion usage pulled for ${fights.length} boss(es)`);
-    syncLog(`<span style="color:var(--dim);">(Diagnostics for potions/scrolls logged to console — F12 → Console)</span>`);
+
+    // ---------------------------------------------------------------
+    // ONE-TIME COMPREHENSIVE DISCOVERY SCAN
+    // Resolves every distinct cast ability across the WHOLE log exactly
+    // once (not per-fight, much cheaper), and dumps every distinct aura
+    // name seen anywhere (free - already have this data). Categorized by
+    // keyword so the console output is directly usable without manually
+    // scanning hundreds of rotational spells.
+    // ---------------------------------------------------------------
+    syncLog('Running full consumable discovery scan…');
+    const allAuraNames = new Set();
+    Object.values(consumablesByFight).forEach(players => {
+      Object.values(players).forEach(info => (info.auraNames || []).forEach(n => allAuraNames.add(n)));
+    });
+
+    const CONSUMABLE_KEYWORDS = ['scroll','potion','elixir','flask','rune','wisdom','ironshield','haste','destruction','mana','well fed','agility','strength','spirit','defense','firepower','mageblood','shadow power','healing power','camouflage','ironskin','empowerment'];
+    const auraMatches = [...allAuraNames].filter(n => CONSUMABLE_KEYWORDS.some(k => n.toLowerCase().includes(k)));
+
+    const distinctCastIds = Object.keys(globalCastIdCounts).map(id => parseInt(id));
+    const resolvedCasts = [];
+    for (const id of distinctCastIds) {
+      try {
+        const abResp = await wclQuery(token, `query($id: Int!) { gameData { ability(id: $id) { name } } }`, { id });
+        resolvedCasts.push({ id, name: abResp.data?.gameData?.ability?.name || '(no name)', count: globalCastIdCounts[id] });
+      } catch (e) { /* skip failures silently, not worth cluttering output */ }
+    }
+    const castMatches = resolvedCasts.filter(a => CONSUMABLE_KEYWORDS.some(k => a.name.toLowerCase().includes(k)));
+
+    console.log(`[Delusions Sync] === FULL DISCOVERY SCAN ===`);
+    console.log(`[Delusions Sync] All aura names matching consumable keywords (${auraMatches.length} of ${allAuraNames.size} total distinct auras seen):`, auraMatches);
+    console.log(`[Delusions Sync] All cast abilities matching consumable keywords, with real IDs and total uses across the whole log (${castMatches.length} of ${distinctCastIds.length} total distinct casts checked):`, castMatches.sort((a,b) => b.count - a.count));
+    console.log(`[Delusions Sync] Full unfiltered aura list, in case something didn't match a keyword:`, [...allAuraNames].sort());
+    syncLog(`<span style="color:var(--dim);">(Full discovery scan logged to console — F12 → Console — one pass covers everything)</span>`);
 
     syncResult = { report, fights, actors, attendance, gearByPlayer, consumablesByFight };
     renderSyncPreview();
@@ -2352,21 +2373,27 @@ async function confirmSync() {
   const consumableRows = [];
   Object.entries(consumablesByFight).forEach(([bossName, players]) => {
     Object.entries(players).forEach(([name, info]) => {
-      const isMelee = MELEE_HUNTER_CLASSES_SYNC.includes(info.className);
+      const isScrollClass = SCROLL_CLASSES_SYNC.includes(info.className);
       const auraNames = info.auraNames || [];
       const hasFlask = auraNames.some(n => KNOWN_FLASKS_SYNC.includes(n));
       const hasBattle = auraNames.some(n => KNOWN_BATTLE_ELIXIRS_SYNC.includes(n));
       const hasGuardian = auraNames.some(n => KNOWN_GUARDIAN_ELIXIRS_SYNC.includes(n));
+      const hasStrScroll = auraNames.some(n => KNOWN_STRENGTH_SCROLLS_SYNC.includes(n));
+      const hasAgiScroll = auraNames.some(n => KNOWN_AGILITY_SCROLLS_SYNC.includes(n));
+      const scrollNames = [];
+      if (hasStrScroll) scrollNames.push('Scroll of Strength V');
+      if (hasAgiScroll) scrollNames.push('Scroll of Agility V');
       const potionNames = [];
       if (info.destroCount) potionNames.push(`Destruction Potion x${info.destroCount}`);
       if (info.hasteCount) potionNames.push(`Haste Potion x${info.hasteCount}`);
       if (info.manaCount) potionNames.push(`Mana Potion x${info.manaCount}`);
+      if (info.ironshieldCount) potionNames.push(`Ironshield Potion x${info.ironshieldCount}`);
       consumableRows.push({
         raid_night_id: night.id, boss_name: bossName, character_name: name, class_name: info.className,
         food: { used: auraNames.includes('Well Fed'), name: 'Well Fed' },
         flask_elixir: { type: hasFlask ? 'flask' : (hasBattle && hasGuardian) ? 'elixir' : (hasBattle || hasGuardian) ? 'partial' : 'none', names: auraNames.filter(n => KNOWN_FLASKS_SYNC.includes(n) || KNOWN_BATTLE_ELIXIRS_SYNC.includes(n) || KNOWN_GUARDIAN_ELIXIRS_SYNC.includes(n)) },
-        scroll: { applicable: isMelee, used: isMelee && auraNames.some(n => KNOWN_SCROLLS_SYNC.includes(n)), name: auraNames.find(n => KNOWN_SCROLLS_SYNC.includes(n)) },
-        potions: { count: (info.destroCount || 0) + (info.hasteCount || 0) + (info.manaCount || 0), names: potionNames },
+        scroll: { applicable: isScrollClass, status: (hasStrScroll && hasAgiScroll) ? 'good' : (hasStrScroll || hasAgiScroll) ? 'partial' : 'none', names: scrollNames },
+        potions: { count: (info.destroCount || 0) + (info.hasteCount || 0) + (info.manaCount || 0) + (info.ironshieldCount || 0), names: potionNames },
         other: info.other || [],
       });
     });

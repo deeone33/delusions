@@ -153,6 +153,16 @@ function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 // ---- CLASS DATA (shared: Ledger, Manage Members, Apply form) ----
+// For embedding a JS string value inside a single-quoted onclick="..."
+// attribute. JSON.stringify alone isn't enough - it produces a
+// double-quoted JS string, but any literal apostrophe in the VALUE (e.g.
+// "Naj'entus") still ends the single-quoted HTML attribute early, since
+// the HTML parser runs before the JS engine ever sees the string. Escaping
+// to \u0027 keeps it as plain text in the markup, and the JS engine still
+// reads it back as a real apostrophe once it parses the string.
+function jsAttr(s) {
+  return JSON.stringify(s).replace(/'/g, '\\u0027');
+}
 const CLASS_COLORS = {
   warrior:'#C79C6E', paladin:'#F58CBA', hunter:'#ABD473', rogue:'#FFF569',
   priest:'#FFFFFF', shaman:'#0070DE', mage:'#69CCF0', warlock:'#9482C9', druid:'#FF7D0A'
