@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=49">
+<link rel="stylesheet" href="style.css?v=52">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
@@ -123,6 +123,12 @@
   .wl-history-rank{color:var(--dim);font-family:'IBM Plex Mono',monospace;font-size:0.7rem;}
   .wl-history-cell{color:var(--mist);}
   .wl-history-cell.diff{color:var(--red-bright);font-weight:600;}
+  .dense-check-table{border-collapse:collapse;width:100%;font-size:0.76rem;}
+  .dense-check-table th{font-family:'IBM Plex Mono',monospace;font-size:0.58rem;letter-spacing:0.06em;text-transform:uppercase;color:var(--dim);text-align:center;padding:0.4rem 0.35rem;border-bottom:1px solid var(--hair);}
+  .dense-check-table th.name-col{text-align:left;padding-left:0.4rem;}
+  .dense-check-table td{text-align:center;padding:0.35rem;border-bottom:1px solid var(--hair2);}
+  .dense-check-table tr:hover td{background:var(--surface);}
+  .dense-check-table td:first-child{text-align:left;}
   .wl-snapshot-note strong{color:var(--bone);}
   .poll-opt-row input{flex:1;}
 </style>
@@ -151,16 +157,29 @@
     <h1 data-edit="ledger.wishlist.h1" style="font-family:'Newsreader',serif;color:var(--white);font-size:2rem;margin-bottom:0.5rem;">Wishlist</h1>
     <p data-edit="ledger.wishlist.sub" style="color:var(--mist);margin-bottom:1.5rem;">Rank up to 10 items for the current phase — lock it in when you're happy with the order.</p>
   </div>
+  <div id="heading-gearcheck" style="display:none;">
+    <h1 data-edit="ledger.gearcheck.h1" style="font-family:'Newsreader',serif;color:var(--white);font-size:2rem;margin-bottom:0.5rem;">Gear Check</h1>
+    <p data-edit="ledger.gearcheck.sub" style="color:var(--mist);margin-bottom:1.5rem;">Enchant and gem status per player, synced from the last raid log.</p>
+  </div>
+  <div id="heading-consumables" style="display:none;">
+    <h1 data-edit="ledger.consumables.h1" style="font-family:'Newsreader',serif;color:var(--white);font-size:2rem;margin-bottom:0.5rem;">Consumables</h1>
+    <p data-edit="ledger.consumables.sub" style="color:var(--mist);margin-bottom:1.5rem;">Buff and potion usage per boss pull, synced from the last raid log.</p>
+  </div>
 
+  <div id="officer-sync-bar" style="display:none;margin-bottom:0.8rem;">
+    <button class="btn primary" type="button" onclick="openSyncModal()" title="Pull attendance, gear, enchants, gems, and consumables from a Warcraft Logs report">⟳ Sync a Log</button>
+  </div>
   <div id="gm-export-bar" style="display:none;margin-bottom:1.5rem;">
     <button class="btn" type="button" onclick="fullGmExport()" title="Downloads Loot, Attendance, Polls, and Wishlists as separate CSVs, one after another">Export Everything (CSV)</button>
   </div>
 
-  <div id="tab-row" style="display:flex;gap:0.6rem;margin-bottom:2rem;border-bottom:1px solid var(--hair);padding-bottom:1rem;">
+  <div id="tab-row" style="display:flex;gap:0.6rem;margin-bottom:2rem;border-bottom:1px solid var(--hair);padding-bottom:1rem;flex-wrap:wrap;">
     <button class="btn" id="tab-loot" onclick="showTab('loot')">Loot</button>
     <button class="btn" id="tab-attendance" style="display:none;" onclick="showTab('attendance')">Attendance</button>
     <button class="btn" id="tab-polls" style="display:none;" onclick="showTab('polls')">Polls</button>
     <button class="btn" id="tab-wishlist" style="display:none;" onclick="showTab('wishlist')">Wishlist</button>
+    <button class="btn" id="tab-gearcheck" style="display:none;" onclick="showTab('gearcheck')">Gear Check</button>
+    <button class="btn" id="tab-consumables" style="display:none;" onclick="showTab('consumables')">Consumables</button>
   </div>
 
   <div id="panel-loot">
@@ -185,8 +204,8 @@
     <div id="attendance-table-body" style="display:none;margin-bottom:2rem;">
       <input type="text" id="attendance-search" placeholder="Search by name or class..." style="max-width:320px;margin-bottom:0.9rem;" oninput="renderAttendance()">
       <div class="card" style="padding:0;overflow-x:auto;">
-        <table class="ledger-table">
-          <thead><tr><th>Player</th><th>Nights</th><th>Attendance %</th></tr></thead>
+        <table class="dense-check-table">
+          <thead><tr><th class="name-col">Player</th><th>Nights</th><th>Attendance %</th></tr></thead>
           <tbody id="attendance-body"></tbody>
         </table>
       </div>
@@ -235,6 +254,28 @@
       <div id="wishlist-officer-list"></div>
     </div>
   </div>
+
+  <div id="panel-gearcheck" style="display:none;">
+    <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center;">
+      <input type="text" id="gearcheck-search" placeholder="Search by character name..." style="max-width:280px;" oninput="renderGearCheck()">
+      <select id="gearcheck-raid-select" onchange="switchGearCheckRaid(this.value)" style="max-width:260px;"></select>
+      <span class="label" style="margin-left:auto;display:flex;align-items:center;gap:1rem;">
+        <span><span style="color:var(--good,#5a9c6b);">●</span> Best</span>
+        <span><span style="color:var(--warn);">●</span> Suboptimal</span>
+        <span><span style="color:var(--red-bright);">●</span> Missing</span>
+      </span>
+    </div>
+    <div id="gearcheck-table-wrap"></div>
+  </div>
+
+  <div id="panel-consumables" style="display:none;">
+    <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center;">
+      <input type="text" id="consumables-search" placeholder="Search by character name..." style="max-width:280px;" oninput="renderConsumables()">
+      <select id="consumables-raid-select" onchange="switchConsumablesRaid(this.value)" style="max-width:220px;"></select>
+      <select id="consumables-boss-select" onchange="renderConsumables()" style="max-width:220px;"></select>
+    </div>
+    <div id="consumables-table-wrap"></div>
+  </div>
 </div>
 
 <div class="modal-backdrop" id="player-modal" style="display:none;" onclick="if(event.target===this) closePlayerModal()">
@@ -244,9 +285,46 @@
   </div>
 </div>
 
+<div class="modal-backdrop" id="sync-modal" style="display:none;" onclick="if(event.target===this) closeSyncModal()">
+  <div class="modal-card" style="max-width:720px;">
+    <button class="modal-close" onclick="closeSyncModal()">×</button>
+    <h2 style="font-family:'Newsreader',serif;color:var(--white);font-size:1.4rem;margin-bottom:0.4rem;">Sync a Log</h2>
+    <p style="color:var(--mist);font-size:0.85rem;margin-bottom:1.2rem;">
+      Pulls attendance, gear, enchants, gems, and consumable usage from a Warcraft Logs report.
+      Your WCL credentials stay in this browser only. Loot still goes through the separate RCLootCouncil import.
+    </p>
+
+    <div style="margin-bottom:1rem;">
+      <label class="form-label">Client ID</label>
+      <input type="text" id="wcl-client-id" placeholder="Paste your WCL Client ID" style="margin-bottom:0.6rem;">
+      <label class="form-label">Client Secret</label>
+      <input type="password" id="wcl-client-secret" placeholder="Paste your WCL Client Secret" style="margin-bottom:0.6rem;">
+      <label class="form-label">Report link or code</label>
+      <input type="text" id="wcl-report-code" placeholder="https://fresh.warcraftlogs.com/reports/AbCdEfGh123456">
+    </div>
+    <p style="font-size:0.75rem;color:var(--warn);margin-bottom:1rem;">
+      While testing: pulls every player in the report, regardless of guild. Flag it once you're ready to lock this to Delusions only.
+    </p>
+    <button class="btn primary" type="button" id="sync-btn" onclick="runSync()">Fetch from Warcraft Logs</button>
+
+    <div id="sync-progress" style="display:none;margin-top:1.2rem;padding-top:1.2rem;border-top:1px solid var(--hair);">
+      <div id="sync-log" style="font-family:'IBM Plex Mono',monospace;font-size:0.75rem;color:var(--dim);line-height:1.9;"></div>
+    </div>
+
+    <div id="sync-preview" style="display:none;margin-top:1.2rem;padding-top:1.2rem;border-top:1px solid var(--hair);">
+      <h3 style="margin-bottom:0.8rem;">Review before saving</h3>
+      <div id="sync-preview-content"></div>
+      <div style="display:flex;gap:0.6rem;margin-top:1.2rem;">
+        <button class="btn primary" type="button" onclick="confirmSync()">Save to Site</button>
+        <button class="btn" type="button" onclick="closeSyncModal()">Discard</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=49"></script>
-<script src="editor.js?v=49"></script>
+<script src="app.js?v=52"></script>
+<script src="editor.js?v=52"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -292,15 +370,23 @@ function showTab(name) {
   document.getElementById('panel-attendance').style.display = name === 'attendance' ? '' : 'none';
   document.getElementById('panel-polls').style.display = name === 'polls' ? '' : 'none';
   document.getElementById('panel-wishlist').style.display = name === 'wishlist' ? '' : 'none';
+  document.getElementById('panel-gearcheck').style.display = name === 'gearcheck' ? '' : 'none';
+  document.getElementById('panel-consumables').style.display = name === 'consumables' ? '' : 'none';
   document.getElementById('tab-loot').classList.toggle('primary', name === 'loot');
   document.getElementById('tab-attendance').classList.toggle('primary', name === 'attendance');
   document.getElementById('tab-polls').classList.toggle('primary', name === 'polls');
   document.getElementById('tab-wishlist').classList.toggle('primary', name === 'wishlist');
+  document.getElementById('tab-gearcheck').classList.toggle('primary', name === 'gearcheck');
+  document.getElementById('tab-consumables').classList.toggle('primary', name === 'consumables');
   document.getElementById('heading-loot').style.display = name === 'loot' ? '' : 'none';
   document.getElementById('heading-attendance').style.display = name === 'attendance' ? '' : 'none';
   document.getElementById('heading-polls').style.display = name === 'polls' ? '' : 'none';
   document.getElementById('heading-wishlist').style.display = name === 'wishlist' ? '' : 'none';
+  document.getElementById('heading-gearcheck').style.display = name === 'gearcheck' ? '' : 'none';
+  document.getElementById('heading-consumables').style.display = name === 'consumables' ? '' : 'none';
   if (name === 'wishlist' && !wishlistInited) { wishlistInited = true; initWishlistTab(); }
+  if (name === 'gearcheck' && !gearCheckInited) { gearCheckInited = true; initGearCheckTab(); }
+  if (name === 'consumables' && !consumablesInited) { consumablesInited = true; initConsumablesTab(); }
 }
 
 async function loadLoot() {
@@ -1163,8 +1249,181 @@ async function submitPoll() {
   await loadPolls();
 }
 
+// ================= GEAR CHECK =================
+let currentGearCheckRaidId = null;
+let gearCheckRows = [];
+
+const GEARCHECK_SLOTS = ['Head','Shoulder','Back','Chest','Wrist','Hands','Legs','Feet','MH','OH'];
+const STATUS_SEVERITY = { missing: 3, suboptimal: 2, good: 1, na: 0 };
+const STATUS_COLOR = { missing: 'var(--red-bright)', suboptimal: 'var(--warn)', good: '#5a9c6b', na: 'var(--dim)' };
+const STATUS_SYMBOL = { missing: '✕', suboptimal: '●', good: '✓', na: '—' };
+
+async function initGearCheckTab() {
+  const { data } = await sb.from('gear_checks').select('raid_night_id, raid_nights(title, raid_date)').order('synced_at', { ascending: false });
+  const seen = new Set(); const raids = [];
+  (data || []).forEach(r => {
+    if (!seen.has(r.raid_night_id)) { seen.add(r.raid_night_id); raids.push({ id: r.raid_night_id, label: `${r.raid_nights?.title || 'Raid'} — ${r.raid_nights?.raid_date ? new Date(r.raid_nights.raid_date).toLocaleDateString() : ''}` }); }
+  });
+  const sel = document.getElementById('gearcheck-raid-select');
+  sel.innerHTML = raids.length ? raids.map(r => `<option value="${r.id}">${esc(r.label)}</option>`).join('') : `<option value="">No synced raids yet</option>`;
+  if (raids.length) { currentGearCheckRaidId = raids[0].id; await loadGearCheckRaid(currentGearCheckRaidId); }
+  else { document.getElementById('gearcheck-table-wrap').innerHTML = `<div class="card" style="text-align:center;color:var(--dim);">No gear check data yet — sync a raid log to populate this.</div>`; }
+}
+
+async function switchGearCheckRaid(raidId) { currentGearCheckRaidId = raidId; await loadGearCheckRaid(raidId); }
+
+async function loadGearCheckRaid(raidId) {
+  const { data } = await sb.from('gear_checks').select('*').eq('raid_night_id', raidId);
+  gearCheckRows = data || [];
+  renderGearCheck();
+}
+
+function combineSlotStatus(row, slot) {
+  const enchant = (row.enchants || []).find(e => e.slot === slot);
+  const gem = (row.gems || []).find(g => g.slot === slot);
+  const statuses = [enchant?.status, gem?.status].filter(Boolean);
+  if (!statuses.length) return { status: 'na', enchant, gem };
+  let worst = 'good';
+  statuses.forEach(s => { if ((STATUS_SEVERITY[s] || 0) > (STATUS_SEVERITY[worst] || 0)) worst = s; });
+  return { status: worst, enchant, gem };
+}
+
+function renderGearCheck() {
+  const search = (document.getElementById('gearcheck-search')?.value || '').trim().toLowerCase();
+  let rows = gearCheckRows;
+  if (search) rows = rows.filter(r => r.character_name.toLowerCase().includes(search));
+  rows = [...rows].sort((a, b) => a.character_name.localeCompare(b.character_name));
+
+  let html = `<table class="dense-check-table"><tr><th class="name-col">Player</th>${GEARCHECK_SLOTS.map(s => `<th>${s}</th>`).join('')}</tr>`;
+  rows.forEach(r => {
+    html += `<tr><td><span class="cls-name-row">${classIcon(r.class_name)}<span style="${classColor(r.class_name) ? `color:${classColor(r.class_name)};` : ''}">${esc(r.character_name)}</span></span></td>`;
+    GEARCHECK_SLOTS.forEach(slot => {
+      const combined = combineSlotStatus(r, slot);
+      html += `<td style="cursor:pointer;" onclick='showGearCheckDetail(${JSON.stringify(r.character_name)}, ${JSON.stringify(slot)})' title="Click for detail"><span style="color:${STATUS_COLOR[combined.status]};font-weight:600;">${STATUS_SYMBOL[combined.status]}</span></td>`;
+    });
+    html += `</tr>`;
+  });
+  html += `</table>`;
+  document.getElementById('gearcheck-table-wrap').innerHTML = rows.length ? html : `<div class="card" style="text-align:center;color:var(--dim);">${search ? 'No matches.' : 'No data.'}</div>`;
+}
+
+function showGearCheckDetail(characterName, slot) {
+  const row = gearCheckRows.find(r => r.character_name === characterName);
+  if (!row) return;
+  const combined = combineSlotStatus(row, slot);
+  const className = row.class_name;
+  document.getElementById('player-modal-content').innerHTML = `
+    <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.5rem;">
+      ${classIcon(className)}
+      <div style="font-family:'Newsreader',serif;font-size:1.3rem;color:${classColor(className) || 'var(--white)'};">${esc(characterName)}</div>
+    </div>
+    <div class="label" style="margin-bottom:1rem;">${esc(slot)}</div>
+    <div class="modal-row"><span>Enchant</span><span style="color:${STATUS_COLOR[combined.enchant?.status || 'na']};">${esc(combined.enchant?.detail || (combined.enchant?.status === 'good' ? 'Best available' : combined.enchant?.status === 'missing' ? 'None' : '—'))}</span></div>
+    <div class="modal-row"><span>Gem(s)</span><span style="color:${STATUS_COLOR[combined.gem?.status || 'na']};">${esc(combined.gem?.detail || (combined.gem?.status === 'good' ? 'Epic quality' : combined.gem?.status === 'missing' ? 'Empty socket' : '—'))}</span></div>
+  `;
+  openModalPlayer = null;
+  document.getElementById('player-modal').style.display = 'flex';
+}
+
+// ================= CONSUMABLES =================
+let currentConsumablesRaidId = null;
+let consumablesRows = [];
+
+const CONSUMABLE_COLS = [
+  { key: 'food', label: 'Food' },
+  { key: 'flask_elixir', label: 'Flask/Elixir' },
+  { key: 'scroll', label: 'Scroll' },
+  { key: 'destruction', label: 'Destro' },
+  { key: 'haste', label: 'Haste' },
+  { key: 'mana', label: 'Mana' },
+];
+
+async function initConsumablesTab() {
+  const { data } = await sb.from('consumable_logs').select('raid_night_id, raid_nights(title, raid_date)').order('synced_at', { ascending: false });
+  const seen = new Set(); const raids = [];
+  (data || []).forEach(r => {
+    if (!seen.has(r.raid_night_id)) { seen.add(r.raid_night_id); raids.push({ id: r.raid_night_id, label: `${r.raid_nights?.title || 'Raid'} — ${r.raid_nights?.raid_date ? new Date(r.raid_nights.raid_date).toLocaleDateString() : ''}` }); }
+  });
+  const sel = document.getElementById('consumables-raid-select');
+  sel.innerHTML = raids.length ? raids.map(r => `<option value="${r.id}">${esc(r.label)}</option>`).join('') : `<option value="">No synced raids yet</option>`;
+  if (raids.length) { currentConsumablesRaidId = raids[0].id; await loadConsumablesRaid(currentConsumablesRaidId); }
+  else { document.getElementById('consumables-table-wrap').innerHTML = `<div class="card" style="text-align:center;color:var(--dim);">No consumables data yet — sync a raid log to populate this.</div>`; }
+}
+
+async function switchConsumablesRaid(raidId) { currentConsumablesRaidId = raidId; await loadConsumablesRaid(raidId); }
+
+async function loadConsumablesRaid(raidId) {
+  const { data } = await sb.from('consumable_logs').select('*').eq('raid_night_id', raidId);
+  consumablesRows = data || [];
+  const bosses = [...new Set(consumablesRows.map(r => r.boss_name))];
+  const bossSel = document.getElementById('consumables-boss-select');
+  bossSel.innerHTML = bosses.map(b => `<option value="${esc(b)}">${esc(b)}</option>`).join('');
+  renderConsumables();
+}
+
+function renderConsumables() {
+  const search = (document.getElementById('consumables-search')?.value || '').trim().toLowerCase();
+  const boss = document.getElementById('consumables-boss-select')?.value;
+  let rows = consumablesRows.filter(r => r.boss_name === boss);
+  if (search) rows = rows.filter(r => r.character_name.toLowerCase().includes(search));
+  rows = [...rows].sort((a, b) => a.character_name.localeCompare(b.character_name));
+
+  let html = `<table class="dense-check-table"><tr><th class="name-col">Player</th>${CONSUMABLE_COLS.map(c => `<th>${c.label}</th>`).join('')}</tr>`;
+  rows.forEach(r => {
+    html += `<tr><td><span class="cls-name-row">${classIcon(r.class_name)}<span style="${classColor(r.class_name) ? `color:${classColor(r.class_name)};` : ''}">${esc(r.character_name)}</span></span></td>`;
+    CONSUMABLE_COLS.forEach(c => {
+      const val = r[c.key] || {};
+      let status, label;
+      if (c.key === 'scroll' && val.applicable === false) { status = 'na'; label = '—'; }
+      else if (c.key === 'flask_elixir') {
+        status = (val.type === 'flask' || val.type === 'elixir') ? 'good' : val.type === 'partial' ? 'suboptimal' : 'missing';
+        label = STATUS_SYMBOL[status];
+      } else if (['destruction', 'haste', 'mana'].includes(c.key)) {
+        status = (val.count > 0) ? 'good' : 'missing';
+        label = val.count > 0 ? val.count : STATUS_SYMBOL['missing'];
+      } else {
+        status = val.used ? 'good' : 'missing';
+        label = STATUS_SYMBOL[status];
+      }
+      html += `<td style="cursor:pointer;color:${STATUS_COLOR[status]};font-weight:600;" onclick='showConsumableDetail(${JSON.stringify(r.character_name)}, ${JSON.stringify(boss)}, ${JSON.stringify(c.key)})' title="Click for detail">${label}</td>`;
+    });
+    html += `</tr>`;
+  });
+  html += `</table>`;
+  document.getElementById('consumables-table-wrap').innerHTML = rows.length ? html : `<div class="card" style="text-align:center;color:var(--dim);">${search ? 'No matches.' : 'No data for this boss.'}</div>`;
+}
+
+function showConsumableDetail(characterName, boss, key) {
+  const row = consumablesRows.find(r => r.character_name === characterName && r.boss_name === boss);
+  if (!row) return;
+  const val = row[key] || {};
+  let detailHtml;
+  if (key === 'flask_elixir') {
+    detailHtml = (val.names && val.names.length) ? val.names.map(n => `<div class="modal-row"><span>${esc(n)}</span></div>`).join('') : '<div style="color:var(--dim);">None used.</div>';
+  } else if (['destruction', 'haste', 'mana'].includes(key)) {
+    detailHtml = `<div class="modal-row"><span>Times used</span><span>${val.count || 0}</span></div>` + (val.names || []).map(n => `<div class="modal-row"><span>${esc(n)}</span></div>`).join('');
+  } else if (key === 'scroll' && val.applicable === false) {
+    detailHtml = `<div style="color:var(--dim);">Not tracked for this role.</div>`;
+  } else {
+    detailHtml = `<div class="modal-row"><span>${val.used ? esc(val.name || 'Used') : 'Not used'}</span></div>`;
+  }
+  const className = row.class_name;
+  document.getElementById('player-modal-content').innerHTML = `
+    <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.3rem;">
+      ${classIcon(className)}
+      <div style="font-family:'Newsreader',serif;font-size:1.3rem;color:${classColor(className) || 'var(--white)'};">${esc(characterName)}</div>
+    </div>
+    <div class="label" style="margin-bottom:1rem;">${esc(boss)}</div>
+    ${detailHtml}
+  `;
+  openModalPlayer = null;
+  document.getElementById('player-modal').style.display = 'flex';
+}
+
 // ================= WISHLIST =================
 let wishlistInited = false;
+let gearCheckInited = false;
+let consumablesInited = false;
 let currentPhase = '';
 let myWishlist = null;
 let myWishlistItems = [];
@@ -1781,6 +2040,211 @@ function downloadWishlistCSV() {
   downloadCSV('delusions-wishlists.csv', ['Player','Phase','Rank','Item','Received','Received By','Officer Note'], rows);
 }
 
+// ================= WCL SYNC (in-page modal) =================
+const KNOWN_FLASKS_SYNC = ["Flask of Relentless Assault","Flask of Blinding Light","Flask of Pure Death","Flask of Mighty Restoration","Flask of Fortification","Flask of Chromatic Resistance","Flask of Supreme Power","Flask of the Titans","Flask of Distilled Wisdom"];
+const KNOWN_BATTLE_ELIXIRS_SYNC = ["Elixir of Major Strength","Elixir of Major Agility","Elixir of Major Firepower","Elixir of Major Shadow Power","Elixir of Major Mageblood","Onslaught Elixir","Wrath Elixir","Fel Strength Elixir","Adept's Elixir"];
+const KNOWN_GUARDIAN_ELIXIRS_SYNC = ["Elixir of Major Defense","Elixir of Draenic Wisdom","Elixir of Healing Power","Elixir of Camouflage","Elixir of Ironskin","Elixir of Empowerment"];
+const KNOWN_SCROLLS_SYNC = ["Scroll of Strength V","Scroll of Agility V"];
+const KNOWN_DESTRUCTION_POTS_SYNC = ["Destruction Potion"];
+const KNOWN_HASTE_POTS_SYNC = ["Haste Potion","Insane Strength Potion"];
+const KNOWN_MANA_POTS_SYNC = ["Super Mana Potion","Fel Mana Potion"];
+const MELEE_HUNTER_CLASSES_SYNC = ["Warrior","Rogue","Hunter"];
+
+let syncResult = null;
+
+function openSyncModal() {
+  document.getElementById('wcl-client-id').value = localStorage.getItem('wcl_client_id') || '';
+  document.getElementById('wcl-client-secret').value = localStorage.getItem('wcl_client_secret') || '';
+  document.getElementById('sync-progress').style.display = 'none';
+  document.getElementById('sync-preview').style.display = 'none';
+  document.getElementById('sync-modal').style.display = 'flex';
+}
+function closeSyncModal() { document.getElementById('sync-modal').style.display = 'none'; }
+
+function syncLog(msg) { document.getElementById('sync-log').innerHTML += msg + '<br>'; }
+
+function extractReportCode(input) {
+  const match = input.match(/reports\/([a-zA-Z0-9]+)/);
+  return match ? match[1] : input.trim();
+}
+
+async function getWclToken(id, secret) {
+  const r = await fetch('https://www.warcraftlogs.com/oauth/token', {
+    method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ grant_type: 'client_credentials', client_id: id, client_secret: secret })
+  });
+  if (!r.ok) throw new Error('Auth failed — check Client ID and Secret.');
+  return (await r.json()).access_token;
+}
+
+async function wclQuery(token, query, variables = {}) {
+  const r = await fetch('https://www.warcraftlogs.com/api/v2/client', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body: JSON.stringify({ query, variables })
+  });
+  const json = await r.json();
+  if (json.errors) throw new Error(json.errors.map(e => e.message).join('; '));
+  return json;
+}
+
+async function runSync() {
+  const clientId = document.getElementById('wcl-client-id').value.trim();
+  const clientSecret = document.getElementById('wcl-client-secret').value.trim();
+  const reportInput = document.getElementById('wcl-report-code').value.trim();
+  if (!clientId || !clientSecret || !reportInput) { toast('Client ID, Secret, and report link are all required.', 'error'); return; }
+  localStorage.setItem('wcl_client_id', clientId);
+  localStorage.setItem('wcl_client_secret', clientSecret);
+  const code = extractReportCode(reportInput);
+
+  document.getElementById('sync-progress').style.display = 'block';
+  document.getElementById('sync-preview').style.display = 'none';
+  document.getElementById('sync-log').innerHTML = '';
+  document.getElementById('sync-btn').disabled = true;
+
+  try {
+    syncLog('Authenticating…');
+    const token = await getWclToken(clientId, clientSecret);
+    syncLog('✓ Authenticated');
+
+    syncLog('Fetching report metadata…');
+    const reportResp = await wclQuery(token, `
+      query($code: String!) {
+        reportData {
+          report(code: $code) {
+            title startTime
+            zone { name }
+            fights(killType: Kills) { id name startTime endTime kill }
+            masterData { actors(type: "Player") { id name subType } }
+          }
+        }
+      }
+    `, { code });
+
+    const report = reportResp.data?.reportData?.report;
+    if (!report) throw new Error('Report not found — check the link/code.');
+    syncLog(`✓ Found "${report.title}" in ${report.zone?.name || 'unknown zone'}`);
+
+    const fights = report.fights || [];
+    const actors = report.masterData?.actors || [];
+    syncLog(`✓ ${fights.length} boss kill(s), ${actors.length} player(s) in the log`);
+
+    const attendance = actors.map(a => ({ name: a.name, className: a.subType }));
+
+    syncLog('Fetching gear/enchant/gem data…');
+    let gearByPlayer = {};
+    if (fights.length) {
+      const gearResp = await wclQuery(token, `
+        query($code: String!, $fightID: Int!) {
+          reportData { report(code: $code) { events(dataType: CombatantInfo, fightIDs: [$fightID]) { data } } }
+        }
+      `, { code, fightID: fights[0].id });
+      const gearEvents = gearResp.data?.reportData?.report?.events?.data || [];
+      gearEvents.forEach(ev => {
+        const actor = actors.find(a => a.id === ev.sourceID);
+        if (actor && ev.gear) gearByPlayer[actor.name] = { className: actor.subType, gear: ev.gear };
+      });
+      syncLog(`✓ Gear data for ${Object.keys(gearByPlayer).length} player(s)`);
+    }
+
+    syncLog('Fetching consumable usage per boss…');
+    let consumablesByFight = {};
+    for (const fight of fights) {
+      const evResp = await wclQuery(token, `
+        query($code: String!, $fightID: Int!) {
+          reportData {
+            report(code: $code) {
+              buffEvents: events(dataType: Buffs, fightIDs: [$fightID]) { data }
+              castEvents: events(dataType: Casts, fightIDs: [$fightID]) { data }
+            }
+          }
+        }
+      `, { code, fightID: fight.id });
+      consumablesByFight[fight.name] = {
+        buffs: evResp.data?.reportData?.report?.buffEvents?.data || [],
+        casts: evResp.data?.reportData?.report?.castEvents?.data || [],
+      };
+    }
+    syncLog(`✓ Consumable events pulled for ${fights.length} boss(es)`);
+
+    syncResult = { report, fights, actors, attendance, gearByPlayer, consumablesByFight };
+    renderSyncPreview();
+
+  } catch (err) {
+    syncLog(`<span style="color:var(--red-bright);">✕ ${err.message}</span>`);
+    toast(err.message, 'error');
+  } finally {
+    document.getElementById('sync-btn').disabled = false;
+  }
+}
+
+function renderSyncPreview() {
+  const { report, fights, attendance, gearByPlayer } = syncResult;
+  document.getElementById('sync-preview').style.display = 'block';
+  document.getElementById('sync-preview-content').innerHTML = `
+    <div class="modal-row"><span>Raid</span><span>${esc(report.title)}</span></div>
+    <div class="modal-row"><span>Zone</span><span>${esc(report.zone?.name || '')}</span></div>
+    <div class="modal-row"><span>Boss kills</span><span>${fights.length}</span></div>
+    <div class="modal-row"><span>Players</span><span>${attendance.length}</span></div>
+    <div class="modal-row"><span>Gear data</span><span>${Object.keys(gearByPlayer).length} player(s)</span></div>
+    <p style="font-size:0.78rem;color:var(--dim);margin-top:1rem;">Saving creates a new raid night and populates Attendance, Gear Check, and Consumables. This does not touch Loot.</p>
+  `;
+}
+
+async function confirmSync() {
+  const { report, fights, attendance, gearByPlayer, consumablesByFight } = syncResult;
+
+  const { data: night, error: nightErr } = await sb.from('raid_nights').insert({
+    title: report.zone?.name || report.title,
+    raid_date: report.startTime ? new Date(report.startTime).toISOString() : new Date().toISOString(),
+    created_by: currentUser.id,
+  }).select().single();
+  if (nightErr) { toast(nightErr.message, 'error'); return; }
+
+  await sb.from('raid_attendees').insert(attendance.map(a => ({ raid_night_id: night.id, character_name: a.name, class_name: a.className })));
+
+  const gearRows = Object.entries(gearByPlayer).map(([name, info]) => {
+    const enchants = [], gems = [];
+    (info.gear || []).forEach(item => {
+      if (item.permanentEnchant) enchants.push({ slot: item.slot || 'Unknown', itemName: item.name || '', status: 'good', detail: 'Enchanted' });
+      else if (item.slot) enchants.push({ slot: item.slot, itemName: item.name || '', status: 'missing', detail: 'No enchant' });
+      if (item.gems && item.gems.length) {
+        item.gems.forEach(g => gems.push({ slot: item.slot || 'Unknown', itemName: g.name || '', status: g.quality === 'Epic' ? 'good' : 'suboptimal', detail: g.name || '' }));
+      }
+    });
+    return { raid_night_id: night.id, character_name: name, class_name: info.className, enchants, gems };
+  });
+  if (gearRows.length) await sb.from('gear_checks').insert(gearRows);
+
+  const consumableRows = [];
+  Object.entries(consumablesByFight).forEach(([bossName, data]) => {
+    attendance.forEach(a => {
+      const isMelee = MELEE_HUNTER_CLASSES_SYNC.includes(a.className);
+      const buffNames = (data.buffs || []).filter(e => e.targetID !== undefined).map(e => e.ability?.name).filter(Boolean);
+      const castNames = (data.casts || []).filter(e => e.sourceID !== undefined).map(e => e.ability?.name).filter(Boolean);
+      const hasFlask = buffNames.some(n => KNOWN_FLASKS_SYNC.includes(n));
+      const hasBattle = buffNames.some(n => KNOWN_BATTLE_ELIXIRS_SYNC.includes(n));
+      const hasGuardian = buffNames.some(n => KNOWN_GUARDIAN_ELIXIRS_SYNC.includes(n));
+      consumableRows.push({
+        raid_night_id: night.id, boss_name: bossName, character_name: a.name, class_name: a.className,
+        food: { used: buffNames.includes('Well Fed'), name: 'Well Fed' },
+        flask_elixir: { type: hasFlask ? 'flask' : (hasBattle && hasGuardian) ? 'elixir' : (hasBattle || hasGuardian) ? 'partial' : 'none', names: buffNames.filter(n => KNOWN_FLASKS_SYNC.includes(n) || KNOWN_BATTLE_ELIXIRS_SYNC.includes(n) || KNOWN_GUARDIAN_ELIXIRS_SYNC.includes(n)) },
+        scroll: { applicable: isMelee, used: isMelee && buffNames.some(n => KNOWN_SCROLLS_SYNC.includes(n)), name: buffNames.find(n => KNOWN_SCROLLS_SYNC.includes(n)) },
+        destruction: { count: castNames.filter(n => KNOWN_DESTRUCTION_POTS_SYNC.includes(n)).length, names: castNames.filter(n => KNOWN_DESTRUCTION_POTS_SYNC.includes(n)) },
+        haste: { count: castNames.filter(n => KNOWN_HASTE_POTS_SYNC.includes(n)).length, names: castNames.filter(n => KNOWN_HASTE_POTS_SYNC.includes(n)) },
+        mana: { count: castNames.filter(n => KNOWN_MANA_POTS_SYNC.includes(n)).length, names: castNames.filter(n => KNOWN_MANA_POTS_SYNC.includes(n)) },
+      });
+    });
+  });
+  if (consumableRows.length) await sb.from('consumable_logs').insert(consumableRows);
+
+  logActivity(`Synced a raid log: ${report.title}`);
+  toast('Synced! Check Attendance, Gear Check, and Consumables.', 'success');
+  closeSyncModal();
+  if (gearCheckInited) await initGearCheckTab();
+  if (consumablesInited) await initConsumablesTab();
+  await loadAttendance();
+}
+
 async function fullGmExport() {
   if (!isGM()) return;
   toast('Exporting everything — four files will download one after another.', 'info');
@@ -1878,8 +2342,11 @@ async function autoMatchWishlistOnImport(lootRows) {
   document.getElementById('tab-attendance').style.display = isOfficer() ? '' : 'none';
   document.getElementById('tab-polls').style.display = (isOfficer() || hasVisiblePolls) ? '' : 'none';
   document.getElementById('tab-wishlist').style.display = canSeeLootAttendance ? '' : 'none';
+  document.getElementById('tab-gearcheck').style.display = canSeeLootAttendance ? '' : 'none';
+  document.getElementById('tab-consumables').style.display = canSeeLootAttendance ? '' : 'none';
 
   if (isOfficer()) {
+    document.getElementById('officer-sync-bar').style.display = '';
     document.getElementById('loot-csv-btn').style.display = '';
     if (isGM()) document.getElementById('gm-export-bar').style.display = '';
     document.getElementById('attendance-csv-btn').style.display = '';
@@ -1892,6 +2359,8 @@ async function autoMatchWishlistOnImport(lootRows) {
   if (isOfficer()) visibleTabs.push('attendance');
   if (isOfficer() || hasVisiblePolls) visibleTabs.push('polls');
   if (canSeeLootAttendance) visibleTabs.push('wishlist');
+  if (canSeeLootAttendance) visibleTabs.push('gearcheck');
+  if (canSeeLootAttendance) visibleTabs.push('consumables');
 
   if (!visibleTabs.length) { window.location.href = 'dashboard.html'; return; } // outsider, no eligible polls at all
   document.getElementById('tab-row').style.display = visibleTabs.length > 1 ? '' : 'none';

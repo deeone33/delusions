@@ -477,6 +477,75 @@ alter table profiles add column if not exists last_activity_view_at timestamptz;
 -- No new policy needed — the existing "profiles update own" policy
 -- (auth.uid() = id) already covers updating this column.
 
+-- ---------- GEAR CHECK ----------
+-- One row per character per raid night (tied to raid_nights, so history
+-- is just "which past raid night has gear_check rows"). enchants/gems are
+-- jsonb arrays of {slot, itemName, status:'good'|'suboptimal'|'missing'|'na', detail}
+-- status is deliberately 3-tier (not just pass/fail): 'suboptimal' covers
+-- things like a Revered-rank shoulder enchant where Exalted exists, or a
+-- Rare-quality gem where Epic exists — present, but not best-in-slot.
+create table if not exists gear_checks (
+  id uuid primary key default gen_random_uuid(),
+  raid_night_id uuid references raid_nights(id) on delete cascade,
+  character_name text not null,
+  class_name text,
+  enchants jsonb not null default '[]',
+  gems jsonb not null default '[]',
+  synced_at timestamptz default now(),
+  unique(raid_night_id, character_name)
+);
+alter table gear_checks enable row level security;
+drop policy if exists "gear_checks read all" on gear_checks;
+create policy "gear_checks read all" on gear_checks for select using (auth.uid() is not null);
+drop policy if exists "gear_checks officer write" on gear_checks;
+create policy "gear_checks officer write" on gear_checks for insert with check (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
+);
+drop policy if exists "gear_checks officer update" on gear_checks;
+create policy "gear_checks officer update" on gear_checks for update using (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
+);
+drop policy if exists "gear_checks officer delete" on gear_checks;
+create policy "gear_checks officer delete" on gear_checks for delete using (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
+);
+
+-- ---------- CONSUMABLES ----------
+-- One row per character per boss per raid night. Each jsonb field carries
+-- both the used/missing flag AND the exact item(s)/count, so the detail
+-- popup (click a cell to see exactly what was used) doesn't need a second
+-- query — it's already in the row.
+create table if not exists consumable_logs (
+  id uuid primary key default gen_random_uuid(),
+  raid_night_id uuid references raid_nights(id) on delete cascade,
+  boss_name text not null,
+  character_name text not null,
+  class_name text,
+  food jsonb not null default '{}',           -- {used, name}
+  flask_elixir jsonb not null default '{}',   -- {type:'flask'|'elixir'|'partial'|'none', names:[]}
+  scroll jsonb not null default '{}',         -- {applicable, used, name}
+  destruction jsonb not null default '{}',    -- {count, names:[]}
+  haste jsonb not null default '{}',
+  mana jsonb not null default '{}',
+  synced_at timestamptz default now(),
+  unique(raid_night_id, boss_name, character_name)
+);
+alter table consumable_logs enable row level security;
+drop policy if exists "consumable_logs read all" on consumable_logs;
+create policy "consumable_logs read all" on consumable_logs for select using (auth.uid() is not null);
+drop policy if exists "consumable_logs officer write" on consumable_logs;
+create policy "consumable_logs officer write" on consumable_logs for insert with check (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
+);
+drop policy if exists "consumable_logs officer update" on consumable_logs;
+create policy "consumable_logs officer update" on consumable_logs for update using (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
+);
+drop policy if exists "consumable_logs officer delete" on consumable_logs;
+create policy "consumable_logs officer delete" on consumable_logs for delete using (
+  exists (select 1 from profiles p where p.id = auth.uid() and p.role in ('officer','gm'))
+);
+
 -- ---------- STREAMS ----------
 -- One row per account — "posting a stream" edits this info, "Go Live" /
 -- "Go Offline" just toggles status on the same row, so nobody re-fills the
