@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=52">
+<link rel="stylesheet" href="style.css?v=53">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
@@ -293,12 +293,19 @@
       Pulls attendance, gear, enchants, gems, and consumable usage from a Warcraft Logs report.
       Your WCL credentials stay in this browser only. Loot still goes through the separate RCLootCouncil import.
     </p>
+    <p style="color:var(--warn);font-size:0.8rem;margin-bottom:1.2rem;background:var(--deep);padding:0.7rem 0.9rem;border:1px solid var(--hair);">
+      This needs a <strong>V2 API Client</strong> from <a href="https://www.warcraftlogs.com/api/clients/" target="_blank" rel="noopener" style="color:var(--red-bright);">warcraftlogs.com/api/clients</a> — click "Create Client" there to get a real Client ID + Client Secret pair.
+      This is <em>not</em> the same as the "V1 Client Name / Key" shown under your account's Web API settings — that's a different, older system and won't work here.
+    </p>
 
     <div style="margin-bottom:1rem;">
       <label class="form-label">Client ID</label>
       <input type="text" id="wcl-client-id" placeholder="Paste your WCL Client ID" style="margin-bottom:0.6rem;">
       <label class="form-label">Client Secret</label>
-      <input type="password" id="wcl-client-secret" placeholder="Paste your WCL Client Secret" style="margin-bottom:0.6rem;">
+      <div style="position:relative;margin-bottom:0.6rem;">
+        <input type="password" id="wcl-client-secret" placeholder="Paste your WCL Client Secret" style="padding-right:2.4rem;">
+        <button type="button" onclick="toggleSecretVisibility()" title="Show/hide" style="position:absolute;right:0.5rem;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--dim);cursor:pointer;font-size:0.9rem;padding:0.2rem;">👁</button>
+      </div>
       <label class="form-label">Report link or code</label>
       <input type="text" id="wcl-report-code" placeholder="https://fresh.warcraftlogs.com/reports/AbCdEfGh123456">
     </div>
@@ -323,8 +330,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=52"></script>
-<script src="editor.js?v=52"></script>
+<script src="app.js?v=53"></script>
+<script src="editor.js?v=53"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -2052,6 +2059,11 @@ const MELEE_HUNTER_CLASSES_SYNC = ["Warrior","Rogue","Hunter"];
 
 let syncResult = null;
 
+function toggleSecretVisibility() {
+  const input = document.getElementById('wcl-client-secret');
+  input.type = input.type === 'password' ? 'text' : 'password';
+}
+
 function openSyncModal() {
   document.getElementById('wcl-client-id').value = localStorage.getItem('wcl_client_id') || '';
   document.getElementById('wcl-client-secret').value = localStorage.getItem('wcl_client_secret') || '';
@@ -2073,7 +2085,7 @@ async function getWclToken(id, secret) {
     method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ grant_type: 'client_credentials', client_id: id, client_secret: secret })
   });
-  if (!r.ok) throw new Error('Auth failed — check Client ID and Secret.');
+  if (!r.ok) throw new Error('Auth failed — make sure this is a V2 API Client from warcraftlogs.com/api/clients (Client ID + Secret), not the V1 Client Name/Key from your account\'s Web API settings.');
   return (await r.json()).access_token;
 }
 

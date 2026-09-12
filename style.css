@@ -154,7 +154,7 @@ p{color:var(--mid);}
 
 .form-group{margin-bottom:1.1rem;}
 .form-label{display:block;font-family:'IBM Plex Mono',monospace;font-size:0.6rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--dim);margin-bottom:0.4rem;}
-input[type="text"],input[type="email"],input[type="date"],textarea,select{
+input[type="text"],input[type="email"],input[type="date"],input[type="password"],textarea,select{
   width:100%;background:var(--deep);border:1px solid var(--hair);color:var(--bone);
   padding:0.65rem 0.8rem;font-family:'Newsreader',serif;font-size:0.95rem;
   color-scheme:dark;
