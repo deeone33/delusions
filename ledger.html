@@ -7,9 +7,9 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=80">
+<link rel="stylesheet" href="style.css?v=81">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-<script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
+<script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: false};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
 <style>
   .page-wide{max-width:920px;margin:0 auto;padding:0 2rem 5rem;}
@@ -335,8 +335,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=80"></script>
-<script src="editor.js?v=80"></script>
+<script src="app.js?v=81"></script>
+<script src="editor.js?v=81"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -1262,15 +1262,16 @@ async function showPlayerProfile(characterName, presetBoss) {
       }
       // Gems: dots color-coded by quality (STATUS_COLOR already maps
       // good=epic/green, suboptimal=rare/blue shown yellow, missing=red).
-      // Uses the custom hover popup, not a real Wowhead link - Wowhead's
-      // own tooltip script auto-rewrites a link's visible text to the
-      // item's real name, which was silently destroying the compact dot
-      // (confirmed from a real screenshot showing full gem names instead
-      // of dots). The popup doesn't touch the element's text at all.
+      // Real Wowhead links, giving the full rich hover card (icon, quality,
+      // stats) - safe now that renameLinks is disabled globally, so the
+      // dot symbol stays as the visible text instead of being overwritten
+      // with the gem's full name (which is what broke this before).
       const gemBits = combined.gems.length ? combined.gems.map(g => {
         const symbol = g.meta ? '◆' : STATUS_SYMBOL[g.status];
-        const color = g.meta ? 'var(--dim)' : STATUS_COLOR[g.status];
-        return `<span style="color:${color};cursor:help;" onmouseenter='showInfoPopup(event, ${jsAttr(g.itemName)})' onmouseleave='hideInfoPopup()'>${symbol}</span>`;
+        const color = g.meta ? STATUS_COLOR.good : STATUS_COLOR[g.status];
+        return g.itemId
+          ? `<a href="https://www.wowhead.com/tbc/item=${g.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${color};text-decoration:none;">${symbol}</a>`
+          : `<span style="color:${color};cursor:help;" onmouseenter='showInfoPopup(event, ${jsAttr(g.itemName)})' onmouseleave='hideInfoPopup()'>${symbol}</span>`;
       }).join(' ') : '<span style="color:var(--dim);">—</span>';
       return `
         <div style="display:flex;align-items:baseline;gap:0.4rem;padding:0.4rem 0;border-bottom:1px solid var(--hair2);">
@@ -1371,7 +1372,7 @@ function showGearCheckDetail(characterName, slot) {
         : `<span style="color:${STATUS_COLOR.good};">Enchanted</span>`)
     : `<span style="color:${STATUS_COLOR.missing};">No enchant</span>`;
   const gemsHtml = combined.gems.length ? combined.gems.map(g => `
-    <div class="modal-row"><span><a href="https://www.wowhead.com/tbc/item=${g.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${g.meta ? 'inherit' : STATUS_COLOR[g.status]};">${esc(g.itemName)}</a></span></div>
+    <div class="modal-row"><span><a href="https://www.wowhead.com/tbc/item=${g.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${g.meta ? STATUS_COLOR.good : STATUS_COLOR[g.status]};">${esc(g.itemName)}</a></span></div>
   `).join('') : `<div class="modal-row"><span style="color:${STATUS_COLOR.missing};">Empty socket</span></div>`;
   document.getElementById('player-modal-content').innerHTML = `
     <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.5rem;">
