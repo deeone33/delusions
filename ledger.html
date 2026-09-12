@@ -7,9 +7,9 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=83">
+<link rel="stylesheet" href="style.css?v=84">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-<script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: false};</script>
+<script>const whTooltips = {colorLinks: true, iconizeLinks: false, renameLinks: false};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
 <style>
   .page-wide{max-width:920px;margin:0 auto;padding:0 2rem 5rem;}
@@ -335,8 +335,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=83"></script>
-<script src="editor.js?v=83"></script>
+<script src="app.js?v=84"></script>
+<script src="editor.js?v=84"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -1258,14 +1258,16 @@ async function showPlayerProfile(characterName, presetBoss) {
         enchantBit = `<span style="color:${STATUS_COLOR.good};">Enchanted</span>`;
       }
 
-      // Gems: plain circle characters only (not check/X symbols), color-coded
-      // by quality. Custom hover popup with the real icon image + name -
-      // fully self-built, not dependent on Wowhead's tooltip script.
+      // Gems: plain circle characters, color-coded by quality. Real
+      // Wowhead links - safe now that both renameLinks and iconizeLinks
+      // are disabled globally, so the circle stays as the visible text
+      // while hover still shows Wowhead's full rich card (same as Gear
+      // Check's own popup), instead of my smaller custom one.
       const gemBits = combined.gems.length ? combined.gems.map(g => {
         const color = g.meta ? STATUS_COLOR.good : STATUS_COLOR[g.status];
-        const iconUrl = g.icon ? `https://wow.zamimg.com/images/wow/icons/medium/${g.icon}.jpg` : null;
-        const popupHtml = `<div style="display:flex;align-items:center;gap:0.5rem;">${iconUrl ? `<img src="${iconUrl}" style="width:28px;height:28px;border-radius:3px;border:1px solid ${color};">` : ''}<div style="color:${color};font-weight:600;">${esc(g.itemName)}${g.meta ? ' (Meta)' : ''}</div></div>`;
-        return `<span style="color:${color};cursor:help;font-size:1.1rem;" onmouseenter='showInfoPopup(event, ${jsAttr(popupHtml)})' onmouseleave='hideInfoPopup()'>●</span>`;
+        return g.itemId
+          ? `<a href="https://www.wowhead.com/tbc/item=${g.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${color};text-decoration:none;font-size:1.1rem;">●</a>`
+          : `<span style="color:${color};">●</span>`;
       }).join(' ') : '<span style="color:var(--dim);">—</span>';
 
       return `
