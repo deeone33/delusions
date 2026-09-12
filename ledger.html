@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=72">
+<link rel="stylesheet" href="style.css?v=73">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
@@ -335,8 +335,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=72"></script>
-<script src="editor.js?v=72"></script>
+<script src="app.js?v=73"></script>
+<script src="editor.js?v=73"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -2143,7 +2143,9 @@ const POTION_NAMES_SYNC = { destruction: ['Destruction'], haste: ['Haste'], mana
 // different ID space, same pattern as everything else in this file).
 const CONSUMABLE_ITEM_IDS_SYNC = {
   'Destruction Potion': 22839, 'Haste Potion': 22838, 'Mana Potion': 22832, 'Ironshield Potion': 22849,
-  'Dark Rune': 12662, 'Flame Cap': 22788, 'Nightmare Seed': 22797, 'Thistle Tea': 7676, 'Elixir of Demonslaying': 9224,
+  'Flame Cap': 22788, 'Nightmare Seed': 22797, 'Thistle Tea': 7676, 'Elixir of Demonslaying': 9224,
+  // Dark Rune's real item ID not found yet - 12662 is Demonic Rune, a
+  // different item (caught before shipping, not left in as a guess).
 };
 function findConsumableItemId(name) {
   if (!name) return null;
