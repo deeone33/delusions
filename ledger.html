@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=64">
+<link rel="stylesheet" href="style.css?v=65">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
@@ -335,8 +335,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=64"></script>
-<script src="editor.js?v=64"></script>
+<script src="app.js?v=65"></script>
+<script src="editor.js?v=65"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -1229,14 +1229,12 @@ function renderGearCheck() {
 // the same real-tooltip rendering already built for the per-cell popups.
 async function showPlayerProfile(characterName, presetBoss) {
   if (!consumablesInited && currentGearCheckRaidId) {
-    // Consumables tab was never opened - load its data for the same raid now, quietly
     await loadConsumablesRaid(currentGearCheckRaidId);
   }
   const gearRow = gearCheckRows.find(r => r.character_name === characterName);
-  const consumableEntries = consumablesRows.filter(r => r.character_name === characterName); // consumablesRows holds every boss for the current raid already, not just whichever one is currently shown in the table
+  const consumableEntries = consumablesRows.filter(r => r.character_name === characterName);
   const className = gearRow?.class_name || consumableEntries[0]?.class_name;
   const bosses = [...new Set(consumableEntries.map(r => r.boss_name))];
-  const initialBoss = presetBoss && bosses.includes(presetBoss) ? presetBoss : bosses[0];
 
   let gearHtml = '<div style="color:var(--dim);">No gear data for this raid.</div>';
   if (gearRow) {
@@ -1244,11 +1242,39 @@ async function showPlayerProfile(characterName, presetBoss) {
       const combined = combineSlotStatus(gearRow, slot);
       const e = combined.enchant;
       if (!e) return '';
-      const itemLink = e.itemId ? `<a href="https://www.wowhead.com/tbc/item=${e.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:inherit;">${esc(e.itemName)}</a>` : esc(e.itemName || '—');
-      const enchantBit = e.enchantId ? `<a href="https://www.wowhead.com/tbc/spell=${e.enchantId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${STATUS_COLOR.good};font-size:0.75rem;">enchanted</a>` : `<span style="color:${STATUS_COLOR.missing};font-size:0.75rem;">no enchant</span>`;
-      const gemsBit = combined.gems.length ? combined.gems.map(g => `<a href="https://www.wowhead.com/tbc/item=${g.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${g.meta?'inherit':STATUS_COLOR[g.status]};font-size:0.75rem;">${esc(g.itemName)}</a>`).join(', ') : '';
-      return `<div class="modal-row"><span>${slot}: ${itemLink}</span><span>${enchantBit}${gemsBit ? ' · '+gemsBit : ''}</span></div>`;
+      const itemLink = e.itemId ? `<a href="https://www.wowhead.com/tbc/item=${e.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:var(--bone);">${esc(e.itemName)}</a>` : esc(e.itemName || '—');
+      const enchantBit = e.enchantId ? `<span style="color:${STATUS_COLOR.good};">Enchanted</span>` : `<span style="color:${STATUS_COLOR.missing};">No enchant</span>`;
+      const gemsBit = combined.gems.length ? combined.gems.map(g => `<a href="https://www.wowhead.com/tbc/item=${g.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${g.meta?'var(--dim)':STATUS_COLOR[g.status]};">${esc(g.itemName)}</a>`).join(', ') : null;
+      return `
+        <div style="padding:0.5rem 0;border-bottom:1px solid var(--hair2);">
+          <div style="font-size:0.6rem;color:var(--dim);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.15rem;">${slot}</div>
+          <div style="font-size:0.9rem;margin-bottom:0.2rem;">${itemLink}</div>
+          <div style="font-size:0.78rem;color:var(--mist);">${enchantBit}${gemsBit ? ' · ' + gemsBit : ''}</div>
+        </div>`;
     }).join('');
+  }
+
+  // Summary across every synced boss, not forcing a single-boss view first
+  let summaryHtml = '<div style="color:var(--dim);">No consumables data for this raid.</div>';
+  if (bosses.length) {
+    const total = bosses.length;
+    const countWhere = (fn) => consumableEntries.filter(fn).length;
+    const foodCount = countWhere(r => r.food?.used);
+    const flaskGoodCount = countWhere(r => r.flask_elixir?.type === 'flask' || (r.flask_elixir?.type === 'elixir' && !r.flask_elixir?.tierIssue));
+    const flaskPartialCount = countWhere(r => r.flask_elixir?.type === 'partial' || r.flask_elixir?.tierIssue);
+    const scrollApplicable = consumableEntries.some(r => r.scroll?.applicable);
+    const scrollGoodCount = countWhere(r => r.scroll?.status === 'good');
+    const potionCount = countWhere(r => (r.potions?.count || 0) > 0);
+    const runeCount = countWhere(r => (r.runes?.count || 0) > 0);
+    const summaryRow = (label, count, denom) => `<div class="modal-row"><span>${label}</span><span style="color:${count===denom?STATUS_COLOR.good:count>0?STATUS_COLOR.suboptimal:STATUS_COLOR.missing};">${count} / ${denom} bosses</span></div>`;
+    summaryHtml = `
+      ${summaryRow('Food', foodCount, total)}
+      ${summaryRow('Flask/Elixir (good)', flaskGoodCount, total)}
+      ${flaskPartialCount ? `<div class="modal-row"><span></span><span style="color:${STATUS_COLOR.suboptimal};font-size:0.78rem;">${flaskPartialCount} more partial/suboptimal</span></div>` : ''}
+      ${scrollApplicable ? summaryRow('Scrolls (both)', scrollGoodCount, total) : `<div class="modal-row"><span>Scrolls</span><span style="color:var(--dim);">N/A for this role</span></div>`}
+      ${summaryRow('Potions used', potionCount, total)}
+      ${summaryRow('Runes used', runeCount, total)}
+    `;
   }
 
   document.getElementById('player-modal-content').innerHTML = `
@@ -1258,9 +1284,14 @@ async function showPlayerProfile(characterName, presetBoss) {
     </div>
     <div class="modal-section" style="margin-top:0.8rem;"><h4>Gear</h4>${gearHtml}</div>
     <div class="modal-section">
-      <h4>Consumables ${bosses.length ? `<select id="profile-boss-select" onchange="refreshProfileConsumables(${jsAttr(characterName)})" style="font-size:0.7rem;padding:0.2rem 0.4rem;margin-left:0.5rem;">${bosses.map(b => `<option value="${esc(b)}" ${b===initialBoss?'selected':''}>${esc(b)}</option>`).join('')}</select>` : ''}</h4>
-      <div id="profile-consumables-body"></div>
+      <h4>Consumables — Summary (all bosses)</h4>
+      ${summaryHtml}
     </div>
+    ${bosses.length ? `
+    <div class="modal-section">
+      <h4>Per-Boss Detail <select id="profile-boss-select" onchange="refreshProfileConsumables(${jsAttr(characterName)})" style="font-size:0.7rem;padding:0.2rem 0.4rem;margin-left:0.5rem;">${bosses.map(b => `<option value="${esc(b)}" ${b===(presetBoss&&bosses.includes(presetBoss)?presetBoss:bosses[0])?'selected':''}>${esc(b)}</option>`).join('')}</select></h4>
+      <div id="profile-consumables-body"></div>
+    </div>` : ''}
   `;
   openModalPlayer = null;
   document.getElementById('player-modal').style.display = 'flex';
@@ -1275,7 +1306,7 @@ function refreshProfileConsumables(characterName) {
   if (!row) { body.innerHTML = '<div style="color:var(--dim);">No data for this boss.</div>'; return; }
 
   const spellLink = (name, id) => id ? `<a href="https://www.wowhead.com/tbc/spell=${id}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:inherit;">${esc(name)}</a>` : esc(name);
-  const foodLine = row.food?.used ? spellLink(row.food.name || 'Well Fed', row.food.spellId) : '<span style="color:var(--dim);">Not used</span>';
+  const foodLine = row.food?.used ? 'Well Fed' : '<span style="color:var(--dim);">Not used</span>';
   const elixirLines = (row.flask_elixir?.names || []).length ? row.flask_elixir.names.map((n, i) => spellLink(n, (row.flask_elixir.spellIds||[])[i])).join(', ') : '<span style="color:var(--dim);">None</span>';
   const scrollLines = (row.scroll?.applicable === false) ? '<span style="color:var(--dim);">N/A for this role</span>' : ((row.scroll?.names || []).length ? row.scroll.names.map((n, i) => spellLink(n, (row.scroll.spellIds||[])[i])).join(', ') : '<span style="color:var(--dim);">None</span>');
   const potionLines = (row.potions?.names || []).length ? row.potions.names.join(', ') : '<span style="color:var(--dim);">None</span>';
@@ -1300,9 +1331,9 @@ function showGearCheckDetail(characterName, slot) {
   const className = row.class_name;
   const e = combined.enchant;
   const itemLink = e?.itemId ? `<a href="https://www.wowhead.com/tbc/item=${e.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:inherit;">${esc(e.itemName)}</a>` : esc(e?.itemName || '—');
-  const enchantLink = e?.enchantId ? `<a href="https://www.wowhead.com/tbc/spell=${e.enchantId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${STATUS_COLOR.good};">Enchanted</a>` : `<span style="color:${STATUS_COLOR.missing};">No enchant</span>`;
+  const enchantLink = e?.enchantId ? `<span style="color:${STATUS_COLOR.good};" title="Enchant ID ${e.enchantId} - tooltip link not yet verified, showing raw status only">Enchanted</span>` : `<span style="color:${STATUS_COLOR.missing};">No enchant</span>`;
   const gemsHtml = combined.gems.length ? combined.gems.map(g => `
-    <div class="modal-row"><span>${g.meta ? '(Meta) ' : ''}<a href="https://www.wowhead.com/tbc/item=${g.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${g.meta ? 'inherit' : STATUS_COLOR[g.status]};">${esc(g.itemName)}</a></span></div>
+    <div class="modal-row"><span><a href="https://www.wowhead.com/tbc/item=${g.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${g.meta ? 'inherit' : STATUS_COLOR[g.status]};">${esc(g.itemName)}</a></span></div>
   `).join('') : `<div class="modal-row"><span style="color:${STATUS_COLOR.missing};">Empty socket</span></div>`;
   document.getElementById('player-modal-content').innerHTML = `
     <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.5rem;">
@@ -1423,7 +1454,7 @@ function showConsumableDetail(characterName, boss, key) {
       }
     }
   } else if (key === 'food') {
-    detailHtml = val.used ? `<div class="modal-row"><span>${spellLink(val.name || 'Well Fed', val.spellId)}</span></div><div style="font-size:0.72rem;color:var(--dim);margin-top:0.5rem;">"Well Fed" is shared across all food types by name — mouseover/click through to see exactly which food this was from its real effect.</div>` : `<div style="color:var(--dim);">Not used.</div>`;
+    detailHtml = val.used ? `<div class="modal-row"><span>Well Fed</span></div><div style="font-size:0.72rem;color:var(--dim);margin-top:0.5rem;">Tested with real data: the specific food type isn't distinguishable this way after all — the tooltip just shows a generic "Well Fed" regardless of which food was eaten. This is a real limitation, not something more linking will fix.</div>` : `<div style="color:var(--dim);">Not used.</div>`;
   } else {
     detailHtml = `<div class="modal-row"><span>${val.used ? esc(val.name || 'Used') : 'Not used'}</span></div>`;
   }
