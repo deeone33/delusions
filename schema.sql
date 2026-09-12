@@ -533,12 +533,14 @@ create table if not exists consumable_logs (
   potions jsonb not null default '{}',        -- {count, names:[]} - combined destro/haste/mana, since only one is typically used
   other jsonb not null default '[]',          -- [{name, count}] - Flame Cap, Nightmare Seed, Elixir of Demonslaying, etc
   runes jsonb not null default '{}',          -- {count, names:[]} - Dark Rune, Demonic Rune
+  weapon_enchant jsonb not null default '{}', -- {status:'good'|'missing', name} - weapon oils/stones, tracked per-boss since temp enchants can change between fights
   synced_at timestamptz default now(),
   unique(raid_night_id, boss_name, character_name)
 );
 alter table consumable_logs add column if not exists potions jsonb not null default '{}';
 alter table consumable_logs add column if not exists other jsonb not null default '[]';
 alter table consumable_logs add column if not exists runes jsonb not null default '{}';
+alter table consumable_logs add column if not exists weapon_enchant jsonb not null default '{}';
 alter table consumable_logs enable row level security;
 drop policy if exists "consumable_logs read all" on consumable_logs;
 create policy "consumable_logs read all" on consumable_logs for select using (auth.uid() is not null);

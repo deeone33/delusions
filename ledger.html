@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=71">
+<link rel="stylesheet" href="style.css?v=72">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
@@ -267,7 +267,6 @@
   </div>
 
   <div id="panel-consumables" style="display:none;">
-    <div id="consumables-summary" style="margin-bottom:1.2rem;"></div>
     <div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:1rem;align-items:center;">
       <input type="text" id="consumables-search" placeholder="Search by character name..." style="max-width:280px;" oninput="renderConsumables()">
       <select id="consumables-raid-select" onchange="switchConsumablesRaid(this.value)" style="max-width:220px;"></select>
@@ -336,8 +335,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=71"></script>
-<script src="editor.js?v=71"></script>
+<script src="app.js?v=72"></script>
+<script src="editor.js?v=72"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -1246,42 +1245,24 @@ async function showPlayerProfile(characterName, presetBoss) {
       const itemLink = e.itemId ? `<a href="https://www.wowhead.com/tbc/item=${e.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:var(--bone);">${esc(e.itemName)}</a>` : esc(e.itemName || '—');
       const enchantBit = e.enchantId
         ? (e.enchantName
-            ? (e.status === 'suboptimal'
-                ? `<span style="color:${STATUS_COLOR.suboptimal};font-size:0.75rem;">${esc(e.enchantName)} (outdated)</span>`
-                : `<span style="color:${STATUS_COLOR.good};font-size:0.75rem;">${esc(e.enchantName)}</span>`)
+            ? `<span style="color:${STATUS_COLOR[e.status]};font-size:0.75rem;" title="${esc(e.enchantDesc || e.enchantName)}">${esc(e.enchantName)}${e.status === 'suboptimal' ? ' (outdated)' : ''}</span>`
             : `<span style="color:${STATUS_COLOR.good};font-size:0.75rem;">enchanted</span>`)
         : `<span style="color:${STATUS_COLOR.missing};font-size:0.75rem;">no enchant</span>`;
-      const gemsBit = combined.gems.length ? combined.gems.map(g => `<a href="https://www.wowhead.com/tbc/item=${g.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${g.meta?'var(--dim)':STATUS_COLOR[g.status]};">${esc(g.itemName)}</a>`).join(', ') : null;
+      // Gems collapsed into compact status dots (one per socket) with the
+      // real gem name as a hover title, instead of listing full names inline.
+      const gemDots = combined.gems.length ? combined.gems.map(g => {
+        const symbol = g.meta ? '◆' : STATUS_SYMBOL[g.status];
+        const color = g.meta ? 'var(--dim)' : STATUS_COLOR[g.status];
+        return `<span style="color:${color};cursor:default;" title="${esc(g.itemName)}">${symbol}</span>`;
+      }).join(' ') : '';
       return `
-        <div style="padding:0.5rem 0;border-bottom:1px solid var(--hair2);">
-          <div style="font-size:0.6rem;color:var(--dim);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.15rem;">${slot}</div>
-          <div style="font-size:0.9rem;margin-bottom:0.2rem;">${itemLink}</div>
-          <div style="font-size:0.78rem;color:var(--mist);">${enchantBit}${gemsBit ? ' · ' + gemsBit : ''}</div>
+        <div style="display:flex;align-items:baseline;gap:0.5rem;padding:0.3rem 0;border-bottom:1px solid var(--hair2);font-size:0.82rem;">
+          <div style="width:60px;flex-shrink:0;font-size:0.6rem;color:var(--dim);text-transform:uppercase;letter-spacing:0.05em;">${slot}</div>
+          <div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${itemLink}</div>
+          <div style="flex-shrink:0;">${enchantBit}</div>
+          ${gemDots ? `<div style="flex-shrink:0;">${gemDots}</div>` : ''}
         </div>`;
     }).join('');
-  }
-
-  // Summary across every synced boss, not forcing a single-boss view first
-  let summaryHtml = '<div style="color:var(--dim);">No consumables data for this raid.</div>';
-  if (bosses.length) {
-    const total = bosses.length;
-    const countWhere = (fn) => consumableEntries.filter(fn).length;
-    const foodCount = countWhere(r => r.food?.used);
-    const flaskGoodCount = countWhere(r => r.flask_elixir?.type === 'flask' || (r.flask_elixir?.type === 'elixir' && !r.flask_elixir?.tierIssue));
-    const flaskPartialCount = countWhere(r => r.flask_elixir?.type === 'partial' || r.flask_elixir?.tierIssue);
-    const scrollApplicable = consumableEntries.some(r => r.scroll?.applicable);
-    const scrollGoodCount = countWhere(r => r.scroll?.status === 'good');
-    const potionCount = countWhere(r => (r.potions?.count || 0) > 0);
-    const runeCount = countWhere(r => (r.runes?.count || 0) > 0);
-    const summaryRow = (label, count, denom) => `<div class="modal-row"><span>${label}</span><span style="color:${count===denom?STATUS_COLOR.good:count>0?STATUS_COLOR.suboptimal:STATUS_COLOR.missing};">${count} / ${denom} bosses</span></div>`;
-    summaryHtml = `
-      ${summaryRow('Food', foodCount, total)}
-      ${summaryRow('Flask/Elixir (good)', flaskGoodCount, total)}
-      ${flaskPartialCount ? `<div class="modal-row"><span></span><span style="color:${STATUS_COLOR.suboptimal};font-size:0.78rem;">${flaskPartialCount} more partial/suboptimal</span></div>` : ''}
-      ${scrollApplicable ? summaryRow('Scrolls (both)', scrollGoodCount, total) : `<div class="modal-row"><span>Scrolls</span><span style="color:var(--dim);">N/A for this role</span></div>`}
-      ${summaryRow('Potions used', potionCount, total)}
-      ${summaryRow('Runes used', runeCount, total)}
-    `;
   }
 
   document.getElementById('player-modal-content').innerHTML = `
@@ -1291,14 +1272,9 @@ async function showPlayerProfile(characterName, presetBoss) {
     </div>
     <div class="modal-section" style="margin-top:0.8rem;"><h4>Gear</h4>${gearHtml}</div>
     <div class="modal-section">
-      <h4>Consumables — Summary (all bosses)</h4>
-      ${summaryHtml}
-    </div>
-    ${bosses.length ? `
-    <div class="modal-section">
-      <h4>Per-Boss Detail <select id="profile-boss-select" onchange='refreshProfileConsumables(${jsAttr(characterName)})' style="font-size:0.7rem;padding:0.2rem 0.4rem;margin-left:0.5rem;">${bosses.map(b => `<option value="${esc(b)}" ${b===(presetBoss&&bosses.includes(presetBoss)?presetBoss:bosses[0])?'selected':''}>${esc(b)}</option>`).join('')}</select></h4>
+      <h4>Consumables ${bosses.length ? `<select id="profile-boss-select" onchange='refreshProfileConsumables(${jsAttr(characterName)})' style="font-size:0.7rem;padding:0.2rem 0.4rem;margin-left:0.5rem;"><option value="__summary__">Summary</option>${bosses.map(b => `<option value="${esc(b)}">${esc(b)}</option>`).join('')}</select>` : ''}</h4>
       <div id="profile-consumables-body"></div>
-    </div>` : ''}
+    </div>
   `;
   openModalPlayer = null;
   document.getElementById('player-modal').style.display = 'flex';
@@ -1308,14 +1284,38 @@ async function showPlayerProfile(characterName, presetBoss) {
 
 function refreshProfileConsumables(characterName) {
   const boss = document.getElementById('profile-boss-select')?.value;
-  const row = consumablesRows.find(r => r.character_name === characterName && r.boss_name === boss);
   const body = document.getElementById('profile-consumables-body');
+
+  if (boss === '__summary__') {
+    const rows = consumablesRows.filter(r => r.character_name === characterName);
+    if (!rows.length) { body.innerHTML = '<div style="color:var(--dim);">No data for this raid.</div>'; return; }
+    const totalFood = rows.filter(r => r.food?.used).length;
+    const totalFlask = rows.filter(r => r.flask_elixir?.type === 'flask' || r.flask_elixir?.type === 'elixir').length;
+    const totalScrollGood = rows.filter(r => r.scroll?.status === 'good').length;
+    const totalPotions = rows.reduce((sum, r) => sum + (r.potions?.count || 0), 0);
+    const totalRunes = rows.reduce((sum, r) => sum + (r.runes?.count || 0), 0);
+    const totalOther = rows.reduce((sum, r) => sum + (r.other || []).reduce((s, o) => s + (o.count || 0), 0), 0);
+    const totalWeapon = rows.filter(r => r.weapon_enchant?.status === 'good').length;
+    body.innerHTML = `
+      <div class="modal-row"><span>Food used</span><span>${totalFood}</span></div>
+      <div class="modal-row"><span>Flask/Elixir used</span><span>${totalFlask}</span></div>
+      <div class="modal-row"><span>Scrolls (both, good)</span><span>${totalScrollGood}</span></div>
+      <div class="modal-row"><span>Weapon enhancement used</span><span>${totalWeapon}</span></div>
+      <div class="modal-row"><span>Potions used</span><span>${totalPotions}</span></div>
+      <div class="modal-row"><span>Runes used</span><span>${totalRunes}</span></div>
+      <div class="modal-row"><span>Other used</span><span>${totalOther}</span></div>
+    `;
+    return;
+  }
+
+  const row = consumablesRows.find(r => r.character_name === characterName && r.boss_name === boss);
   if (!row) { body.innerHTML = '<div style="color:var(--dim);">No data for this boss.</div>'; return; }
 
   const spellLink = (name, id) => id ? `<a href="https://www.wowhead.com/tbc/spell=${id}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:inherit;">${esc(name)}</a>` : esc(name);
   const foodLine = row.food?.used ? esc(row.food.name) : '<span style="color:var(--dim);">Not used</span>';
   const elixirLines = (row.flask_elixir?.names || []).length ? row.flask_elixir.names.map((n, i) => spellLink(n, (row.flask_elixir.spellIds||[])[i])).join(', ') : '<span style="color:var(--dim);">None</span>';
   const scrollLines = (row.scroll?.applicable === false) ? '<span style="color:var(--dim);">N/A for this role</span>' : ((row.scroll?.names || []).length ? row.scroll.names.map((n, i) => spellLink(n, (row.scroll.spellIds||[])[i])).join(', ') : '<span style="color:var(--dim);">None</span>');
+  const weaponLine = row.weapon_enchant?.name ? esc(row.weapon_enchant.name) : '<span style="color:var(--dim);">None</span>';
   const potionLines = (row.potions?.names || []).length ? row.potions.names.join(', ') : '<span style="color:var(--dim);">None</span>';
   const runeLines = (row.runes?.names || []).length ? row.runes.names.join(', ') : '<span style="color:var(--dim);">None</span>';
   const otherLines = (row.other || []).length ? row.other.map(o => `${esc(o.name)} x${o.count}`).join(', ') : '<span style="color:var(--dim);">None</span>';
@@ -1324,6 +1324,7 @@ function refreshProfileConsumables(characterName) {
     <div class="modal-row"><span>Food</span><span>${foodLine}</span></div>
     <div class="modal-row"><span>Flask/Elixir</span><span>${elixirLines}</span></div>
     <div class="modal-row"><span>Scrolls</span><span>${scrollLines}</span></div>
+    <div class="modal-row"><span>Weapon Enhancement</span><span>${weaponLine}</span></div>
     <div class="modal-row"><span>Potions</span><span>${potionLines}</span></div>
     <div class="modal-row"><span>Runes</span><span>${runeLines}</span></div>
     <div class="modal-row"><span>Other</span><span>${otherLines}</span></div>
@@ -1341,8 +1342,8 @@ function showGearCheckDetail(characterName, slot) {
   const enchantLink = e?.enchantId
     ? (e.enchantName
         ? (e.status === 'suboptimal'
-            ? `<span style="color:${STATUS_COLOR.suboptimal};" title="Outdated enchant, id ${e.enchantId}">${esc(e.enchantName)} (outdated)</span>`
-            : `<span style="color:${STATUS_COLOR.good};" title="Confirmed in-game, id ${e.enchantId}">${esc(e.enchantName)}</span>`)
+            ? `<span style="color:${STATUS_COLOR.suboptimal};" title="${esc(e.enchantDesc || ('Outdated enchant, id ' + e.enchantId))}">${esc(e.enchantName)} (outdated)</span>`
+            : `<span style="color:${STATUS_COLOR.good};" title="${esc(e.enchantDesc || ('Confirmed in-game, id ' + e.enchantId))}">${esc(e.enchantName)}</span>`)
         : `<span style="color:${STATUS_COLOR.good};" title="Enchant ID ${e.enchantId} - not yet identified">Enchanted</span>`)
     : `<span style="color:${STATUS_COLOR.missing};">No enchant</span>`;
   const gemsHtml = combined.gems.length ? combined.gems.map(g => `
@@ -1371,6 +1372,7 @@ const CONSUMABLE_COLS = [
   { key: 'food', label: 'Food' },
   { key: 'flask_elixir', label: 'Flask/Elixir' },
   { key: 'scroll', label: 'Scroll' },
+  { key: 'weapon_enchant', label: 'Weapon' },
   { key: 'potions', label: 'Potions' },
   { key: 'runes', label: 'Runes' },
   { key: 'other', label: 'Other' },
@@ -1399,38 +1401,12 @@ async function loadConsumablesRaid(raidId) {
   renderConsumables();
 }
 
-function renderConsumablesSummary(rows) {
-  const el = document.getElementById('consumables-summary');
-  if (!rows.length) { el.innerHTML = ''; return; }
-  const totalFood = rows.filter(r => r.food?.used).length;
-  const totalFlask = rows.filter(r => r.flask_elixir?.type === 'flask' || r.flask_elixir?.type === 'elixir').length;
-  const totalScrollGood = rows.filter(r => r.scroll?.status === 'good').length;
-  const scrollApplicableCount = rows.filter(r => r.scroll?.applicable).length;
-  const totalPotions = rows.reduce((sum, r) => sum + (r.potions?.count || 0), 0);
-  const totalRunes = rows.reduce((sum, r) => sum + (r.runes?.count || 0), 0);
-  const totalOther = rows.reduce((sum, r) => sum + (r.other || []).reduce((s, o) => s + (o.count || 0), 0), 0);
-
-  const cell = (label, value) => `<div style="text-align:center;flex:1;min-width:90px;"><div style="font-family:'Newsreader',serif;font-size:1.5rem;color:var(--white);">${value}</div><div class="label" style="margin-top:0.2rem;">${label}</div></div>`;
-  el.innerHTML = `
-    <div class="card" style="display:flex;flex-wrap:wrap;gap:0.6rem;padding:1rem;">
-      ${cell('Food', `${totalFood}/${rows.length}`)}
-      ${cell('Flask/Elixir', `${totalFlask}/${rows.length}`)}
-      ${cell('Scrolls', scrollApplicableCount ? `${totalScrollGood}/${scrollApplicableCount}` : '—')}
-      ${cell('Potions Used', totalPotions)}
-      ${cell('Runes Used', totalRunes)}
-      ${cell('Other', totalOther)}
-    </div>
-  `;
-}
-
 function renderConsumables() {
   const search = (document.getElementById('consumables-search')?.value || '').trim().toLowerCase();
   const boss = document.getElementById('consumables-boss-select')?.value;
   let rows = consumablesRows.filter(r => r.boss_name === boss);
   if (search) rows = rows.filter(r => r.character_name.toLowerCase().includes(search));
   rows = [...rows].sort((a, b) => a.character_name.localeCompare(b.character_name));
-
-  renderConsumablesSummary(consumablesRows.filter(r => r.boss_name === boss));
 
   let html = `<table class="dense-check-table"><tr><th class="name-col">Player</th>${CONSUMABLE_COLS.map(c => `<th>${c.label}</th>`).join('')}</tr>`;
   rows.forEach(r => {
@@ -1447,6 +1423,9 @@ function renderConsumables() {
       } else if (c.key === 'potions' || c.key === 'runes') {
         status = (val.count > 0) ? 'good' : 'missing';
         label = val.count > 0 ? val.count : STATUS_SYMBOL['missing'];
+      } else if (c.key === 'weapon_enchant') {
+        status = val.status === 'good' ? 'good' : val.status === 'suboptimal' ? 'suboptimal' : 'missing';
+        label = STATUS_SYMBOL[status];
       } else if (c.key === 'other') {
         const items = Array.isArray(val) ? val : [];
         const total = items.reduce((sum, it) => sum + (it.count || 0), 0);
@@ -1469,17 +1448,21 @@ function showConsumableDetail(characterName, boss, key) {
   if (!row) return;
   const val = row[key] || {};
   const spellLink = (name, id) => id ? `<a href="https://www.wowhead.com/tbc/spell=${id}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:inherit;">${esc(name)}</a>` : esc(name);
+  const itemLink = (name) => { const id = findConsumableItemId(name); return id ? `<a href="https://www.wowhead.com/tbc/item=${id}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:inherit;">${esc(name)}</a>` : esc(name); };
   let detailHtml;
   if (key === 'flask_elixir') {
     const ids = val.spellIds || [];
     const rows = (val.names && val.names.length) ? val.names.map((n, i) => `<div class="modal-row"><span>${spellLink(n, ids[i])}</span></div>`).join('') : '<div style="color:var(--dim);">None used.</div>';
-    const note = val.tierIssue ? `<div style="font-size:0.78rem;color:var(--warn);margin-top:0.6rem;">One of these is a cheaper vanilla-era alternative, not the best-in-slot version.</div>` : '';
+    const note = val.tierIssue ? `<div style="font-size:0.78rem;color:var(--warn);margin-top:0.6rem;">One of these is either a cheaper vanilla-era alternative, or the wrong stat priority for this class (e.g. a strength elixir on a pure caster).</div>` : '';
     detailHtml = rows + note;
   } else if (key === 'potions' || key === 'runes') {
-    detailHtml = (val.names && val.names.length) ? val.names.map(n => `<div class="modal-row"><span>${esc(n)}</span></div>`).join('') : '<div style="color:var(--dim);">None used.</div>';
+    detailHtml = (val.names && val.names.length) ? val.names.map(n => `<div class="modal-row"><span>${itemLink(n)}</span></div>`).join('') : '<div style="color:var(--dim);">None used.</div>';
+  } else if (key === 'weapon_enchant') {
+    const note = val.tierIssue ? `<div style="font-size:0.78rem;color:var(--warn);margin-top:0.4rem;">Wrong stat priority for this class (e.g. Wizard Oil on a healer, Mana Oil on a non-healer).</div>` : '';
+    detailHtml = val.name ? `<div class="modal-row"><span>${esc(val.name)}</span></div>${note}` : '<div style="color:var(--dim);">None used (or an unrecognized temp enchant not in the known whitelist).</div>';
   } else if (key === 'other') {
     const items = Array.isArray(val) ? val : [];
-    detailHtml = items.length ? items.map(it => `<div class="modal-row"><span>${esc(it.name)}</span><span>${it.count}x</span></div>`).join('') : '<div style="color:var(--dim);">Nothing recorded.</div>';
+    detailHtml = items.length ? items.map(it => `<div class="modal-row"><span>${itemLink(it.name)}</span><span>${it.count}x</span></div>`).join('') : '<div style="color:var(--dim);">Nothing recorded.</div>';
   } else if (key === 'scroll') {
     if (val.applicable === false) { detailHtml = `<div style="color:var(--dim);">Not tracked for this role.</div>`; }
     else {
@@ -2155,7 +2138,43 @@ const POTION_IDS_SYNC = {
 const RUNE_IDS_SYNC = { 'Dark Rune': 27869 }; // confirmed, 41 uses in real data. Demonic Rune not yet seen - add if it turns up.
 const POTION_NAMES_SYNC = { destruction: ['Destruction'], haste: ['Haste'], mana: ['Restore Mana'] };
 // Confirmed directly from real synced data.
-const OTHER_IDS_SYNC = { 'Flame Cap': 28714, 'Nightmare Seed': 28726 };
+// Real item IDs (for icons/tooltips) - from wowsims/tbc-new's db.json,
+// cross-referenced by name against the buff-based detection above (a
+// different ID space, same pattern as everything else in this file).
+const CONSUMABLE_ITEM_IDS_SYNC = {
+  'Destruction Potion': 22839, 'Haste Potion': 22838, 'Mana Potion': 22832, 'Ironshield Potion': 22849,
+  'Dark Rune': 12662, 'Flame Cap': 22788, 'Nightmare Seed': 22797, 'Thistle Tea': 7676, 'Elixir of Demonslaying': 9224,
+};
+function findConsumableItemId(name) {
+  if (!name) return null;
+  const stripped = name.replace(/ x\d+$/, '').trim();
+  return CONSUMABLE_ITEM_IDS_SYNC[stripped] || null;
+}
+const OTHER_IDS_SYNC = {
+  'Flame Cap': 28714, 'Nightmare Seed': 28726,
+  'Fel Iron Bomb': 30310, 'Goblin Sapper Charge': 12760, 'Thistle Tea': 9513, 'Drums of Battle': 35476,
+};
+const SUPER_SAPPER_IDS_SYNC = [30486, 30560]; // genuine ambiguity in real sources on which id TBC uses - checking both
+// Weapon enhancement (temp enchant) whitelist - WCL's temporaryEnchant field
+// carries ANY temp weapon effect including non-consumable class self-buffs
+// (Windfury, poisons, etc), so a whitelist is needed to count only real
+// consumables. IDs from packages/data/src/consumables.ts (sL1Per/DANGER-WLC-Analyzer,
+// same verified source as potions/scrolls/food). Names are best-effort for
+// the less common tiers - flag if any show up wrong.
+const WEAPON_ENHANCEMENT_IDS_SYNC = {
+  39: 'Minor Sharpening Stone', 40: 'Lesser Sharpening Stone', 13: 'Rough Sharpening Stone', 14: 'Coarse Sharpening Stone',
+  483: 'Heavy Sharpening Stone', 1643: 'Solid Sharpening Stone', 2712: 'Dense Sharpening Stone', 2713: 'Elemental Sharpening Stone',
+  19: 'Minor Weightstone', 20: 'Lesser Weightstone', 21: 'Rough Weightstone', 484: 'Heavy Weightstone',
+  1703: 'Solid Weightstone', 2954: 'Dense Weightstone', 2955: 'Fel Weightstone',
+  25: 'Wizard Oil', 26: 'Minor Mana Oil', 2623: 'Lesser Mana Oil', 2624: 'Brilliant Mana Oil',
+  2625: 'Lesser Wizard Oil', 2626: 'Brilliant Wizard Oil', 2627: 'Shadow Oil', 2628: 'Frost Oil',
+  2629: 'Brilliant Mana Oil', 2676: 'Superior Wizard Oil', 2677: 'Superior Mana Oil', 2678: 'Superior Wizard Oil',
+  2684: 'Consecrated Sharpening Stone', 2685: 'Blessed Wizard Oil', 3093: 'Righteous Weapon Coating', 3265: 'Blessed Weapon Coating',
+};
+// Wizard oils = spell damage, Mana oils = spell healing - a safe, well-known
+// distinction even for tiers whose exact display name isn't individually verified.
+const WEAPON_OIL_STAT_SYNC = { 25:'spellDamage',2625:'spellDamage',2626:'spellDamage',2676:'spellDamage',2678:'spellDamage',2685:'spellDamage',
+  26:'spellHealing',2623:'spellHealing',2624:'spellHealing',2629:'spellHealing',2677:'spellHealing' };
 //
 // Everything below this point is matched by spell/buff ID, not name - a
 // fix for the whole "shortened aura name" unreliability problem this file
@@ -2171,20 +2190,36 @@ const FLASK_IDS_SYNC = [28518,28519,28520,28521,28540,42735,41609,41610,41611,41
 // weaker alternatives to Major Agility/Adept's in the source's own
 // suboptimal-consumables list, not my inference).
 const BATTLE_ELIXIRS_SYNC = [
-  { id: 28490, tier: 'good' },   // Elixir of Major Strength
-  { id: 28491, tier: 'good' },   // Elixir of Healing Power
-  { id: 28493, tier: 'good' },   // Elixir of Major Frost Power
-  { id: 28497, tier: 'good' },   // Elixir of Major Agility
-  { id: 28501, tier: 'good' },   // Elixir of Major Firepower
-  { id: 28503, tier: 'good' },   // Elixir of Major Shadow Power
+  { id: 28490, tier: 'good', stat: 'strength' },   // Elixir of Major Strength
+  { id: 28491, tier: 'good', stat: 'spellHealing' },   // Elixir of Healing Power
+  { id: 28493, tier: 'good', stat: 'spellDamage' },   // Elixir of Major Frost Power
+  { id: 28497, tier: 'good', stat: 'agility' },   // Elixir of Major Agility
+  { id: 28501, tier: 'good', stat: 'spellDamage' },   // Elixir of Major Firepower
+  { id: 28503, tier: 'good', stat: 'spellDamage' },   // Elixir of Major Shadow Power
   { id: 33720, tier: 'good' },   // Onslaught Elixir
   { id: 33721, tier: 'good' },   // Adept's Elixir
   { id: 33726, tier: 'good' },   // Elixir of Mastery
-  { id: 38954, tier: 'good' },   // Fel Strength Elixir
-  { id: 17539, tier: 'suboptimal' }, // Greater Arcane Elixir - cheap alternative to Adept's
+  { id: 38954, tier: 'good', stat: 'strength' },   // Fel Strength Elixir
+  { id: 17539, tier: 'suboptimal', stat: 'spellDamage' }, // Greater Arcane Elixir - cheap alternative to Adept's
   { id: 11406, tier: 'good' },   // Elixir of Demonslaying
-  { id: 17538, tier: 'suboptimal' }, // Elixir of the Mongoose - cheap alternative to Major Agility
+  { id: 17538, tier: 'suboptimal', stat: 'agility' }, // Elixir of the Mongoose - cheap alternative to Major Agility
 ];
+// Conservative role-mismatch checking: only flags CLEAR-CUT cases (a pure
+// caster with a strength elixir, a pure physical class with a spell damage
+// elixir). Hybrid classes (Paladin/Priest/Shaman/Druid) are deliberately
+// left unflagged - WCL's TBC data doesn't reliably expose spec, so a
+// Paladin could be Ret (wants strength) or Holy (wants spell healing) and
+// there's no way to tell which from this data. Source: packages/data's
+// suboptimalConsumables list (same verified source as potions/scrolls/food).
+const STAT_WRONG_FOR_CLASS_SYNC = {
+  strength: ['Mage','Warlock','Priest'],
+  agility: ['Mage','Warlock','Priest'],
+  spellDamage: ['Warrior','Rogue','Hunter'],
+  spellHealing: ['Warrior','Rogue','Hunter','Mage','Warlock'],
+};
+function isStatWrongForClass(stat, className) {
+  return stat && STAT_WRONG_FOR_CLASS_SYNC[stat]?.includes(className);
+}
 const GUARDIAN_ELIXIRS_SYNC = [
   { id: 28502, tier: 'good' },   // Elixir of Major Defense
   { id: 28509, tier: 'good' },   // Elixir of Major Mageblood
@@ -2197,7 +2232,7 @@ const GUARDIAN_ELIXIRS_SYNC = [
 function findElixirMatch(auraDetails, list) {
   for (const entry of list) {
     const match = auraDetails.find(a => a.ability === entry.id);
-    if (match) return { name: match.name, tier: entry.tier };
+    if (match) return { name: match.name, tier: entry.tier, stat: entry.stat };
   }
   return null;
 }
@@ -2398,6 +2433,13 @@ async function runSync() {
           className: actor.subType,
           auraNames: (ev.auras || []).map(a => a.name),
           auraDetails: (ev.auras || []).map(a => ({ name: a.name, ability: a.ability })),
+          weaponEnchant: (() => {
+            const mh = (ev.gear || [])[GEAR_SLOT_INDEX.MH];
+            const oh = (ev.gear || [])[GEAR_SLOT_INDEX.OH];
+            const foundId = [mh, oh].filter(Boolean).map(w => w.temporaryEnchant).find(id => id && WEAPON_ENHANCEMENT_IDS_SYNC[id]);
+            if (!foundId) return null;
+            return { name: WEAPON_ENHANCEMENT_IDS_SYNC[foundId], tierIssue: isStatWrongForClass(WEAPON_OIL_STAT_SYNC[foundId], actor.subType) };
+          })(),
         };
       });
       // Hunter pets should be scrolled too - check pet auras for the same
@@ -2556,139 +2598,139 @@ async function confirmSync() {
   // Specific-slot entries are ordered before null-slot (weapon-agnostic)
   // fallback entries so exact slot matches always win in the lookup below.
   const GOOD_ENCHANTS_SYNC = [
-    {id:2583,slot:0,name:"Presence of Might"},
-    {id:2588,slot:0,name:"Presence of Sight"},
-    {id:2681,slot:0,name:"Savage Guard"},
-    {id:2682,slot:0,name:"Ice Guard"},
-    {id:2683,slot:0,name:"Shadow Guard"},
-    {id:2841,slot:0,name:"Heavy Knothide Armor Kit"},
-    {id:2999,slot:0,name:"Glyph of the Defender"},
-    {id:3000,slot:0,name:"Glyph of the Wild"},
-    {id:3001,slot:0,name:"Glyph of Renewal"},
-    {id:3002,slot:0,name:"Glyph of Power"},
-    {id:3003,slot:0,name:"Glyph of Ferocity"},
-    {id:3004,slot:0,name:"Glyph of the Gladiator"},
-    {id:3005,slot:0,name:"Glyph of Nature Warding"},
-    {id:3006,slot:0,name:"Glyph of Arcane Warding"},
-    {id:3007,slot:0,name:"Glyph of Fire Warding"},
-    {id:3008,slot:0,name:"Glyph of Frost Warding"},
-    {id:3009,slot:0,name:"Glyph of Shadow Warding"},
-    {id:3095,slot:0,name:"Glyph of Chromatic Warding"},
-    {id:3096,slot:0,name:"Glyph of the Outcast"},
-    {id:2604,slot:2,name:"Zandalar Signet of Serenity"},
-    {id:2605,slot:2,name:"Zandalar Signet of Mojo"},
-    {id:2606,slot:2,name:"Zandalar Signet of Might"},
-    {id:2715,slot:2,name:"Resilience of the Scourge"},
-    {id:2716,slot:2,name:"Fortitude of the Scourge"},
-    {id:2717,slot:2,name:"Might of the Scourge"},
-    {id:2721,slot:2,name:"Power of the Scourge"},
-    {id:2977,slot:2,name:"Inscription of Warding"},
-    {id:2978,slot:2,name:"Greater Inscription of Warding"},
-    {id:2979,slot:2,name:"Inscription of Faith"},
-    {id:2980,slot:2,name:"Greater Inscription of Faith"},
-    {id:2981,slot:2,name:"Inscription of Discipline"},
-    {id:2982,slot:2,name:"Greater Inscription of Discipline"},
-    {id:2983,slot:2,name:"Inscription of Vengeance"},
-    {id:2986,slot:2,name:"Greater Inscription of Vengeance"},
-    {id:2990,slot:2,name:"Inscription of the Knight"},
-    {id:2991,slot:2,name:"Greater Inscription of the Knight"},
-    {id:2992,slot:2,name:"Inscription of the Oracle"},
-    {id:2993,slot:2,name:"Greater Inscription of the Oracle"},
-    {id:2994,slot:2,name:"Inscription of the Orb"},
-    {id:2995,slot:2,name:"Greater Inscription of the Orb"},
-    {id:2996,slot:2,name:"Inscription of the Blade"},
-    {id:2997,slot:2,name:"Greater Inscription of the Blade"},
-    {id:2998,slot:2,name:"Inscription of Endurance"},
-    {id:1144,slot:4,name:"Enchant Chest - Major Spirit"},
-    {id:1950,slot:4,name:"Enchant Chest - Defense"},
-    {id:2659,slot:4,name:"Enchant Chest - Exceptional Health"},
+    {id:2583,slot:0,name:"Presence of Might",desc:"+10 Sta, +10 Defense, +15 Block Value"},
+    {id:2588,slot:0,name:"Presence of Sight",desc:"+18 Healing, +18 Spell Dmg, +8 Spell Hit"},
+    {id:2681,slot:0,name:"Savage Guard",desc:"+10 Nature Res"},
+    {id:2682,slot:0,name:"Ice Guard",desc:"+10 Frost Res"},
+    {id:2683,slot:0,name:"Shadow Guard",desc:"+10 Shadow Res"},
+    {id:2841,slot:0,name:"Heavy Knothide Armor Kit",desc:"+10 Sta"},
+    {id:2999,slot:0,name:"Glyph of the Defender",desc:"+16 Defense, +17 Dodge"},
+    {id:3000,slot:0,name:"Glyph of the Wild",desc:"+18 Sta, +12 Defense, +12 Resilience"},
+    {id:3001,slot:0,name:"Glyph of Renewal",desc:"+35 Healing, +12 Spell Dmg, +7 MP5"},
+    {id:3002,slot:0,name:"Glyph of Power",desc:"+22 Healing, +22 Spell Dmg, +14 Spell Hit"},
+    {id:3003,slot:0,name:"Glyph of Ferocity",desc:"+34 AP, +34 Ranged AP, +16 Hit"},
+    {id:3004,slot:0,name:"Glyph of the Gladiator",desc:"+18 Sta, +20 Resilience"},
+    {id:3005,slot:0,name:"Glyph of Nature Warding",desc:"+20 Nature Res"},
+    {id:3006,slot:0,name:"Glyph of Arcane Warding",desc:"+20 Arcane Res"},
+    {id:3007,slot:0,name:"Glyph of Fire Warding",desc:"+20 Fire Res"},
+    {id:3008,slot:0,name:"Glyph of Frost Warding",desc:"+20 Frost Res"},
+    {id:3009,slot:0,name:"Glyph of Shadow Warding",desc:"+20 Shadow Res"},
+    {id:3095,slot:0,name:"Glyph of Chromatic Warding",desc:"+8 Arcane Res, +8 Fire Res, +8 Frost Res, +8 Nature Res, +8 Shadow Res"},
+    {id:3096,slot:0,name:"Glyph of the Outcast",desc:"+17 Str, +16 Int"},
+    {id:2604,slot:2,name:"Zandalar Signet of Serenity",desc:"+33 Healing, +11 Spell Dmg"},
+    {id:2605,slot:2,name:"Zandalar Signet of Mojo",desc:"+18 Healing, +18 Spell Dmg"},
+    {id:2606,slot:2,name:"Zandalar Signet of Might",desc:"+30 AP, +30 Ranged AP"},
+    {id:2715,slot:2,name:"Resilience of the Scourge",desc:"+31 Healing, +11 Spell Dmg, +5 MP5"},
+    {id:2716,slot:2,name:"Fortitude of the Scourge",desc:"+16 Sta, +100 (stat 31)"},
+    {id:2717,slot:2,name:"Might of the Scourge",desc:"+26 AP, +26 Ranged AP, +14 Crit"},
+    {id:2721,slot:2,name:"Power of the Scourge",desc:"+15 Healing, +15 Spell Dmg, +14 Spell Crit"},
+    {id:2977,slot:2,name:"Inscription of Warding",desc:"+13 Dodge"},
+    {id:2978,slot:2,name:"Greater Inscription of Warding",desc:"+10 Defense, +15 Dodge"},
+    {id:2979,slot:2,name:"Inscription of Faith",desc:"+29 Healing, +10 Spell Dmg"},
+    {id:2980,slot:2,name:"Greater Inscription of Faith",desc:"+33 Healing, +11 Spell Dmg, +4 MP5"},
+    {id:2981,slot:2,name:"Inscription of Discipline",desc:"+15 Healing, +15 Spell Dmg"},
+    {id:2982,slot:2,name:"Greater Inscription of Discipline",desc:"+18 Healing, +18 Spell Dmg, +10 Spell Crit"},
+    {id:2983,slot:2,name:"Inscription of Vengeance",desc:"+26 AP, +26 Ranged AP"},
+    {id:2986,slot:2,name:"Greater Inscription of Vengeance",desc:"+30 AP, +30 Ranged AP, +10 Crit"},
+    {id:2990,slot:2,name:"Inscription of the Knight",desc:"+13 Defense"},
+    {id:2991,slot:2,name:"Greater Inscription of the Knight",desc:"+15 Defense, +10 Dodge"},
+    {id:2992,slot:2,name:"Inscription of the Oracle",desc:"+5 MP5"},
+    {id:2993,slot:2,name:"Greater Inscription of the Oracle",desc:"+22 Healing, +8 Spell Dmg, +6 MP5"},
+    {id:2994,slot:2,name:"Inscription of the Orb",desc:"+13 Spell Crit"},
+    {id:2995,slot:2,name:"Greater Inscription of the Orb",desc:"+12 Healing, +12 Spell Dmg, +15 Spell Crit"},
+    {id:2996,slot:2,name:"Inscription of the Blade",desc:"+13 Crit"},
+    {id:2997,slot:2,name:"Greater Inscription of the Blade",desc:"+20 AP, +20 Ranged AP, +15 Crit"},
+    {id:2998,slot:2,name:"Inscription of Endurance",desc:"+7 Arcane Res, +7 Fire Res, +7 Frost Res, +7 Nature Res, +7 Shadow Res"},
+    {id:1144,slot:4,name:"Enchant Chest - Major Spirit",desc:"+15 Spirit"},
+    {id:1950,slot:4,name:"Enchant Chest - Defense",desc:"+15 Defense"},
+    {id:2659,slot:4,name:"Enchant Chest - Exceptional Health",desc:"+150 Health"},
     {id:2660,slot:4,name:"Enchant Chest - Exceptional Mana"},
-    {id:2661,slot:4,name:"Enchant Chest - Exceptional Stats"},
-    {id:2792,slot:4,name:"Knothide Armor Kit"},
-    {id:2793,slot:4,name:"Vindicator's Armor Kit"},
-    {id:2794,slot:4,name:"Magister's Armor Kit"},
-    {id:2933,slot:4,name:"Enchant Chest - Major Resilience"},
-    {id:2984,slot:4,name:"Shadow Armor Kit"},
-    {id:2985,slot:4,name:"Flame Armor Kit"},
-    {id:2987,slot:4,name:"Frost Armor Kit"},
-    {id:2988,slot:4,name:"Nature Armor Kit"},
-    {id:2989,slot:4,name:"Arcane Armor Kit"},
-    {id:3150,slot:4,name:"Enchant Chest - Restore Mana Prime"},
-    {id:2745,slot:6,name:"Silver Spellthread"},
-    {id:2746,slot:6,name:"Golden Spellthread"},
-    {id:2747,slot:6,name:"Mystic Spellthread"},
-    {id:2748,slot:6,name:"Runic Spellthread"},
-    {id:3010,slot:6,name:"Cobrahide Leg Armor"},
-    {id:3011,slot:6,name:"Clefthide Leg Armor"},
-    {id:3012,slot:6,name:"Nethercobra Leg Armor"},
-    {id:3013,slot:6,name:"Nethercleft Leg Armor"},
-    {id:2649,slot:7,name:"Enchant Boots - Fortitude"},
-    {id:2656,slot:7,name:"Enchant Boots - Vitality"},
-    {id:2657,slot:7,name:"Enchant Boots - Dexterity"},
-    {id:2658,slot:7,name:"Enchant Boots - Surefooted"},
-    {id:2939,slot:7,name:"Enchant Boots - Cat's Swiftness"},
-    {id:2940,slot:7,name:"Enchant Boots - Boar's Speed"},
-    {id:369,slot:8,name:"Enchant Bracer - Major Intellect"},
-    {id:1593,slot:8,name:"Enchant Bracer - Assault"},
-    {id:1891,slot:8,name:"Enchant Bracer - Stats"},
-    {id:2617,slot:8,name:"Enchant Bracer - Superior Healing"},
-    {id:2647,slot:8,name:"Enchant Bracer - Brawn"},
-    {id:2648,slot:8,name:"Enchant Bracer - Major Defense"},
-    {id:2649,slot:8,name:"Enchant Bracer - Fortitude"},
-    {id:2650,slot:8,name:"Enchant Bracer - Spellpower"},
-    {id:2679,slot:8,name:"Enchant Bracer - Restore Mana Prime"},
-    {id:684,slot:9,name:"Enchant Gloves - Major Strength"},
-    {id:1594,slot:9,name:"Enchant Gloves - Assault"},
-    {id:2322,slot:9,name:"Enchant Gloves - Major Healing"},
-    {id:2564,slot:9,name:"Enchant Gloves - Superior Agility"},
+    {id:2661,slot:4,name:"Enchant Chest - Exceptional Stats",desc:"+6 Str, +6 Agi, +6 Sta, +6 Int, +6 Spirit"},
+    {id:2792,slot:4,name:"Knothide Armor Kit",desc:"+8 Sta"},
+    {id:2793,slot:4,name:"Vindicator's Armor Kit",desc:"+8 Defense"},
+    {id:2794,slot:4,name:"Magister's Armor Kit",desc:"+3 MP5"},
+    {id:2933,slot:4,name:"Enchant Chest - Major Resilience",desc:"+15 Resilience"},
+    {id:2984,slot:4,name:"Shadow Armor Kit",desc:"+8 Shadow Res"},
+    {id:2985,slot:4,name:"Flame Armor Kit",desc:"+8 Fire Res"},
+    {id:2987,slot:4,name:"Frost Armor Kit",desc:"+8 Frost Res"},
+    {id:2988,slot:4,name:"Nature Armor Kit",desc:"+8 Nature Res"},
+    {id:2989,slot:4,name:"Arcane Armor Kit",desc:"+8 Arcane Res"},
+    {id:3150,slot:4,name:"Enchant Chest - Restore Mana Prime",desc:"+6 MP5"},
+    {id:2745,slot:6,name:"Silver Spellthread",desc:"+15 Sta, +46 Healing, +16 Spell Dmg"},
+    {id:2746,slot:6,name:"Golden Spellthread",desc:"+20 Sta, +66 Healing, +22 Spell Dmg"},
+    {id:2747,slot:6,name:"Mystic Spellthread",desc:"+15 Sta, +25 Healing, +25 Spell Dmg"},
+    {id:2748,slot:6,name:"Runic Spellthread",desc:"+20 Sta, +35 Healing, +35 Spell Dmg"},
+    {id:3010,slot:6,name:"Cobrahide Leg Armor",desc:"+40 AP, +40 Ranged AP, +10 Crit"},
+    {id:3011,slot:6,name:"Clefthide Leg Armor",desc:"+10 Agi, +30 Sta"},
+    {id:3012,slot:6,name:"Nethercobra Leg Armor",desc:"+50 AP, +50 Ranged AP, +12 Crit"},
+    {id:3013,slot:6,name:"Nethercleft Leg Armor",desc:"+12 Agi, +40 Sta"},
+    {id:2649,slot:7,name:"Enchant Boots - Fortitude",desc:"+12 Sta"},
+    {id:2656,slot:7,name:"Enchant Boots - Vitality",desc:"+4 MP5"},
+    {id:2657,slot:7,name:"Enchant Boots - Dexterity",desc:"+12 Agi"},
+    {id:2658,slot:7,name:"Enchant Boots - Surefooted",desc:"+10 Hit"},
+    {id:2939,slot:7,name:"Enchant Boots - Cat's Swiftness",desc:"+6 Agi"},
+    {id:2940,slot:7,name:"Enchant Boots - Boar's Speed",desc:"+9 Sta"},
+    {id:369,slot:8,name:"Enchant Bracer - Major Intellect",desc:"+12 Int"},
+    {id:1593,slot:8,name:"Enchant Bracer - Assault",desc:"+24 AP, +24 Ranged AP"},
+    {id:1891,slot:8,name:"Enchant Bracer - Stats",desc:"+4 Str, +4 Agi, +4 Sta, +4 Int, +4 Spirit"},
+    {id:2617,slot:8,name:"Enchant Bracer - Superior Healing",desc:"+30 Healing, +10 Spell Dmg"},
+    {id:2647,slot:8,name:"Enchant Bracer - Brawn",desc:"+12 Str"},
+    {id:2648,slot:8,name:"Enchant Bracer - Major Defense",desc:"+12 Defense"},
+    {id:2649,slot:8,name:"Enchant Bracer - Fortitude",desc:"+12 Sta"},
+    {id:2650,slot:8,name:"Enchant Bracer - Spellpower",desc:"+15 Healing, +15 Spell Dmg"},
+    {id:2679,slot:8,name:"Enchant Bracer - Restore Mana Prime",desc:"+6 MP5"},
+    {id:684,slot:9,name:"Enchant Gloves - Major Strength",desc:"+15 Str"},
+    {id:1594,slot:9,name:"Enchant Gloves - Assault",desc:"+26 AP, +26 Ranged AP"},
+    {id:2322,slot:9,name:"Enchant Gloves - Major Healing",desc:"+35 Healing, +12 Spell Dmg"},
+    {id:2564,slot:9,name:"Enchant Gloves - Superior Agility",desc:"+15 Agi"},
     {id:2613,slot:9,name:"Enchant Gloves - Threat"},
-    {id:2614,slot:9,name:"Enchant Gloves - Shadow Power"},
-    {id:2615,slot:9,name:"Enchant Gloves - Frost Power"},
-    {id:2616,slot:9,name:"Enchant Gloves - Fire Power"},
-    {id:2617,slot:9,name:"Enchant Gloves - Healing Power"},
-    {id:2934,slot:9,name:"Enchant Gloves - Blasting"},
-    {id:2935,slot:9,name:"Enchant Gloves - Spell Strike"},
-    {id:2937,slot:9,name:"Enchant Gloves - Major Spellpower"},
-    {id:3260,slot:9,name:"Glove Reinforcements"},
-    {id:368,slot:14,name:"Enchant Cloak - Greater Agility"},
-    {id:804,slot:14,name:"Enchant Cloak - Lesser Shadow Resistance"},
-    {id:1257,slot:14,name:"Enchant Cloak - Greater Arcane Resistance"},
-    {id:1441,slot:14,name:"Enchant Cloak - Greater Shadow Resistance"},
-    {id:2463,slot:14,name:"Enchant Cloak - Fire Resistance"},
-    {id:2619,slot:14,name:"Enchant Cloak - Greater Fire Resistance"},
-    {id:2620,slot:14,name:"Enchant Cloak - Greater Nature Resistance"},
+    {id:2614,slot:9,name:"Enchant Gloves - Shadow Power",desc:"+20 Shadow Dmg"},
+    {id:2615,slot:9,name:"Enchant Gloves - Frost Power",desc:"+20 Frost Dmg"},
+    {id:2616,slot:9,name:"Enchant Gloves - Fire Power",desc:"+20 Fire Dmg"},
+    {id:2617,slot:9,name:"Enchant Gloves - Healing Power",desc:"+30 Healing, +10 Spell Dmg"},
+    {id:2934,slot:9,name:"Enchant Gloves - Blasting",desc:"+10 Spell Crit"},
+    {id:2935,slot:9,name:"Enchant Gloves - Spell Strike",desc:"+15 Spell Hit"},
+    {id:2937,slot:9,name:"Enchant Gloves - Major Spellpower",desc:"+20 Healing, +20 Spell Dmg"},
+    {id:3260,slot:9,name:"Glove Reinforcements",desc:"+240 Armor"},
+    {id:368,slot:14,name:"Enchant Cloak - Greater Agility",desc:"+12 Agi"},
+    {id:804,slot:14,name:"Enchant Cloak - Lesser Shadow Resistance",desc:"+10 Shadow Res"},
+    {id:1257,slot:14,name:"Enchant Cloak - Greater Arcane Resistance",desc:"+15 Arcane Res"},
+    {id:1441,slot:14,name:"Enchant Cloak - Greater Shadow Resistance",desc:"+15 Shadow Res"},
+    {id:2463,slot:14,name:"Enchant Cloak - Fire Resistance",desc:"+7 Fire Res"},
+    {id:2619,slot:14,name:"Enchant Cloak - Greater Fire Resistance",desc:"+15 Fire Res"},
+    {id:2620,slot:14,name:"Enchant Cloak - Greater Nature Resistance",desc:"+15 Nature Res"},
     {id:2621,slot:14,name:"Enchant Cloak - Subtlety"},
-    {id:2622,slot:14,name:"Enchant Cloak - Dodge"},
-    {id:2648,slot:14,name:"Enchant Cloak - Steelweave"},
-    {id:2662,slot:14,name:"Enchant Cloak - Major Armor"},
-    {id:2664,slot:14,name:"Enchant Cloak - Major Resistance"},
-    {id:2938,slot:14,name:"Enchant Cloak - Spell Penetration"},
-    {id:1071,slot:16,name:"Enchant Shield - Major Stamina"},
-    {id:1888,slot:16,name:"Enchant Shield - Resistance"},
-    {id:2653,slot:16,name:"Enchant Shield - Tough Shield"},
-    {id:2654,slot:16,name:"Enchant Shield - Intellect"},
-    {id:2655,slot:16,name:"Enchant Shield - Shield Block"},
+    {id:2622,slot:14,name:"Enchant Cloak - Dodge",desc:"+12 Dodge"},
+    {id:2648,slot:14,name:"Enchant Cloak - Steelweave",desc:"+12 Defense"},
+    {id:2662,slot:14,name:"Enchant Cloak - Major Armor",desc:"+120 Armor"},
+    {id:2664,slot:14,name:"Enchant Cloak - Major Resistance",desc:"+7 Arcane Res, +7 Fire Res, +7 Frost Res, +7 Nature Res, +7 Shadow Res"},
+    {id:2938,slot:14,name:"Enchant Cloak - Spell Penetration",desc:"+20 Spell Pen"},
+    {id:1071,slot:16,name:"Enchant Shield - Major Stamina",desc:"+18 Sta"},
+    {id:1888,slot:16,name:"Enchant Shield - Resistance",desc:"+5 Arcane Res, +5 Fire Res, +5 Frost Res, +5 Nature Res, +5 Shadow Res"},
+    {id:2653,slot:16,name:"Enchant Shield - Tough Shield",desc:"+18 Block Value"},
+    {id:2654,slot:16,name:"Enchant Shield - Intellect",desc:"+12 Int"},
+    {id:2655,slot:16,name:"Enchant Shield - Shield Block",desc:"+15 Block Rating"},
     {id:2714,slot:16,name:"Felsteel Shield Spike"},
-    {id:3229,slot:16,name:"Enchant Shield - Resilience"},
+    {id:3229,slot:16,name:"Enchant Shield - Resilience",desc:"+12 Resilience"},
     {id:963,slot:null,name:"Enchant 2H Weapon - Greater Impact"},
     {id:1897,slot:null,name:"Enchant 2H Weapon - Impact"},
     {id:1898,slot:null,name:"Enchant Weapon - Major Spirit"},
     {id:1900,slot:null,name:"Enchant Weapon - Crusader"},
-    {id:2343,slot:null,name:"Enchant Weapon - Major Healing"},
-    {id:2564,slot:null,name:"Enchant Weapon - Agility"},
-    {id:2646,slot:null,name:"Enchant 2H Weapon - Agility"},
-    {id:2666,slot:null,name:"Enchant Weapon - Major Intellect"},
-    {id:2667,slot:null,name:"Enchant 2H Weapon - Savagery"},
-    {id:2668,slot:null,name:"Enchant Weapon - Potency"},
-    {id:2669,slot:null,name:"Enchant Weapon - Major Spellpower"},
-    {id:2670,slot:null,name:"Enchant 2H Weapon - Major Agility"},
-    {id:2671,slot:null,name:"Enchant Weapon - Sunfire"},
-    {id:2672,slot:null,name:"Enchant Weapon - Soulfrost"},
+    {id:2343,slot:null,name:"Enchant Weapon - Major Healing",desc:"+81 Healing, +27 Spell Dmg"},
+    {id:2564,slot:null,name:"Enchant Weapon - Agility",desc:"+15 Agi"},
+    {id:2646,slot:null,name:"Enchant 2H Weapon - Agility",desc:"+25 Agi"},
+    {id:2666,slot:null,name:"Enchant Weapon - Major Intellect",desc:"+30 Int"},
+    {id:2667,slot:null,name:"Enchant 2H Weapon - Savagery",desc:"+70 AP, +70 Ranged AP"},
+    {id:2668,slot:null,name:"Enchant Weapon - Potency",desc:"+20 Str"},
+    {id:2669,slot:null,name:"Enchant Weapon - Major Spellpower",desc:"+40 Healing, +40 Spell Dmg"},
+    {id:2670,slot:null,name:"Enchant 2H Weapon - Major Agility",desc:"+35 Agi"},
+    {id:2671,slot:null,name:"Enchant Weapon - Sunfire",desc:"+50 Arcane Dmg, +50 Fire Dmg"},
+    {id:2672,slot:null,name:"Enchant Weapon - Soulfrost",desc:"+54 Frost Dmg, +54 Shadow Dmg"},
     {id:2673,slot:null,name:"Enchant Weapon - Mongoose"},
     {id:2674,slot:null,name:"Enchant Weapon - Spellsurge"},
     {id:2675,slot:null,name:"Enchant Weapon - Battlemaster"},
-    {id:3222,slot:null,name:"Enchant Weapon - Greater Agility"},
-    {id:3223,slot:null,name:"Adamantite Weapon Chain"},
+    {id:3222,slot:null,name:"Enchant Weapon - Greater Agility",desc:"+20 Agi"},
+    {id:3223,slot:null,name:"Adamantite Weapon Chain",desc:"+15 Parry"},
     {id:3225,slot:null,name:"Enchant Weapon - Executioner"},
     {id:3273,slot:null,name:"Enchant Weapon - Deathfrost"}
   ];
@@ -2718,9 +2760,9 @@ async function confirmSync() {
         const bad = findBadEnchant(item.permanentEnchant, idx);
         const good = !bad && findGoodEnchant(item.permanentEnchant, idx);
         if (bad) {
-          enchants.push({ slot: slotName, itemName, itemId: item.id, enchantId: item.permanentEnchant, status: 'suboptimal', detail: bad.name, enchantName: bad.name });
+          enchants.push({ slot: slotName, itemName, itemId: item.id, enchantId: item.permanentEnchant, status: 'suboptimal', detail: bad.name, enchantName: bad.name, enchantDesc: bad.desc });
         } else if (good) {
-          enchants.push({ slot: slotName, itemName, itemId: item.id, enchantId: item.permanentEnchant, status: 'good', detail: good.name, enchantName: good.name });
+          enchants.push({ slot: slotName, itemName, itemId: item.id, enchantId: item.permanentEnchant, status: 'good', detail: good.name, enchantName: good.name, enchantDesc: good.desc });
         } else {
           enchants.push({ slot: slotName, itemName, itemId: item.id, enchantId: item.permanentEnchant, status: 'good', detail: 'Enchanted' });
         }
@@ -2755,7 +2797,11 @@ async function confirmSync() {
       const guardianMatch = findElixirMatch(auraDetails, GUARDIAN_ELIXIRS_SYNC);
       let elixirType, tierIssue = false;
       if (flaskDetail) { elixirType = 'flask'; }
-      else if (battleMatch && guardianMatch) { elixirType = 'elixir'; tierIssue = battleMatch.tier === 'suboptimal' || guardianMatch.tier === 'suboptimal'; }
+      else if (battleMatch && guardianMatch) {
+        elixirType = 'elixir';
+        tierIssue = battleMatch.tier === 'suboptimal' || guardianMatch.tier === 'suboptimal'
+          || isStatWrongForClass(battleMatch.stat, info.className) || isStatWrongForClass(guardianMatch.stat, info.className);
+      }
       else if (battleMatch || guardianMatch) { elixirType = 'partial'; }
       else { elixirType = 'none'; }
       const elixirNames = [flaskDetail?.name, battleMatch?.name, guardianMatch?.name].filter(Boolean);
@@ -2792,6 +2838,7 @@ async function confirmSync() {
         potions: { count: (info.destroCount || 0) + (info.hasteCount || 0) + (info.manaCount || 0) + (info.ironshieldCount || 0), names: potionNames },
         other: info.other || [],
         runes: { count: (info.runes || []).reduce((sum, r) => sum + r.count, 0), names: (info.runes || []).map(r => `${r.name} x${r.count}`) },
+        weapon_enchant: { status: info.weaponEnchant ? (info.weaponEnchant.tierIssue ? 'suboptimal' : 'good') : 'missing', name: info.weaponEnchant?.name, tierIssue: info.weaponEnchant?.tierIssue },
       });
     });
   });
