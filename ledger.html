@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=55">
+<link rel="stylesheet" href="style.css?v=56">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
@@ -330,8 +330,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=55"></script>
-<script src="editor.js?v=55"></script>
+<script src="app.js?v=56"></script>
+<script src="editor.js?v=56"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -2048,14 +2048,33 @@ function downloadWishlistCSV() {
 }
 
 // ================= WCL SYNC (in-page modal) =================
+// Real ability IDs verified against Wowhead (not guessed) - safe to extend.
+const POTION_IDS_SYNC = {
+  destruction: [28565],   // Destruction Potion
+  haste: [28564],         // Haste Potion
+  mana: [28555],          // Super Mana Potion
+};
+// Names ARE reliable here because they come from CombatantInfo's "auras"
+// array, which resolves names server-side - unlike raw Buff/Cast events,
+// which only ever give a numeric abilityGameID with no name attached.
 const KNOWN_FLASKS_SYNC = ["Flask of Relentless Assault","Flask of Blinding Light","Flask of Pure Death","Flask of Mighty Restoration","Flask of Fortification","Flask of Chromatic Resistance","Flask of Supreme Power","Flask of the Titans","Flask of Distilled Wisdom"];
 const KNOWN_BATTLE_ELIXIRS_SYNC = ["Elixir of Major Strength","Elixir of Major Agility","Elixir of Major Firepower","Elixir of Major Shadow Power","Elixir of Major Mageblood","Onslaught Elixir","Wrath Elixir","Fel Strength Elixir","Adept's Elixir"];
 const KNOWN_GUARDIAN_ELIXIRS_SYNC = ["Elixir of Major Defense","Elixir of Draenic Wisdom","Elixir of Healing Power","Elixir of Camouflage","Elixir of Ironskin","Elixir of Empowerment"];
 const KNOWN_SCROLLS_SYNC = ["Scroll of Strength V","Scroll of Agility V"];
-const KNOWN_DESTRUCTION_POTS_SYNC = ["Destruction Potion"];
-const KNOWN_HASTE_POTS_SYNC = ["Haste Potion","Insane Strength Potion"];
-const KNOWN_MANA_POTS_SYNC = ["Super Mana Potion","Fel Mana Potion"];
 const MELEE_HUNTER_CLASSES_SYNC = ["Warrior","Rogue","Hunter"];
+
+// WCL's gear array has no "slot" field at all - position in the array IS
+// the slot, in WoW's standard inventory order. Confirmed against real
+// synced data by matching icon names (inv_shoulder_02.jpg at index 2, etc).
+const GEAR_SLOT_INDEX = { Head:0, Shoulder:2, Back:14, Chest:4, Wrist:8, Hands:9, Legs:6, Feet:7, MH:15, OH:16 };
+
+function resolveItemName(itemId) {
+  if (typeof tbcItemsData !== 'undefined' && tbcItemsData) {
+    const found = tbcItemsData.find(it => it.id === itemId);
+    if (found) return found.name;
+  }
+  return `Item #${itemId}`;
+}
 
 let syncResult = null;
 
@@ -2140,9 +2159,11 @@ async function runSync() {
     const actors = report.masterData?.actors || [];
     syncLog(`✓ ${fights.length} boss kill(s), ${actors.length} total player(s) seen anywhere in the log`);
 
-    syncLog('Fetching gear/enchant/gem data and correctly-scoped attendance…');
+    syncLog('Fetching gear and consumable snapshots per boss…');
     let gearByPlayer = {};
+    let consumablesByFight = {}; // { bossName: { playerName: { auras: [...] } } }
     const attendeeNames = new Set();
+
     for (const fight of fights) {
       const gearResp = await wclQuery(token, `
         query($code: String!, $fightID: Int!) {
@@ -2150,17 +2171,17 @@ async function runSync() {
         }
       `, { code, fightID: fight.id });
       const gearEvents = gearResp.data?.reportData?.report?.events?.data || [];
-      if (fight === fights[0]) console.log(`[Delusions Sync] FULL first CombatantInfo event (one player's gear, fully expanded):`, JSON.stringify(gearEvents[0], null, 2));
+
+      consumablesByFight[fight.name] = {};
       gearEvents.forEach(ev => {
         const actor = actors.find(a => a.id === ev.sourceID);
         if (!actor) return;
-        attendeeNames.add(actor.name); // only players who actually show up in a kill fight count as attended
-        if (ev.gear) gearByPlayer[actor.name] = { className: actor.subType, gear: ev.gear };
+        attendeeNames.add(actor.name); // only players actually in a kill fight count as attended
+        if (ev.gear && !gearByPlayer[actor.name]) gearByPlayer[actor.name] = { className: actor.subType, gear: ev.gear };
+        consumablesByFight[fight.name][actor.name] = { className: actor.subType, auraNames: (ev.auras || []).map(a => a.name) };
       });
     }
-    // Attendance = union of everyone who appeared in combat data for the
-    // actual kill fights — NOT masterData.actors, which includes anyone
-    // seen anywhere in the whole report (other pulls, wipes, bench, etc).
+
     const attendance = [...attendeeNames].map(name => {
       const actor = actors.find(a => a.name === name);
       return { name, className: actor?.subType };
@@ -2168,29 +2189,23 @@ async function runSync() {
     syncLog(`✓ ${attendance.length} player(s) actually in the kill fights`);
     syncLog(`✓ Gear data for ${Object.keys(gearByPlayer).length} player(s)`);
 
-    syncLog('Fetching consumable usage per boss…');
-    let consumablesByFight = {};
+    syncLog('Fetching potion cast counts per boss…');
     for (const fight of fights) {
-      const evResp = await wclQuery(token, `
+      const castResp = await wclQuery(token, `
         query($code: String!, $fightID: Int!) {
-          reportData {
-            report(code: $code) {
-              buffEvents: events(dataType: Buffs, fightIDs: [$fightID]) { data }
-              castEvents: events(dataType: Casts, fightIDs: [$fightID]) { data }
-            }
-          }
+          reportData { report(code: $code) { events(dataType: Casts, fightIDs: [$fightID]) { data } } }
         }
       `, { code, fightID: fight.id });
-      const rawBuffs = evResp.data?.reportData?.report?.buffEvents?.data || [];
-      const rawCasts = evResp.data?.reportData?.report?.castEvents?.data || [];
-      if (fight === fights[0]) {
-        console.log(`[Delusions Sync] FULL first 5 Buff events, fully expanded:`, JSON.stringify(rawBuffs.slice(0, 5), null, 2));
-        console.log(`[Delusions Sync] FULL first 5 Cast events, fully expanded:`, JSON.stringify(rawCasts.slice(0, 5), null, 2));
-      }
-      consumablesByFight[fight.name] = { buffs: rawBuffs, casts: rawCasts };
+      const casts = castResp.data?.reportData?.report?.events?.data || [];
+      Object.keys(consumablesByFight[fight.name] || {}).forEach(playerName => {
+        const actorId = actors.find(a => a.name === playerName)?.id;
+        const playerCasts = casts.filter(c => c.sourceID === actorId);
+        consumablesByFight[fight.name][playerName].destroCount = playerCasts.filter(c => POTION_IDS_SYNC.destruction.includes(c.abilityGameID)).length;
+        consumablesByFight[fight.name][playerName].hasteCount = playerCasts.filter(c => POTION_IDS_SYNC.haste.includes(c.abilityGameID)).length;
+        consumablesByFight[fight.name][playerName].manaCount = playerCasts.filter(c => POTION_IDS_SYNC.mana.includes(c.abilityGameID)).length;
+      });
     }
-    syncLog(`✓ Consumable events pulled for ${fights.length} boss(es)`);
-    syncLog(`<span style="color:var(--dim);">(Raw event data logged to your browser console — F12 → Console — for troubleshooting)</span>`);
+    syncLog(`✓ Potion usage pulled for ${fights.length} boss(es)`);
 
     syncResult = { report, fights, actors, attendance, gearByPlayer, consumablesByFight };
     renderSyncPreview();
@@ -2230,11 +2245,20 @@ async function confirmSync() {
 
   const gearRows = Object.entries(gearByPlayer).map(([name, info]) => {
     const enchants = [], gems = [];
-    (info.gear || []).forEach(item => {
-      if (item.permanentEnchant) enchants.push({ slot: item.slot || 'Unknown', itemName: item.name || '', status: 'good', detail: 'Enchanted' });
-      else if (item.slot) enchants.push({ slot: item.slot, itemName: item.name || '', status: 'missing', detail: 'No enchant' });
+    Object.entries(GEAR_SLOT_INDEX).forEach(([slotName, idx]) => {
+      const item = (info.gear || [])[idx];
+      if (!item || !item.id) return;
+      const itemName = resolveItemName(item.id);
+      if (item.permanentEnchant) enchants.push({ slot: slotName, itemName, status: 'good', detail: 'Enchanted' });
+      else enchants.push({ slot: slotName, itemName, status: 'missing', detail: 'No enchant' });
       if (item.gems && item.gems.length) {
-        item.gems.forEach(g => gems.push({ slot: item.slot || 'Unknown', itemName: g.name || '', status: g.quality === 'Epic' ? 'good' : 'suboptimal', detail: g.name || '' }));
+        item.gems.forEach(g => {
+          // No direct quality field on gems from WCL - itemLevel is the
+          // best available proxy (epic/rare-tier gems run ~70+, lower-tier
+          // fillers like Pearls run ~60). Worth revisiting if this proves
+          // inaccurate on real data.
+          gems.push({ slot: slotName, itemName: `Gem #${g.id}`, status: g.itemLevel >= 70 ? 'good' : 'suboptimal', detail: `Gem #${g.id} (ilvl ${g.itemLevel})` });
+        });
       }
     });
     return { raid_night_id: night.id, character_name: name, class_name: info.className, enchants, gems };
@@ -2242,22 +2266,21 @@ async function confirmSync() {
   if (gearRows.length) await sb.from('gear_checks').insert(gearRows);
 
   const consumableRows = [];
-  Object.entries(consumablesByFight).forEach(([bossName, data]) => {
-    attendance.forEach(a => {
-      const isMelee = MELEE_HUNTER_CLASSES_SYNC.includes(a.className);
-      const buffNames = (data.buffs || []).filter(e => e.targetID !== undefined).map(e => e.ability?.name).filter(Boolean);
-      const castNames = (data.casts || []).filter(e => e.sourceID !== undefined).map(e => e.ability?.name).filter(Boolean);
-      const hasFlask = buffNames.some(n => KNOWN_FLASKS_SYNC.includes(n));
-      const hasBattle = buffNames.some(n => KNOWN_BATTLE_ELIXIRS_SYNC.includes(n));
-      const hasGuardian = buffNames.some(n => KNOWN_GUARDIAN_ELIXIRS_SYNC.includes(n));
+  Object.entries(consumablesByFight).forEach(([bossName, players]) => {
+    Object.entries(players).forEach(([name, info]) => {
+      const isMelee = MELEE_HUNTER_CLASSES_SYNC.includes(info.className);
+      const auraNames = info.auraNames || [];
+      const hasFlask = auraNames.some(n => KNOWN_FLASKS_SYNC.includes(n));
+      const hasBattle = auraNames.some(n => KNOWN_BATTLE_ELIXIRS_SYNC.includes(n));
+      const hasGuardian = auraNames.some(n => KNOWN_GUARDIAN_ELIXIRS_SYNC.includes(n));
       consumableRows.push({
-        raid_night_id: night.id, boss_name: bossName, character_name: a.name, class_name: a.className,
-        food: { used: buffNames.includes('Well Fed'), name: 'Well Fed' },
-        flask_elixir: { type: hasFlask ? 'flask' : (hasBattle && hasGuardian) ? 'elixir' : (hasBattle || hasGuardian) ? 'partial' : 'none', names: buffNames.filter(n => KNOWN_FLASKS_SYNC.includes(n) || KNOWN_BATTLE_ELIXIRS_SYNC.includes(n) || KNOWN_GUARDIAN_ELIXIRS_SYNC.includes(n)) },
-        scroll: { applicable: isMelee, used: isMelee && buffNames.some(n => KNOWN_SCROLLS_SYNC.includes(n)), name: buffNames.find(n => KNOWN_SCROLLS_SYNC.includes(n)) },
-        destruction: { count: castNames.filter(n => KNOWN_DESTRUCTION_POTS_SYNC.includes(n)).length, names: castNames.filter(n => KNOWN_DESTRUCTION_POTS_SYNC.includes(n)) },
-        haste: { count: castNames.filter(n => KNOWN_HASTE_POTS_SYNC.includes(n)).length, names: castNames.filter(n => KNOWN_HASTE_POTS_SYNC.includes(n)) },
-        mana: { count: castNames.filter(n => KNOWN_MANA_POTS_SYNC.includes(n)).length, names: castNames.filter(n => KNOWN_MANA_POTS_SYNC.includes(n)) },
+        raid_night_id: night.id, boss_name: bossName, character_name: name, class_name: info.className,
+        food: { used: auraNames.includes('Well Fed'), name: 'Well Fed' },
+        flask_elixir: { type: hasFlask ? 'flask' : (hasBattle && hasGuardian) ? 'elixir' : (hasBattle || hasGuardian) ? 'partial' : 'none', names: auraNames.filter(n => KNOWN_FLASKS_SYNC.includes(n) || KNOWN_BATTLE_ELIXIRS_SYNC.includes(n) || KNOWN_GUARDIAN_ELIXIRS_SYNC.includes(n)) },
+        scroll: { applicable: isMelee, used: isMelee && auraNames.some(n => KNOWN_SCROLLS_SYNC.includes(n)), name: auraNames.find(n => KNOWN_SCROLLS_SYNC.includes(n)) },
+        destruction: { count: info.destroCount || 0, names: info.destroCount ? ['Destruction Potion'] : [] },
+        haste: { count: info.hasteCount || 0, names: info.hasteCount ? ['Haste Potion'] : [] },
+        mana: { count: info.manaCount || 0, names: info.manaCount ? ['Super Mana Potion'] : [] },
       });
     });
   });
