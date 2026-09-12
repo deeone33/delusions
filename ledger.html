@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=76">
+<link rel="stylesheet" href="style.css?v=77">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
@@ -335,8 +335,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=76"></script>
-<script src="editor.js?v=76"></script>
+<script src="app.js?v=77"></script>
+<script src="editor.js?v=77"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -1247,19 +1247,17 @@ async function showPlayerProfile(characterName, presetBoss) {
       // this uses the guaranteed click-popup instead of a hover tooltip.
       const enchantBit = e.enchantId
         ? (e.enchantName
-            ? `<span style="color:${STATUS_COLOR[e.status]};cursor:pointer;text-decoration:underline dotted;" onclick="showInfoPopup(event, ${JSON.stringify(e.enchantDesc || e.enchantName).replace(/'/g,'&#39;')})">${esc(e.enchantName)}${e.status === 'suboptimal' ? ' (outdated)' : ''}</span>`
+            ? `<span style="color:${STATUS_COLOR[e.status]};cursor:help;text-decoration:underline dotted;" onmouseenter='showInfoPopup(event, ${jsAttr(e.enchantDesc || e.enchantName)})' onmouseleave='hideInfoPopup()'>${esc(e.enchantName)}${e.status === 'suboptimal' ? ' (outdated)' : ''}</span>`
             : `<span style="color:${STATUS_COLOR.good};">enchanted</span>`)
         : `<span style="color:${STATUS_COLOR.missing};">no enchant</span>`;
       // Gems: real Wowhead link as a bonus hover tooltip if that script is
-      // working, PLUS a guaranteed click-popup fallback either way -
-      // clicking shows the name regardless of whether Wowhead's widget loaded.
+      // working, matching the pattern already confirmed working elsewhere.
       const gemBits = combined.gems.length ? combined.gems.map(g => {
         const symbol = g.meta ? '◆' : STATUS_SYMBOL[g.status];
         const color = g.meta ? 'var(--dim)' : STATUS_COLOR[g.status];
-        const clickAttr = `onclick="showInfoPopup(event, ${JSON.stringify(g.itemName).replace(/'/g,'&#39;')})"`;
         return g.itemId
-          ? `<a href="https://www.wowhead.com/tbc/item=${g.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" ${clickAttr} style="color:${color};text-decoration:none;cursor:pointer;">${symbol}</a>`
-          : `<span ${clickAttr} style="color:${color};cursor:pointer;">${symbol}</span>`;
+          ? `<a href="https://www.wowhead.com/tbc/item=${g.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:${color};text-decoration:none;">${symbol}</a>`
+          : `<span style="color:${color};">${symbol}</span>`;
       }).join(' ') : '';
       return `
         <div style="padding:0.45rem 0;border-bottom:1px solid var(--hair2);">
@@ -1351,7 +1349,7 @@ function showGearCheckDetail(characterName, slot) {
   const itemLink = e?.itemId ? `<a href="https://www.wowhead.com/tbc/item=${e.itemId}" target="_blank" rel="noopener" data-wowhead="domain=tbc" style="color:inherit;">${esc(e.itemName)}</a>` : esc(e?.itemName || '—');
   const enchantLink = e?.enchantId
     ? (e.enchantName
-        ? `<span style="color:${STATUS_COLOR[e.status]};cursor:pointer;text-decoration:underline dotted;" onclick="showInfoPopup(event, ${JSON.stringify(e.enchantDesc || e.enchantName).replace(/'/g,'&#39;')})">${esc(e.enchantName)}${e.status === 'suboptimal' ? ' (outdated)' : ''}</span>`
+        ? `<span style="color:${STATUS_COLOR[e.status]};cursor:help;text-decoration:underline dotted;" onmouseenter='showInfoPopup(event, ${jsAttr(e.enchantDesc || e.enchantName)})' onmouseleave='hideInfoPopup()'>${esc(e.enchantName)}${e.status === 'suboptimal' ? ' (outdated)' : ''}</span>`
         : `<span style="color:${STATUS_COLOR.good};">Enchanted</span>`)
     : `<span style="color:${STATUS_COLOR.missing};">No enchant</span>`;
   const enchantDescInline = (e?.enchantName && e?.enchantDesc) ? `<div style="font-size:0.75rem;color:var(--mist);margin-top:0.2rem;">${esc(e.enchantDesc)}</div>` : '';
@@ -1502,7 +1500,7 @@ function showConsumableDetail(characterName, boss, key) {
   } else if (key === 'weapon_enchant') {
     const note = val.tierIssue ? `<div style="font-size:0.78rem;color:var(--warn);margin-top:0.4rem;">Wrong stat priority for this class (e.g. Wizard Oil on a healer, Mana Oil on a non-healer).</div>` : '';
     const desc = weaponEnhancementDesc(val.name);
-    const nameBit = val.name ? `<span style="cursor:pointer;text-decoration:underline dotted;" onclick="showInfoPopup(event, ${JSON.stringify(desc || val.name).replace(/'/g,'&#39;')})">${esc(val.name)}</span>` : '';
+    const nameBit = val.name ? `<span style="cursor:help;text-decoration:underline dotted;" onmouseenter='showInfoPopup(event, ${jsAttr(desc || val.name)})' onmouseleave='hideInfoPopup()'>${esc(val.name)}</span>` : '';
     detailHtml = val.name ? `<div class="modal-row"><span>${nameBit}</span></div>${desc ? `<div style="font-size:0.75rem;color:var(--mist);margin-top:0.3rem;">${esc(desc)}</div>` : ''}${note}` : '<div style="color:var(--dim);">None used (or an unrecognized temp enchant not in the known whitelist).</div>';
   } else if (key === 'other') {
     const items = Array.isArray(val) ? val : [];
@@ -1718,8 +1716,6 @@ let wowheadRefreshFallbackUsed = false;
 // cursor; click anywhere else to dismiss. Used for enchants, gems, and
 // weapon enchants where a real Wowhead link isn't available/reliable.
 function showInfoPopup(event, text) {
-  event.stopPropagation();
-  event.preventDefault();
   let popup = document.getElementById('inline-info-popup');
   if (!popup) {
     popup = document.createElement('div');
@@ -1734,7 +1730,6 @@ function showInfoPopup(event, text) {
   const y = Math.min(event.clientY + 12, window.innerHeight - 60);
   popup.style.left = x + 'px';
   popup.style.top = y + 'px';
-  setTimeout(() => { document.addEventListener('click', hideInfoPopup, { once: true }); }, 0);
 }
 function hideInfoPopup() {
   const popup = document.getElementById('inline-info-popup');
