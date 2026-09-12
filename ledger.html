@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=87">
+<link rel="stylesheet" href="style.css?v=88">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>const whTooltips = {colorLinks: false, iconizeLinks: false, renameLinks: false};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
@@ -335,8 +335,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=87"></script>
-<script src="editor.js?v=87"></script>
+<script src="app.js?v=88"></script>
+<script src="editor.js?v=88"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -402,6 +402,7 @@ function showTab(name) {
 }
 
 async function loadLoot() {
+  await loadTbcItems();
   const { data, error } = await sb.from('loot_log').select('*').order('awarded_at', { ascending: false }).order('created_at', { ascending: false });
   if (error) { toast(error.message, 'error'); return; }
   allLoot = data || [];
@@ -1228,6 +1229,7 @@ function renderGearCheck() {
 // grid and a boss-switchable consumables breakdown in one modal, reusing
 // the same real-tooltip rendering already built for the per-cell popups.
 async function showPlayerProfile(characterName, presetBoss) {
+  await loadTbcItems(); // needed for item quality colors - not guaranteed loaded when just viewing (not syncing) a raid
   if (!consumablesInited && currentGearCheckRaidId) {
     await loadConsumablesRaid(currentGearCheckRaidId);
   }
@@ -1238,7 +1240,7 @@ async function showPlayerProfile(characterName, presetBoss) {
 
   let gearHtml = '<div style="color:var(--dim);">No gear data for this raid.</div>';
   if (gearRow) {
-    gearHtml = `<div style="display:grid;grid-template-columns:66px 1fr 64px 1fr;gap:0.8rem;align-items:center;">` + GEARCHECK_SLOTS.map(slot => {
+    gearHtml = `<div style="display:grid;grid-template-columns:66px 1fr 90px 1fr;gap:1.1rem;align-items:center;">` + GEARCHECK_SLOTS.map(slot => {
       const combined = combineSlotStatus(gearRow, slot);
       const e = combined.enchant;
       if (!e) return '';
@@ -1346,7 +1348,8 @@ function refreshProfileConsumables(characterName) {
   refreshWowheadTooltips();
 }
 
-function showGearCheckDetail(characterName, slot) {
+async function showGearCheckDetail(characterName, slot) {
+  await loadTbcItems(); // needed for item quality colors, same fix as showPlayerProfile
   const row = gearCheckRows.find(r => r.character_name === characterName);
   if (!row) return;
   const combined = combineSlotStatus(row, slot);
@@ -1568,6 +1571,7 @@ let allWishlistItemsMap = {};
 let wlDragId = null;
 
 async function initWishlistTab() {
+  await loadTbcItems();
   await loadCurrentPhase();
   renderPhaseBar();
   if (isMember() || isOfficer()) await loadMyCharactersAndWishlist();
