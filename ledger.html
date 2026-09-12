@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=89">
+<link rel="stylesheet" href="style.css?v=90">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
@@ -335,8 +335,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=89"></script>
-<script src="editor.js?v=89"></script>
+<script src="app.js?v=90"></script>
+<script src="editor.js?v=90"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -1230,6 +1230,7 @@ function renderGearCheck() {
 // the same real-tooltip rendering already built for the per-cell popups.
 async function showPlayerProfile(characterName, presetBoss) {
   await loadTbcItems(); // needed for item quality colors - not guaranteed loaded when just viewing (not syncing) a raid
+  await loadGemsData(); // needed for gem stat descriptions in the hover popup - same gap
   if (!consumablesInited && currentGearCheckRaidId) {
     await loadConsumablesRaid(currentGearCheckRaidId);
   }
@@ -1272,7 +1273,8 @@ async function showPlayerProfile(characterName, presetBoss) {
       const gemBits = combined.gems.length ? combined.gems.map(g => {
         const color = g.meta ? STATUS_COLOR.good : STATUS_COLOR[g.status];
         const iconUrl = g.icon ? `https://wow.zamimg.com/images/wow/icons/medium/${g.icon}.jpg` : null;
-        const popupHtml = `<div style="display:flex;align-items:center;gap:0.5rem;">${iconUrl ? `<img src="${iconUrl}" style="width:28px;height:28px;border-radius:3px;border:1px solid ${color};">` : ''}<div style="color:${color};font-weight:600;">${esc(g.itemName)}${g.meta ? ' (Meta)' : ''}</div></div>`;
+        const gemDesc = g.desc || resolveGemDesc(g.itemId);
+        const popupHtml = `<div style="display:flex;align-items:center;gap:0.5rem;">${iconUrl ? `<img src="${iconUrl}" style="width:28px;height:28px;border-radius:3px;border:1px solid ${color};">` : ''}<div><div style="color:${color};font-weight:600;">${esc(g.itemName)}${g.meta ? ' (Meta)' : ''}</div>${gemDesc ? `<div style="color:#ccc;font-size:0.78rem;margin-top:0.15rem;">${esc(gemDesc)}</div>` : ''}</div></div>`;
         return `<span style="color:${color};cursor:help;font-size:1.1rem;" onmouseenter='showInfoPopup(event, ${jsAttr(popupHtml)})' onmouseleave='hideInfoPopup()'>●</span>`;
       }).join(' ') : '<span style="color:var(--dim);">—</span>';
 
@@ -1353,6 +1355,7 @@ function refreshProfileConsumables(characterName) {
 
 async function showGearCheckDetail(characterName, slot) {
   await loadTbcItems(); // needed for item quality colors, same fix as showPlayerProfile
+  await loadGemsData();
   const row = gearCheckRows.find(r => r.character_name === characterName);
   if (!row) return;
   const combined = combineSlotStatus(row, slot);
@@ -2495,6 +2498,13 @@ function resolveGemIcon(gemId) {
   }
   return null;
 }
+function resolveGemDesc(gemId) {
+  if (typeof gemsData !== 'undefined' && gemsData) {
+    const found = gemsData.find(g => g.id === gemId);
+    if (found) return found.desc || null;
+  }
+  return null;
+}
 
 let syncResult = null;
 
@@ -3083,7 +3093,7 @@ async function confirmSync() {
           else if (quality === 'E') status = 'good';
           else if (quality === 'R') status = 'suboptimal';
           else status = 'missing'; // Uncommon/unknown quality treated same as "no gem", per explicit request
-          gems.push({ slot: slotName, itemName: gemName, itemId: g.id, icon: resolveGemIcon(g.id), status, detail: gemName, meta });
+          gems.push({ slot: slotName, itemName: gemName, itemId: g.id, icon: resolveGemIcon(g.id), desc: resolveGemDesc(g.id), status, detail: gemName, meta });
         });
       }
     });
