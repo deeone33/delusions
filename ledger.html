@@ -7,7 +7,7 @@
 <link rel="icon" href="logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=91">
+<link rel="stylesheet" href="style.css?v=92">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script>const whTooltips = {colorLinks: true, iconizeLinks: true, renameLinks: true};</script>
 <script id="wh-tooltips-script" src="https://wow.zamimg.com/js/tooltips.js"></script>
@@ -135,7 +135,7 @@
 </head>
 <body>
 
-<div class="topbar" id="topnav-top"><span>Spineshatter EU · Horde</span><span id="edit-toggle-wrap"></span></div>
+<div class="topbar" id="topnav-top"><span>Spineshatter EU · Horde</span><span id="version-display" style="display:none;color:var(--dim);font-size:0.8rem;"></span> <span id="edit-toggle-wrap"></span></div>
 <div class="nav" id="topnav"></div>
 
 <div class="page-wide" style="padding-top:3rem;">
@@ -335,8 +335,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=91"></script>
-<script src="editor.js?v=91"></script>
+<script src="app.js?v=92"></script>
+<script src="editor.js?v=92"></script>
 <script>
 
 // Option C: icon + class-colored clickable player name, no badge/container.
@@ -1233,10 +1233,9 @@ function renderGearCheck() {
     rows.sort((a, b) => mult * (STATUS_SEVERITY[combineSlotStatus(a, col).status] - STATUS_SEVERITY[combineSlotStatus(b, col).status]));
   }
 
-  let html = `<table class="dense-check-table"><tr><th class="name-col" style="cursor:pointer;" onclick="sortGearCheckBy('name')">Player${gearCheckSortArrow('name')}</th><th style="cursor:pointer;" onclick="sortGearCheckBy('role')">Role${gearCheckSortArrow('role')}</th>${GEARCHECK_SLOTS.map(s => `<th style="cursor:pointer;" onclick="sortGearCheckBy('${s}')">${s}${gearCheckSortArrow(s)}</th>`).join('')}</tr>`;
+  let html = `<table class="dense-check-table"><tr><th style="cursor:pointer;" onclick="sortGearCheckBy('role')">Role${gearCheckSortArrow('role')}</th><th class="name-col" style="cursor:pointer;" onclick="sortGearCheckBy('name')">Player${gearCheckSortArrow('name')}</th>${GEARCHECK_SLOTS.map(s => `<th style="cursor:pointer;" onclick="sortGearCheckBy('${s}')">${s}${gearCheckSortArrow(s)}</th>`).join('')}</tr>`;
   rows.forEach(r => {
-    html += `<tr><td><span class="cls-name-row" style="cursor:pointer;" onclick='showPlayerProfile(${jsAttr(r.character_name)})' title="Click for full profile">${classIcon(r.class_name)}<span style="${classColor(r.class_name) ? `color:${classColor(r.class_name)};` : ''}">${esc(r.character_name)}</span></span></td>`;
-    html += `<td>${roleIcon(r.detected_role)}</td>`;
+    html += `<tr><td>${roleIcon(r.detected_role)}</td><td><span class="cls-name-row" style="cursor:pointer;" onclick='showPlayerProfile(${jsAttr(r.character_name)})' title="Click for full profile">${classIcon(r.class_name)}<span style="${classColor(r.class_name) ? `color:${classColor(r.class_name)};` : ''}">${esc(r.character_name)}</span></span></td>`;
     GEARCHECK_SLOTS.forEach(slot => {
       const combined = combineSlotStatus(r, slot);
       html += `<td style="cursor:pointer;" onclick='showGearCheckDetail(${jsAttr(r.character_name)}, ${jsAttr(slot)})' title="Click for detail"><span style="color:${STATUS_COLOR[combined.status]};font-weight:600;">${STATUS_SYMBOL[combined.status]}</span></td>`;
@@ -1486,10 +1485,9 @@ function renderConsumablesSummaryTable(search) {
   } else players.sort((a, b) => mult * (a[col] - b[col]));
 
   const numericCols = [['total','Total'],['food','Food'],['flask','Flask/Elixir'],['scroll','Scroll'],['weapon','Weapon'],['potions','Potions'],['runes','Runes'],['other','Other']];
-  let html = `<table class="dense-check-table"><tr><th class="name-col" style="cursor:pointer;" onclick="sortSummaryBy('name')">Player${summarySortArrow('name')}</th><th style="cursor:pointer;" onclick="sortSummaryBy('role')">Role${summarySortArrow('role')}</th>${numericCols.map(([key,label]) => `<th style="cursor:pointer;" onclick="sortSummaryBy('${key}')">${label}${summarySortArrow(key)}</th>`).join('')}</tr>`;
+  let html = `<table class="dense-check-table"><tr><th style="cursor:pointer;" onclick="sortSummaryBy('role')">Role${summarySortArrow('role')}</th><th class="name-col" style="cursor:pointer;" onclick="sortSummaryBy('name')">Player${summarySortArrow('name')}</th>${numericCols.map(([key,label]) => `<th style="cursor:pointer;" onclick="sortSummaryBy('${key}')">${label}${summarySortArrow(key)}</th>`).join('')}</tr>`;
   players.forEach(p => {
-    html += `<tr><td><span class="cls-name-row" style="cursor:pointer;" onclick='showPlayerProfile(${jsAttr(p.name)})' title="Click for full profile">${classIcon(p.className)}<span style="${classColor(p.className) ? `color:${classColor(p.className)};` : ''}">${esc(p.name)}</span></span></td>`;
-    html += `<td>${roleIcon(getDetectedRole(p.name))}</td>`;
+    html += `<tr><td>${roleIcon(getDetectedRole(p.name))}</td><td><span class="cls-name-row" style="cursor:pointer;" onclick='showPlayerProfile(${jsAttr(p.name)})' title="Click for full profile">${classIcon(p.className)}<span style="${classColor(p.className) ? `color:${classColor(p.className)};` : ''}">${esc(p.name)}</span></span></td>`;
     html += `<td style="color:${STATUS_COLOR.good};font-weight:600;">${p.total}</td><td>${p.food}</td><td>${p.flask}</td><td>${p.scroll}</td><td>${p.weapon}</td><td>${p.potions}</td><td>${p.runes}</td><td>${p.other}</td></tr>`;
   });
   html += '</table>';
@@ -1564,10 +1562,9 @@ function renderConsumables() {
   if (search) rows = rows.filter(r => r.character_name.toLowerCase().includes(search));
   rows = applyConsumablesSort(rows);
 
-  let html = `<table class="dense-check-table"><tr><th class="name-col" style="cursor:pointer;" onclick="sortConsumablesBy('name')">Player${sortArrow('name')}</th><th style="cursor:pointer;" onclick="sortConsumablesBy('role')">Role${sortArrow('role')}</th>${CONSUMABLE_COLS.map(c => `<th style="cursor:pointer;" onclick="sortConsumablesBy('${c.key}')">${c.label}${sortArrow(c.key)}</th>`).join('')}</tr>`;
+  let html = `<table class="dense-check-table"><tr><th style="cursor:pointer;" onclick="sortConsumablesBy('role')">Role${sortArrow('role')}</th><th class="name-col" style="cursor:pointer;" onclick="sortConsumablesBy('name')">Player${sortArrow('name')}</th>${CONSUMABLE_COLS.map(c => `<th style="cursor:pointer;" onclick="sortConsumablesBy('${c.key}')">${c.label}${sortArrow(c.key)}</th>`).join('')}</tr>`;
   rows.forEach(r => {
-    html += `<tr><td><span class="cls-name-row" style="cursor:pointer;" onclick='showPlayerProfile(${jsAttr(r.character_name)}, ${jsAttr(boss)})' title="Click for full profile">${classIcon(r.class_name)}<span style="${classColor(r.class_name) ? `color:${classColor(r.class_name)};` : ''}">${esc(r.character_name)}</span></span></td>`;
-    html += `<td>${roleIcon(getDetectedRole(r.character_name))}</td>`;
+    html += `<tr><td>${roleIcon(getDetectedRole(r.character_name))}</td><td><span class="cls-name-row" style="cursor:pointer;" onclick='showPlayerProfile(${jsAttr(r.character_name)}, ${jsAttr(boss)})' title="Click for full profile">${classIcon(r.class_name)}<span style="${classColor(r.class_name) ? `color:${classColor(r.class_name)};` : ''}">${esc(r.character_name)}</span></span></td>`;
     CONSUMABLE_COLS.forEach(c => {
       const { status, label } = getConsumableCellStatus(r, c.key);
       html += `<td style="cursor:pointer;color:${STATUS_COLOR[status]};font-weight:600;" onclick='showConsumableDetail(${jsAttr(r.character_name)}, ${jsAttr(boss)}, ${jsAttr(c.key)})' title="Click for detail">${label}</td>`;
@@ -2486,9 +2483,14 @@ function isStatWrongForClass(stat, className) {
 // and tank. A "dps" role could be physical OR caster DPS, and self-relative
 // activity alone can't tell those apart, so 'dps' deliberately adds no
 // extra flagging beyond the existing class-based check.
-function isStatWrongForRole(stat, role) {
+//
+// Paladin tanks are a real exception: Protection Paladins scale their
+// threat (Consecration, Holy Shield, Judgement) directly with spell
+// damage, unlike Warrior/Druid tanks who get nothing from it - verified,
+// not assumed, after this got flagged as a real mistake on a real player.
+function isStatWrongForRole(stat, role, className) {
   if (role === 'healer') return stat === 'strength' || stat === 'agility' || stat === 'spellDamage';
-  if (role === 'tank') return stat === 'spellDamage' || stat === 'spellHealing';
+  if (role === 'tank') return (stat === 'spellDamage' && className !== 'Paladin') || stat === 'spellHealing';
   return false;
 }
 const GUARDIAN_ELIXIRS_SYNC = [
@@ -3192,7 +3194,7 @@ async function confirmSync() {
         elixirType = 'elixir';
         tierIssue = battleMatch.tier === 'suboptimal' || guardianMatch.tier === 'suboptimal'
           || isStatWrongForClass(battleMatch.stat, info.className) || isStatWrongForClass(guardianMatch.stat, info.className)
-          || isStatWrongForRole(battleMatch.stat, detectedRole) || isStatWrongForRole(guardianMatch.stat, detectedRole);
+          || isStatWrongForRole(battleMatch.stat, detectedRole, info.className) || isStatWrongForRole(guardianMatch.stat, detectedRole, info.className);
       }
       else if (battleMatch || guardianMatch) { elixirType = 'partial'; }
       else { elixirType = 'none'; }
@@ -3230,7 +3232,7 @@ async function confirmSync() {
         potions: { count: (info.destroCount || 0) + (info.hasteCount || 0) + (info.manaCount || 0) + (info.ironshieldCount || 0), names: potionNames },
         other: info.other || [],
         runes: { count: (info.runes || []).reduce((sum, r) => sum + r.count, 0), names: (info.runes || []).map(r => `${r.name} x${r.count}`) },
-        weapon_enchant: { status: info.weaponEnchant ? ((info.weaponEnchant.tierIssue || isStatWrongForRole(info.weaponEnchant.stat, detectedRole)) ? 'suboptimal' : 'good') : 'missing', name: info.weaponEnchant?.name, enchantId: info.weaponEnchant?.enchantId, tierIssue: info.weaponEnchant?.tierIssue || isStatWrongForRole(info.weaponEnchant?.stat, detectedRole) },
+        weapon_enchant: { status: info.weaponEnchant ? ((info.weaponEnchant.tierIssue || isStatWrongForRole(info.weaponEnchant.stat, detectedRole, info.className)) ? 'suboptimal' : 'good') : 'missing', name: info.weaponEnchant?.name, enchantId: info.weaponEnchant?.enchantId, tierIssue: info.weaponEnchant?.tierIssue || isStatWrongForRole(info.weaponEnchant?.stat, detectedRole, info.className) },
       });
     });
   });

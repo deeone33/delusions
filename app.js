@@ -9,6 +9,7 @@ const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 let currentUser    = null;
 let currentProfile = null;
+const SITE_VERSION = 92; // bump with every deploy so GM can confirm they're on the latest upload
 
 // ---- AUTH ----
 async function loadSession() {
@@ -18,6 +19,8 @@ async function loadSession() {
   const { data } = await sb.from('profiles').select('*').eq('id', user.id).single();
   currentProfile = data;
   updateLastSeen();
+  const versionEl = document.getElementById('version-display');
+  if (versionEl) { versionEl.textContent = isGM() ? `v${SITE_VERSION}` : ''; versionEl.style.display = isGM() ? '' : 'none'; }
   return data;
 }
 
